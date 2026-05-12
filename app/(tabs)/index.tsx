@@ -6,7 +6,7 @@ import { ThemedView } from '@/components/themed-view';
 export default function HomeScreen() {
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">Hello World</ThemedText>
+      <ThemedText>hello world</ThemedText>
     </ThemedView>
   );
 }
