@@ -50,6 +50,13 @@ export default function TabLayout() {
         tabBarIcon: () => null,
       }}
       tabBar={() => <TabBarWithNavigation />}>
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: '',
+          tabBarButton: () => null,
+        }}
+      />
       <Tabs.Screen name="home" options={{ title: 'Spot' }} />
       <Tabs.Screen name="dex" options={{ title: 'Dex' }} />
       <Tabs.Screen name="map" options={{ title: 'Map' }} />

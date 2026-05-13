@@ -1,9 +1,7 @@
-import React from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
 
 type Tab = 'spot' | 'dex' | 'map' | 'me';
@@ -16,22 +14,16 @@ interface Props {
 
 const TAB_HEIGHT = 60;
 const FAB_SIZE = 56;
-/** Height above tab row needed so FAB’s top half sits outside the bar */
-const FAB_OVERFLOW = FAB_SIZE / 2;
 
 export default function BottomNav({ activeTab, onTabPress, onCapture }: Props) {
   const insets = useSafeAreaInsets();
 
-  const tabs: { key: Tab; label: string; icon: string; iconActive: string }[] = [
-    { key: 'spot', label: 'Spot',  icon: 'home-outline',    iconActive: 'home' },
-    { key: 'dex',  label: 'Dex',   icon: 'grid-outline',    iconActive: 'grid' },
-    { key: 'map',  label: 'Map',   icon: 'map-outline',     iconActive: 'map' },
-    { key: 'me',   label: 'Me',    icon: 'person-outline',  iconActive: 'person' },
+  const tabs = [
+    { key: 'spot' as Tab, label: 'Spot', icon: 'home-outline', iconActive: 'home' },
+    { key: 'dex'  as Tab, label: 'Dex',  icon: 'grid-outline', iconActive: 'grid' },
+    { key: 'map'  as Tab, label: 'Map',  icon: 'map-outline',  iconActive: 'map'  },
+    { key: 'me'   as Tab, label: 'Me',   icon: 'person-outline', iconActive: 'person' },
   ];
-
-  // Split tabs around the FAB slot in the center
-  const leftTabs  = tabs.slice(0, 2);
-  const rightTabs = tabs.slice(2);
 
   const renderTab = (tab: typeof tabs[0]) => {
     const active = activeTab === tab.key;
@@ -55,52 +47,39 @@ export default function BottomNav({ activeTab, onTabPress, onCapture }: Props) {
   };
 
   return (
-    <View
-      style={[
-        styles.wrapper,
-        { paddingBottom: insets.bottom },
-      ]}
-    >
-      <View style={styles.inner}>
-        <View style={styles.bar}>
-          <View style={styles.side}>{leftTabs.map(renderTab)}</View>
-          <View style={styles.fabSlot} />
-          <View style={styles.side}>{rightTabs.map(renderTab)}</View>
-        </View>
+    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+      {/* FAB floats above, centered */}
+      <View style={styles.fabWrap} pointerEvents="box-none">
+        <TouchableOpacity style={styles.fab} onPress={onCapture} activeOpacity={0.85}>
+          <Ionicons name="camera" size={26} color="#fff" />
+        </TouchableOpacity>
+      </View>
 
-        <View style={styles.fabContainer} pointerEvents="box-none">
-          <TouchableOpacity
-            style={styles.fab}
-            onPress={onCapture}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="camera" size={26} color="#fff" />
-          </TouchableOpacity>
-        </View>
+      {/* Tab row */}
+      <View style={styles.row}>
+        {tabs.slice(0, 2).map(renderTab)}
+        <View style={styles.fabGap} />
+        {tabs.slice(2).map(renderTab)}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
+  container: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: colors.ink,
   },
-  inner: {
-    position: 'relative',
-    height: TAB_HEIGHT + FAB_OVERFLOW,
-  },
-  fabContainer: {
+  fabWrap: {
     position: 'absolute',
+    top: -(FAB_SIZE * 0.6),
     left: 0,
     right: 0,
-    bottom: TAB_HEIGHT - FAB_SIZE / 2,
     alignItems: 'center',
-    zIndex: 10,
+    zIndex: 20,
   },
   fab: {
     width: FAB_SIZE,
@@ -111,24 +90,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     shadowColor: colors.green,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
     elevation: 8,
   },
-  bar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+  row: {
     height: TAB_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
   },
-  side: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  fabSlot: {
+  fabGap: {
     width: FAB_SIZE + 16,
   },
   tab: {
@@ -139,10 +110,8 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 11,
-    fontFamily: 'Nunito',
     fontWeight: '600',
     color: '#8BA5BC',
-    letterSpacing: 0.2,
   },
   labelActive: {
     color: colors.green,
