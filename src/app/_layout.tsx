@@ -2,7 +2,7 @@ import 'react-native-reanimated'
 
 import { Stack } from 'expo-router'
 
-import { AppProviders } from '@/src/app/providers'
+import { AppProviders } from '@/src/providers'
 
 export const unstable_settings = {
   anchor: '(tabs)',
