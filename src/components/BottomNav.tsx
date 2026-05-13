@@ -58,42 +58,47 @@ export default function BottomNav({ activeTab, onTabPress, onCapture }: Props) {
       : { elevation: 10 }
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          paddingBottom: insets.bottom,
-          borderTopColor: colors.hairline,
-        },
-      ]}>
-      <View style={styles.fabWrap} pointerEvents="box-none">
-        <TouchableOpacity
-          style={[styles.fab, fabShadow]}
-          onPress={onCapture}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="Capture">
-          <Ionicons name="camera" size={26} color="#fff" />
-        </TouchableOpacity>
-      </View>
+    <View style={styles.root}>
+      <View
+        style={[
+          styles.container,
+          {
+            paddingBottom: insets.bottom,
+            borderTopColor: colors.hairline,
+          },
+        ]}>
+        <View style={styles.fabWrap} pointerEvents="box-none">
+          <TouchableOpacity
+            style={[styles.fab, fabShadow]}
+            onPress={onCapture}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Capture">
+            <Ionicons name="camera" size={26} color="#fff" />
+          </TouchableOpacity>
+        </View>
 
-      <View style={styles.row}>
-        {tabs.slice(0, 2).map(renderTab)}
-        <View style={styles.fabGap} />
-        {tabs.slice(2).map(renderTab)}
+        <View style={styles.row}>
+          {tabs.slice(0, 2).map(renderTab)}
+          <View style={styles.fabGap} />
+          {tabs.slice(2).map(renderTab)}
+        </View>
       </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.card,
+    backgroundColor: colors.ink,
+  },
+  container: {
     borderTopWidth: StyleSheet.hairlineWidth,
+    backgroundColor: 'transparent',
   },
   fabWrap: {
     position: 'absolute',
