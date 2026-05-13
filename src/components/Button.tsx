@@ -1,3 +1,1 @@
-export function Button() {
-  return null
-}
+export { Button } from '@/src/design/atoms/Button'

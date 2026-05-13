@@ -1,68 +1,89 @@
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '../constants/colors';
+import { Ionicons } from '@expo/vector-icons'
+import React from 'react'
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-type Tab = 'spot' | 'dex' | 'map' | 'me';
+import { colors } from '../constants/colors'
+
+type Tab = 'spot' | 'dex' | 'map' | 'me'
 
 interface Props {
-  activeTab: Tab;
-  onTabPress: (tab: Tab) => void;
-  onCapture: () => void;
+  activeTab: Tab
+  onTabPress: (tab: Tab) => void
+  onCapture: () => void
 }
 
-const TAB_HEIGHT = 60;
-const FAB_SIZE = 56;
+const TAB_HEIGHT = 60
+const FAB_SIZE = 56
 
 export default function BottomNav({ activeTab, onTabPress, onCapture }: Props) {
-  const insets = useSafeAreaInsets();
+  const insets = useSafeAreaInsets()
 
   const tabs = [
     { key: 'spot' as Tab, label: 'Spot', icon: 'home-outline', iconActive: 'home' },
-    { key: 'dex'  as Tab, label: 'Dex',  icon: 'grid-outline', iconActive: 'grid' },
-    { key: 'map'  as Tab, label: 'Map',  icon: 'map-outline',  iconActive: 'map'  },
-    { key: 'me'   as Tab, label: 'Me',   icon: 'person-outline', iconActive: 'person' },
-  ];
+    { key: 'dex' as Tab, label: 'Dex', icon: 'grid-outline', iconActive: 'grid' },
+    { key: 'map' as Tab, label: 'Map', icon: 'map-outline', iconActive: 'map' },
+    { key: 'me' as Tab, label: 'Me', icon: 'person-outline', iconActive: 'person' },
+  ]
 
-  const renderTab = (tab: typeof tabs[0]) => {
-    const active = activeTab === tab.key;
+  const renderTab = (tab: (typeof tabs)[0]) => {
+    const active = activeTab === tab.key
     return (
       <TouchableOpacity
         key={tab.key}
         style={styles.tab}
         onPress={() => onTabPress(tab.key)}
         activeOpacity={0.7}
-      >
+        accessibilityRole="button"
+        accessibilityState={{ selected: active }}
+        accessibilityLabel={tab.label}>
         <Ionicons
-          name={(active ? tab.iconActive : tab.icon) as any}
+          name={(active ? tab.iconActive : tab.icon) as keyof typeof Ionicons.glyphMap}
           size={24}
-          color={active ? colors.green : '#8BA5BC'}
+          color={active ? colors.green : colors.dim}
         />
-        <Text style={[styles.label, active && styles.labelActive]}>
-          {tab.label}
-        </Text>
+        <Text style={[styles.label, active && styles.labelActive]}>{tab.label}</Text>
       </TouchableOpacity>
-    );
-  };
+    )
+  }
+
+  const fabShadow =
+    Platform.OS === 'ios'
+      ? {
+          shadowColor: colors.green,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.35,
+          shadowRadius: 10,
+        }
+      : { elevation: 10 }
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-      {/* FAB floats above, centered */}
+    <View
+      style={[
+        styles.container,
+        {
+          paddingBottom: insets.bottom,
+          borderTopColor: colors.hairline,
+        },
+      ]}>
       <View style={styles.fabWrap} pointerEvents="box-none">
-        <TouchableOpacity style={styles.fab} onPress={onCapture} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={[styles.fab, fabShadow]}
+          onPress={onCapture}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Capture">
           <Ionicons name="camera" size={26} color="#fff" />
         </TouchableOpacity>
       </View>
 
-      {/* Tab row */}
       <View style={styles.row}>
         {tabs.slice(0, 2).map(renderTab)}
         <View style={styles.fabGap} />
         {tabs.slice(2).map(renderTab)}
       </View>
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -71,11 +92,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.ink,
+    backgroundColor: colors.card,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   fabWrap: {
     position: 'absolute',
-    top: -(FAB_SIZE * 0.6),
+    top: -(FAB_SIZE / 2),
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -86,13 +108,10 @@ const styles = StyleSheet.create({
     height: FAB_SIZE,
     borderRadius: FAB_SIZE / 2,
     backgroundColor: colors.green,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.green,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 8,
   },
   row: {
     height: TAB_HEIGHT,
@@ -111,9 +130,11 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#8BA5BC',
+    color: colors.dim,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   labelActive: {
     color: colors.green,
   },
-});
+})

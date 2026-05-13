@@ -1,3 +1,1 @@
-export function KingdomBadge() {
-  return null
-}
+export { KingdomBadge } from '@/src/design/atoms/KingdomBadge'
