@@ -18,6 +18,7 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { colors } from '@/src/design/tokens'
 import { CollectSlide } from '@/src/screens/onboarding/slides/collect-slide'
 import { SnapSlide } from '@/src/screens/onboarding/slides/snap-slide'
 import { WelcomeSlide } from '@/src/screens/onboarding/slides/welcome-slide'
@@ -32,8 +33,8 @@ const FONT_BODY_SEMI = 'Nunito_600SemiBold'
 const FONT_BODY_BOLD = 'Nunito_700Bold'
 
 function PaginationDots({ activeIndex, variant }: { activeIndex: number; variant: 'light' | 'dark' }) {
-  const activeBg = variant === 'light' ? 'rgba(255,255,255,0.95)' : '#152130'
-  const idleBg = variant === 'light' ? 'rgba(255,255,255,0.35)' : 'rgba(21,33,48,0.22)'
+  const activeBg = variant === 'light' ? colors.card : colors.ink
+  const idleBg = variant === 'light' ? 'rgba(255,255,255,0.55)' : 'rgba(21,33,48,0.22)'
 
   return (
     <View style={styles.dotsRow} accessibilityLabel={`Onboarding page ${activeIndex + 1} of ${SLIDE_COUNT}`}>
@@ -41,7 +42,7 @@ function PaginationDots({ activeIndex, variant }: { activeIndex: number; variant
         <View
           key={i}
           style={[
-            styles.dot,
+            styles.dotBase,
             i === activeIndex ? [styles.dotActive, { backgroundColor: activeBg }] : [styles.dotIdle, { backgroundColor: idleBg }],
           ]}
         />
@@ -126,13 +127,13 @@ export function OnboardingFlow() {
         ) : null}
       </View>
     ),
-    [goHome, goNext, height, insets],
+    [goHome, goNext, height, insets, width],
   )
 
   if (!fontsReady) {
     return (
       <View style={[styles.loader, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color="#15B981" />
+        <ActivityIndicator size="large" color={colors.green} />
       </View>
     )
   }
@@ -167,13 +168,13 @@ export function OnboardingFlow() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.bg,
   },
   loader: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFF8E7',
+    backgroundColor: colors.bg,
   },
   dotsOverlay: {
     position: 'absolute',
@@ -186,14 +187,14 @@ const styles = StyleSheet.create({
   dotsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
-  dot: {
+  dotBase: {
     height: 8,
     borderRadius: 4,
   },
   dotActive: {
-    width: 22,
+    width: 24,
   },
   dotIdle: {
     width: 8,

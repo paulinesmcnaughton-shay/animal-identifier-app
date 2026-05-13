@@ -1,13 +1,19 @@
-import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
+import { Ionicons } from '@expo/vector-icons'
 import type { EdgeInsets } from 'react-native-safe-area-context'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 
-import { colors } from '@/src/design/tokens'
+import { OnboardingSpeciesArt } from '@/src/screens/onboarding/onboarding-species-art'
+import { colors, radius, space, type as typeTokens } from '@/src/design/tokens'
 
-const CARD = 130
-const R = 28
-const LOGO = 56
+/** Design file warm stops (between token sun / coral). */
+const WELCOME_TOP = '#FFE89C'
+const WELCOME_MID = colors.sun
+const WELCOME_END = '#FF9D5C'
+
+const LOGO = 88
+const CLUSTER_W = 320
+const CLUSTER_H = 280
 
 interface WelcomeSlideProps {
   insets: EdgeInsets
@@ -18,52 +24,80 @@ interface WelcomeSlideProps {
 }
 
 export function WelcomeSlide({ insets, onStart, displayFont, bodyFont, slideHeight }: WelcomeSlideProps) {
-  const bottomPad = Math.max(insets.bottom, 16) + 36
+  const bottomPad = Math.max(insets.bottom, 50)
 
   return (
-    <LinearGradient colors={['#FFC93C', '#FF9500']} style={[styles.flex, { minHeight: slideHeight }]} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}>
-      <View style={[styles.bokeh, { top: insets.top + 60, left: 24 }]} />
-      <View style={[styles.bokeh, { top: insets.top + 140, right: 40 }]} />
-      <View style={[styles.bokeh, { top: slideHeight * 0.35, left: '18%' }]} />
-      <View style={[styles.bokeh, { top: slideHeight * 0.42, right: '22%' }]} />
+    <View style={[styles.flex, { minHeight: slideHeight }]}>
+      <LinearGradient
+        colors={[WELCOME_TOP, WELCOME_MID, WELCOME_END]}
+        locations={[0, 0.45, 1]}
+        start={{ x: 0.15, y: 0 }}
+        end={{ x: 0.95, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
 
-      <View style={[styles.topBlock, { paddingTop: insets.top + 24 }]}>
+      <View style={[styles.bokeh, { top: insets.top + 90, left: 30, width: 8, height: 8, borderRadius: 4, opacity: 0.5 }]} />
+      <View style={[styles.bokeh, { top: insets.top + 130, right: 50, width: 12, height: 12, borderRadius: 6, opacity: 0.4 }]} />
+      <View style={[styles.bokeh, { top: insets.top + 200, left: 70, width: 6, height: 6, borderRadius: 3, opacity: 0.6 }]} />
+      <View style={[styles.bokeh, { bottom: 280, right: 80, width: 14, height: 14, borderRadius: 7, opacity: 0.35 }]} />
+
+      <View style={[styles.hero, { top: insets.top + 110 }]}>
         <View style={styles.logo}>
-          <Ionicons name="leaf" size={28} color="#fff" />
+          <Ionicons name="leaf" size={40} color={colors.card} />
         </View>
         <Text style={[styles.title, { fontFamily: displayFont }]}>Wildr</Text>
-        <Text style={[styles.kicker, { fontFamily: bodyFont }]}>YOUR POCKET FIELD GUIDE</Text>
+        <Text style={[styles.tagline, { fontFamily: bodyFont }]}>Your Pocket Field Guide</Text>
       </View>
 
-      <View style={styles.cardsStage}>
-        <View style={[styles.card, styles.cardOrange, { top: 8, left: 16, transform: [{ rotate: '-8deg' }] }]} />
-        <View style={[styles.card, styles.cardYellow, { top: 0, right: 20, transform: [{ rotate: '10deg' }] }]} />
-        <View style={[styles.card, styles.cardGreen, { bottom: 12, alignSelf: 'center', transform: [{ rotate: '-4deg' }] }]} />
+      <View style={[styles.clusterWrap, { top: insets.top + 320 }]}>
+        <View style={{ width: CLUSTER_W, height: CLUSTER_H }}>
+          <View style={[styles.clusterCard, { top: 0, left: 40, transform: [{ rotate: '-8deg' }] }]}>
+            <OnboardingSpeciesArt kind="fox" size={150} rounded={36} />
+          </View>
+          <View style={[styles.clusterCard, { top: 30, right: 20, transform: [{ rotate: '10deg' }] }]}>
+            <OnboardingSpeciesArt kind="monarch" size={130} rounded={32} />
+          </View>
+          <View style={[styles.clusterCard, { bottom: 0, left: 80, transform: [{ rotate: '4deg' }] }]}>
+            <OnboardingSpeciesArt kind="frog" size={140} rounded={34} />
+          </View>
+        </View>
       </View>
 
-      <View style={[styles.footer, { paddingBottom: bottomPad }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Start exploring" onPress={onStart} style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
-          <Text style={[styles.ctaText, { fontFamily: bodyFont }]}>START EXPLORING</Text>
+      <LinearGradient
+        colors={['rgba(255,157,92,0)', 'rgba(255,157,92,0.85)']}
+        locations={[0, 1]}
+        style={styles.bottomFade}
+        pointerEvents="none"
+      />
+
+      <View style={[styles.footer, { paddingBottom: bottomPad, paddingTop: space[24], paddingHorizontal: space[24] }]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Start exploring"
+          onPress={onStart}
+          style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
+          <Text style={[styles.ctaText, { fontFamily: displayFont }]}>Start Exploring</Text>
         </Pressable>
       </View>
-    </LinearGradient>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
+    overflow: 'hidden',
   },
   bokeh: {
     position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: colors.card,
   },
-  topBlock: {
+  hero: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     alignItems: 'center',
-    gap: 10,
+    gap: 18,
   },
   logo: {
     width: LOGO,
@@ -72,62 +106,73 @@ const styles = StyleSheet.create({
     backgroundColor: colors.green,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: colors.greenDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
   },
   title: {
-    fontSize: 48,
-    color: '#FFFFFF',
-    letterSpacing: -1,
+    fontSize: 54,
+    color: colors.card,
+    lineHeight: 54,
+    letterSpacing: -0.8,
+    textShadowColor: 'rgba(146,99,58,0.25)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 0,
   },
-  kicker: {
-    fontSize: 11,
-    color: '#FFFFFF',
-    letterSpacing: 2.4,
-    textTransform: 'uppercase',
+  tagline: {
+    fontSize: 16,
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.card,
     opacity: 0.95,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
-  cardsStage: {
-    flex: 1,
-    marginTop: 8,
-    position: 'relative',
-    minHeight: CARD + 40,
-  },
-  card: {
+  clusterWrap: {
     position: 'absolute',
-    width: CARD,
-    height: CARD,
-    borderRadius: R,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 6,
+    left: 0,
+    right: 0,
+    height: CLUSTER_H,
+    alignItems: 'center',
   },
-  cardOrange: {
-    backgroundColor: '#FF9500',
+  clusterCard: {
+    position: 'absolute',
   },
-  cardYellow: {
-    backgroundColor: '#FFC93C',
-  },
-  cardGreen: {
-    backgroundColor: colors.green,
+  bottomFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 160,
   },
   footer: {
-    paddingHorizontal: 20,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   cta: {
     backgroundColor: colors.green,
-    borderRadius: 18,
-    paddingVertical: 16,
+    borderRadius: radius.lg,
+    paddingVertical: space[16],
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: colors.greenDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 6,
   },
   ctaPressed: {
-    opacity: 0.9,
+    opacity: 0.92,
+    transform: [{ translateY: 1 }],
   },
   ctaText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    letterSpacing: 1,
+    color: colors.card,
+    fontSize: typeTokens.size.displaySM,
+    letterSpacing: 0.3,
     textTransform: 'uppercase',
+    fontWeight: typeTokens.display.weight,
   },
 })
