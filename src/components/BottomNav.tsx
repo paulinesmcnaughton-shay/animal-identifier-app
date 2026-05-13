@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Platform,
+  View, Text, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +16,8 @@ interface Props {
 
 const TAB_HEIGHT = 60;
 const FAB_SIZE = 56;
-const FAB_OVERLAP = 28; // how much FAB rises above the bar
+/** Height above tab row needed so FAB’s top half sits outside the bar */
+const FAB_OVERFLOW = FAB_SIZE / 2;
 
 export default function BottomNav({ activeTab, onTabPress, onCapture }: Props) {
   const insets = useSafeAreaInsets();
@@ -54,23 +55,28 @@ export default function BottomNav({ activeTab, onTabPress, onCapture }: Props) {
   };
 
   return (
-    <View style={[styles.wrapper, { paddingBottom: insets.bottom }]}>
-      {/* FAB sits centered, overlapping the top of the bar */}
-      <View style={styles.fabContainer} pointerEvents="box-none">
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={onCapture}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="camera" size={26} color="#fff" />
-        </TouchableOpacity>
-      </View>
+    <View
+      style={[
+        styles.wrapper,
+        { paddingBottom: insets.bottom },
+      ]}
+    >
+      <View style={styles.inner}>
+        <View style={styles.bar}>
+          <View style={styles.side}>{leftTabs.map(renderTab)}</View>
+          <View style={styles.fabSlot} />
+          <View style={styles.side}>{rightTabs.map(renderTab)}</View>
+        </View>
 
-      <View style={styles.bar}>
-        <View style={styles.side}>{leftTabs.map(renderTab)}</View>
-        {/* Empty slot where FAB sits */}
-        <View style={styles.fabSlot} />
-        <View style={styles.side}>{rightTabs.map(renderTab)}</View>
+        <View style={styles.fabContainer} pointerEvents="box-none">
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={onCapture}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="camera" size={26} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -78,14 +84,21 @@ export default function BottomNav({ activeTab, onTabPress, onCapture }: Props) {
 
 const styles = StyleSheet.create({
   wrapper: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: colors.ink,
-    // No top border — the FAB overlaps cleanly
+  },
+  inner: {
+    position: 'relative',
+    height: TAB_HEIGHT + FAB_OVERFLOW,
   },
   fabContainer: {
     position: 'absolute',
-    top: -FAB_OVERLAP,
     left: 0,
     right: 0,
+    bottom: TAB_HEIGHT - FAB_SIZE / 2,
     alignItems: 'center',
     zIndex: 10,
   },
@@ -96,7 +109,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.green,
     alignItems: 'center',
     justifyContent: 'center',
-    // Chunky shadow for iOS (RN can't do blur shadows natively)
     shadowColor: colors.green,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.45,
@@ -104,17 +116,20 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   bar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     height: TAB_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: FAB_OVERLAP / 2, // push content down slightly for FAB clearance
   },
   side: {
     flex: 1,
     flexDirection: 'row',
   },
   fabSlot: {
-    width: FAB_SIZE + 16, // a bit wider than the FAB
+    width: FAB_SIZE + 16,
   },
   tab: {
     flex: 1,
