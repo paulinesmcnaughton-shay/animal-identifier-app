@@ -80,7 +80,11 @@ export function OnboardingFlow() {
   }, [])
 
   const goHome = useCallback(() => {
-    router.replace('/home' as Href)
+    router.push('/signup' as Href)
+  }, [router])
+
+  const goLogin = useCallback(() => {
+    router.push('/login' as Href)
   }, [router])
 
   const onMomentumScrollEnd = useCallback(
@@ -99,6 +103,7 @@ export function OnboardingFlow() {
           <WelcomeSlide
             insets={insets}
             onStart={goNext}
+            onLogin={goLogin}
             displayFont={FONT_DISPLAY}
             bodyFont={FONT_BODY_SEMI}
             slideHeight={height}

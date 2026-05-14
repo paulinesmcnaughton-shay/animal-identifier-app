@@ -65,7 +65,7 @@ export function CollectSlide({ insets, onFinish, onSkip, displayFont, bodyFont, 
       <View style={[styles.topCopy, { paddingTop: insets.top + 110 }]}>
         <View style={styles.pillRow}>
           <View style={styles.pill}>
-            <Text style={styles.pillText}>Like Pokédex</Text>
+            <Text style={styles.pillText}>Your Field Guide</Text>
           </View>
         </View>
         <Text style={[styles.headline, { fontFamily: displayFont }]}>

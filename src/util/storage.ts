@@ -1,16 +1,13 @@
-/**
- * Persistent key-value storage — swap for react-native-mmkv when installed.
- */
-const memory = new Map<string, string>()
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 export const storage = {
-  getString(key: string) {
-    return memory.get(key) ?? null
+  async getString(key: string) {
+    return AsyncStorage.getItem(key)
   },
-  set(key: string, value: string) {
-    memory.set(key, value)
+  async set(key: string, value: string) {
+    return AsyncStorage.setItem(key, value)
   },
-  delete(key: string) {
-    memory.delete(key)
+  async delete(key: string) {
+    return AsyncStorage.removeItem(key)
   },
 }

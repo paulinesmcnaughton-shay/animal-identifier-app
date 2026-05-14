@@ -1,10 +1,34 @@
+export const color = {
+  // Brand
+  green: '#15B981',
+  greenDark: '#0E8F65',
+  lime: '#A4DE3A',
+
+  // Accents
+  coral: '#FF6B5B',
+  coralDeep: '#E04A39',
+  sun: '#FFC93C',
+  sky: '#5BC0EB',
+  plum: '#A855F7',
+  earth: '#92633A',
+
+  // Neutrals
+  ink: '#152130',
+  ink2: '#33455A',
+  dim: '#7388A0',
+  hair: '#E7EDF3',
+  bg: '#FAF7F0',
+  bg2: '#FFFBF0',
+  card: '#FFFFFF',
+  black: '#000000',
+} as const
+
+/** @deprecated Prefer `color` from the design doc; kept for existing `colors.*` imports */
 export const colors = {
-  green: '#15B981', greenDark: '#0E8F65', lime: '#A4DE3A',
-  coral: '#FF6B5B', coralDeep: '#E04A39', sun: '#FFC93C',
-  sky: '#5BC0EB', skyDeep: '#2A8FB8', plum: '#A855F7',
-  earth: '#92633A', earthLight: '#D4B896',
-  ink: '#152130', ink2: '#33455A', dim: '#7388A0',
-  bg: '#FFF8E7', bg2: '#FFFBF0', card: '#FFFFFF', hairline: '#E7EDF3',
+  ...color,
+  hairline: color.hair,
+  skyDeep: '#2A8FB8',
+  earthLight: '#D4B896',
 } as const
 
 export const space = { 2:2, 4:4, 6:6, 8:8, 10:10, 12:12, 14:14, 16:16, 20:20, 24:24, 28:28, 32:32, 40:40, 56:56 } as const

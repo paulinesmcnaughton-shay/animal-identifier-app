@@ -18,12 +18,13 @@ const CLUSTER_H = 280
 interface WelcomeSlideProps {
   insets: EdgeInsets
   onStart: () => void
+  onLogin: () => void
   displayFont: string
   bodyFont: string
   slideHeight: number
 }
 
-export function WelcomeSlide({ insets, onStart, displayFont, bodyFont, slideHeight }: WelcomeSlideProps) {
+export function WelcomeSlide({ insets, onStart, onLogin, displayFont, bodyFont, slideHeight }: WelcomeSlideProps) {
   const bottomPad = Math.max(insets.bottom, 50)
 
   return (
@@ -77,6 +78,13 @@ export function WelcomeSlide({ insets, onStart, displayFont, bodyFont, slideHeig
           onPress={onStart}
           style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
           <Text style={[styles.ctaText, { fontFamily: displayFont }]}>Start Exploring</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Log in to existing account"
+          onPress={onLogin}
+          style={({ pressed }) => [styles.loginBtn, pressed && styles.loginBtnPressed]}>
+          <Text style={[styles.loginText, { fontFamily: bodyFont }]}>Already have an account? <Text style={styles.loginTextBold}>Log In</Text></Text>
         </Pressable>
       </View>
     </View>
@@ -174,5 +182,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: 'uppercase',
     fontWeight: typeTokens.display.weight,
+  },
+  loginBtn: {
+    marginTop: space[16],
+    alignItems: 'center',
+    paddingVertical: space[8],
+  },
+  loginBtnPressed: {
+    opacity: 0.7,
+  },
+  loginText: {
+    fontSize: typeTokens.size.body,
+    color: colors.card,
+    opacity: 0.9,
+  },
+  loginTextBold: {
+    fontWeight: '700',
   },
 })
