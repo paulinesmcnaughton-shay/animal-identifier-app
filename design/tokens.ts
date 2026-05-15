@@ -1,0 +1,58 @@
+export const colors = {
+  // Brand primary
+  green:      '#15B981',
+  greenDark:  '#0E8F65',
+  lime:       '#A4DE3A',
+  // Brand accents
+  coral:      '#FF6B5B',
+  coralDeep:  '#E04A39',
+  sun:        '#FFC93C',
+  sky:        '#5BC0EB',
+  skyDeep:    '#2A8FB8',
+  plum:       '#A855F7',
+  earth:      '#92633A',
+  earthLight: '#D4B896',
+  // Text
+  ink:        '#152130',
+  ink2:       '#33455A',
+  dim:        '#7388A0',
+  // Surfaces
+  bg:         '#FFF8E7',
+  bg2:        '#FFFBF0',
+  card:       '#FFFFFF',
+  hairline:   '#E7EDF3',
+} as const
+
+/** @deprecated Use `colors` */
+export const color = {
+  ...colors,
+  hair: colors.hairline,
+  black: '#000000',
+} as const
+
+export const shadow = {
+  card: {
+    shadowColor: '#152130',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  pop: {
+    shadowColor: '#152130',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+} as const
+
+export const space = { 2:2, 4:4, 6:6, 8:8, 10:10, 12:12, 14:14, 16:16, 20:20, 24:24, 28:28, 32:32, 40:40, 56:56 } as const
+
+export const radius = { sm:8, md:14, lg:18, xl:22, xxl:28, pill:999 } as const
+
+export const type = {
+  display: { family: 'BricolageGrotesque-ExtraBold', weight: '800' as const },
+  body: { family: 'Nunito', weights: { regular:'400', medium:'500', bold:'700', extra:'800', black:'900' } },
+  size: { displayXL:48, displayLG:36, displayMD:30, displaySM:22, title:18, bodyLG:17, body:15, bodySM:14, label:13, caption:12, micro:11 },
+} as const

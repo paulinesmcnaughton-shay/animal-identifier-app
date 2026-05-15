@@ -26,7 +26,7 @@ const RECENT_SPOTS = [
 
 const HEATMAP_WEEKS = 12
 const HEATMAP_DAYS  = 7
-const HEATMAP_DATA  = Array.from({ length: HEATMAP_WEEKS * HEATMAP_DAYS }, (_, i) => {
+const HEATMAP_DATA  = Array.from({ length: HEATMAP_WEEKS * HEATMAP_DAYS }, () => {
   const rand = Math.random()
   if (rand < 0.15) return 0
   if (rand < 0.35) return 1

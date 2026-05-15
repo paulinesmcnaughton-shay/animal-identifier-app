@@ -10,7 +10,14 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.pauline.wildr"
+      "bundleIdentifier": "com.pauline.wildr",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Wildr uses your camera to identify animals and insects in the wild.",
+        "NSPhotoLibraryUsageDescription": "Allow Wildr to identify creatures from photos in your library.",
+        "NSPhotoLibraryAddUsageDescription": "Save Wildr photos to your library.",
+        "NSLocationWhenInUseUsageDescription": "Wildr tags your sightings with where you saw them and shows nearby species.",
+        "NSMicrophoneUsageDescription": "Wildr records nearby animal calls to help identification."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -29,6 +36,21 @@
     "plugins": [
       "expo-router",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Wildr uses your camera to identify animals and insects in the wild.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Wildr to identify creatures from photos in your library.",
+          "savePhotosPermission": "Save Wildr photos to your library."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -39,10 +61,15 @@
             "backgroundColor": "#15B981"
           }
         }
-      ]
+      ],
+      "@rnmapbox/maps"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "mapboxToken": ""
     }
   }
 }
+

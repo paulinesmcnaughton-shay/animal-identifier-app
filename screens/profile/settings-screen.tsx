@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { colors, radius, space, type as typeTokens } from '@/src/design/tokens'
-import { storage } from '@/src/util/storage'
+import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { storage } from '@/util/storage'
 
 type RowAction =
   | { type: 'chevron'; onPress?: () => void }
