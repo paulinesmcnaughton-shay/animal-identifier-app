@@ -13,32 +13,33 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { CollectionStatsCard } from '@/components/collection-stats-card'
 import { DexCard, DexUnknownCard, type DexCardSpecies } from '@/components/DexCard'
+import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 
 const H_PAD = space[20]
 const GAP = space[10]
 
 const MOCK_SPECIES: DexCardSpecies[] = [
-  { id: '1', number: '#012', name: 'Red Fox', date: 'Today', gradient: ['#FFB088', '#FF6B5B'], cornerBadge: 'NEW', showFootprint: true },
-  { id: '2', number: '#089', name: 'Robin', date: 'Yesterday', gradient: ['#7FD8BE', '#15B981'] },
-  { id: '3', number: '#201', name: 'Monarch', date: '3d ago', gradient: ['#FFB347', '#FF8C42'], cornerBadge: 'RARE' },
-  { id: '4', number: '#044', name: 'Badger', date: '1w ago', gradient: ['#A8D8EA', '#5BC0EB'] },
-  { id: '5', number: '#156', name: 'Jay', date: '2w ago', gradient: ['#C9B8FF', '#A855F7'] },
-  { id: '6', number: '#078', name: 'Hare', date: 'Today', gradient: ['#FFD6A5', '#E8A87C'], showFootprint: true },
-  { id: '7', number: '#033', name: 'Newt', date: '4d ago', gradient: ['#98E2C6', '#3DCCA8'] },
-  { id: '8', number: '#112', name: 'Owl', date: '1w ago', gradient: ['#D4C4F5', '#9B7ED9'], cornerBadge: 'NEW' },
+  { id: '1', number: '#012', name: 'Red Fox',  date: 'Today',     kingdom: 'mammal',    gradient: ['#FFB088', '#FF6B5B'], cornerBadge: 'NEW', showFootprint: true },
+  { id: '2', number: '#089', name: 'Robin',    date: 'Yesterday', kingdom: 'bird',      gradient: ['#7FD8BE', '#15B981'] },
+  { id: '3', number: '#201', name: 'Monarch',  date: '3d ago',    kingdom: 'insect',    gradient: ['#FFB347', '#FF8C42'], cornerBadge: 'RARE' },
+  { id: '4', number: '#044', name: 'Badger',   date: '1w ago',    kingdom: 'mammal',    gradient: ['#A8D8EA', '#5BC0EB'] },
+  { id: '5', number: '#156', name: 'Jay',      date: '2w ago',    kingdom: 'bird',      gradient: ['#C9B8FF', '#A855F7'] },
+  { id: '6', number: '#078', name: 'Hare',     date: 'Today',     kingdom: 'mammal',    gradient: ['#FFD6A5', '#E8A87C'], showFootprint: true },
+  { id: '7', number: '#033', name: 'Newt',     date: '4d ago',    kingdom: 'amphibian', gradient: ['#98E2C6', '#3DCCA8'] },
+  { id: '8', number: '#112', name: 'Owl',      date: '1w ago',    kingdom: 'bird',      gradient: ['#D4C4F5', '#9B7ED9'], cornerBadge: 'NEW' },
 ]
 
-const FILTERS = [
-  { key: 'all', label: 'All', count: 47 },
-  { key: 'mammals', label: 'Mammals', count: 8 },
-  { key: 'birds', label: 'Birds', count: 14 },
-  { key: 'insects', label: 'Insects', count: undefined },
-] as const
+const FILTERS: { key: string; label: string; kind: KingdomKey | null }[] = [
+  { key: 'all',       label: 'All 47',  kind: null },
+  { key: 'mammal',    label: 'Mammals', kind: 'mammal' },
+  { key: 'bird',      label: 'Birds',   kind: 'bird' },
+  { key: 'insect',    label: 'Insects', kind: 'insect' },
+]
 
 export function CollectionScreen() {
   const insets = useSafeAreaInsets()
-  const [activeFilter, setActiveFilter] = useState<(typeof FILTERS)[number]['key']>('all')
+  const [activeFilter, setActiveFilter] = useState('all')
 
   const colWidth = useMemo(() => {
     const w = Dimensions.get('window').width
@@ -46,18 +47,23 @@ export function CollectionScreen() {
   }, [])
 
   const rows = useMemo(() => {
-    const items: { kind: 'species'; data: DexCardSpecies }[] = MOCK_SPECIES.map((s) => ({ kind: 'species', data: s }))
-    const withUnknown: ({ kind: 'species'; data: DexCardSpecies } | { kind: 'unknown' })[] = [
-      ...items.slice(0, 5),
-      { kind: 'unknown' as const },
-      ...items.slice(5),
-    ]
+    const filtered = activeFilter === 'all'
+      ? MOCK_SPECIES
+      : MOCK_SPECIES.filter((s) => s.kingdom === activeFilter)
+
+    const items: ({ kind: 'species'; data: DexCardSpecies } | { kind: 'unknown' })[] =
+      filtered.map((s) => ({ kind: 'species' as const, data: s }))
+
+    const withUnknown = activeFilter === 'all'
+      ? [...items.slice(0, 5), { kind: 'unknown' as const }, ...items.slice(5)]
+      : items
+
     const result: ({ kind: 'species'; data: DexCardSpecies } | { kind: 'unknown' })[][] = []
     for (let i = 0; i < withUnknown.length; i += 3) {
       result.push(withUnknown.slice(i, i + 3))
     }
     return result
-  }, [])
+  }, [activeFilter])
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + space[8] }]}>
@@ -88,17 +94,22 @@ export function CollectionScreen() {
           style={styles.chipsWrap}>
           {FILTERS.map((f) => {
             const active = activeFilter === f.key
-            const suffix = f.count !== undefined ? ` ${f.count}` : ''
+            const kingdom = f.kind ? KINGDOM[f.kind] : null
+            const activeBg = kingdom ? kingdom.bg : colors.ink
             return (
               <Pressable
                 key={f.key}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
                 onPress={() => setActiveFilter(f.key)}
-                style={[styles.chip, active ? styles.chipActive : styles.chipIdle]}>
+                style={[
+                  styles.chip,
+                  active
+                    ? [styles.chipActive, { backgroundColor: activeBg, borderColor: activeBg }]
+                    : styles.chipIdle,
+                ]}>
                 <Text style={[styles.chipLabel, active ? styles.chipLabelActive : styles.chipLabelIdle]}>
-                  {f.label}
-                  {suffix}
+                  {kingdom ? `${kingdom.emoji} ` : ''}{f.label}
                 </Text>
               </Pressable>
             )

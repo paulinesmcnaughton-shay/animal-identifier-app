@@ -28,6 +28,7 @@ export default function RootLayout() {
         <Stack.Screen name="capture/scan" />
         <Stack.Screen name="capture/result" />
         <Stack.Screen name="capture/upload" />
+        <Stack.Screen name="capture/view3d" />
         <Stack.Screen name="species/[id]" />
         <Stack.Screen name="dex/search" />
         <Stack.Screen name="settings" />

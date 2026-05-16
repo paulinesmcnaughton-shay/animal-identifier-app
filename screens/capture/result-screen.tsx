@@ -1,22 +1,75 @@
 import { Ionicons } from '@expo/vector-icons'
+import Constants from 'expo-constants'
 import { Image } from 'expo-image'
 import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import Animated, {
+import { useEffect, useRef, useState } from 'react'
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native'
+import ReAnimated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { KingdomBadge } from '@/design/atoms/KingdomBadge'
+import { KingdomBadge, type KingdomKey } from '@/design/atoms/KingdomBadge'
+import { ProgressBar } from '@/components/ProgressBar'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 
-const MOCK_RESULT = {
+const ICONIC_TAXON_MAP: Record<string, KingdomKey> = {
+  Mammalia:        'mammal',
+  Aves:            'bird',
+  Reptilia:        'reptile',
+  Amphibia:        'amphibian',
+  Actinopterygii:  'fish',
+  Insecta:         'insect',
+  Arachnida:       'arachnid',
+  Mollusca:        'mollusc',
+}
+
+interface IdentResult {
+  commonName: string
+  kingdom: KingdomKey
+  confidence: number
+}
+
+const FALLBACK: IdentResult = {
   commonName: 'Buff-tailed Bumblebee',
-  kingdom: 'Insect',
+  kingdom: 'insect',
   confidence: 0.87,
+}
+
+async function scoreImage(uri: string): Promise<IdentResult> {
+  const token = Constants.expoConfig?.extra?.inaturalistToken as string | undefined
+
+  const body = new FormData()
+  body.append('image', {
+    uri,
+    name: 'photo.jpg',
+    type: 'image/jpeg',
+  } as unknown as Blob)
+
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch('https://api.inaturalist.org/v1/computervision/score_image', {
+    method: 'POST',
+    headers,
+    body,
+  })
+
+  if (!res.ok) throw new Error(`Vision API ${res.status}`)
+
+  const json = await res.json()
+  const top = json?.results?.[0]
+  if (!top) throw new Error('No results')
+
+  const commonName: string =
+    top.taxon?.preferred_common_name ?? top.taxon?.name ?? 'Unknown species'
+  const iconicName: string = top.taxon?.iconic_taxon_name ?? ''
+  const kingdom: KingdomKey = ICONIC_TAXON_MAP[iconicName] ?? 'insect'
+  const confidence: number = top.combined_score ?? 0
+
+  return { commonName, kingdom, confidence }
 }
 
 export function ResultScreen() {
@@ -24,11 +77,41 @@ export function ResultScreen() {
   const { uri } = useLocalSearchParams<{ uri?: string }>()
   const photoUri = typeof uri === 'string' ? uri : undefined
 
+  const [isLoading, setIsLoading] = useState(!!photoUri)
+  const [result, setResult] = useState<IdentResult>(FALLBACK)
+
+  const pulseAnim = useRef(new Animated.Value(1)).current
+
+  useEffect(() => {
+    if (!photoUri) return
+
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.25, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1,    duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    )
+    pulse.start()
+
+    scoreImage(photoUri)
+      .then(setResult)
+      .catch(() => setResult(FALLBACK))
+      .finally(() => {
+        pulse.stop()
+        pulseAnim.setValue(1)
+        setIsLoading(false)
+      })
+
+    return () => pulse.stop()
+  }, [photoUri])
+
   const cardOffset = useSharedValue(320)
 
   useEffect(() => {
-    cardOffset.value = withSpring(0, { damping: 22, stiffness: 180 })
-  }, [cardOffset])
+    if (!isLoading) {
+      cardOffset.value = withSpring(0, { damping: 22, stiffness: 180 })
+    }
+  }, [isLoading, cardOffset])
 
   const cardAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: cardOffset.value }],
@@ -43,7 +126,7 @@ export function ResultScreen() {
     router.replace('/(tabs)/dex')
   }
 
-  const confidencePercent = Math.round(MOCK_RESULT.confidence * 100)
+  const confidencePercent = Math.round(result.confidence * 100)
 
   return (
     <View style={styles.root}>
@@ -52,6 +135,7 @@ export function ResultScreen() {
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.photoFallback]} />
       )}
+      <View style={[StyleSheet.absoluteFill, styles.darkOverlay]} />
 
       <View style={[styles.topOverlay, { paddingTop: insets.top + space[8] }]}>
         <Pressable
@@ -62,29 +146,47 @@ export function ResultScreen() {
           <Ionicons name="close" size={22} color={colors.card} />
         </Pressable>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="View in 3D"
-          onPress={() => {}}
-          style={({ pressed }) => [styles.view3dButton, pressed && styles.pressed]}>
-          <Text style={styles.view3dText}>View in 3D</Text>
-        </Pressable>
+        {!isLoading && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="View in 3D"
+            onPress={() => router.push({ pathname: '/capture/view3d', params: { name: result.commonName } })}
+            style={({ pressed }) => [styles.view3dButton, pressed && styles.pressed]}>
+            <Text style={styles.view3dText}>View in 3D</Text>
+          </Pressable>
+        )}
       </View>
 
-      <Animated.View
-        style={[
-          styles.card,
-          { paddingBottom: insets.bottom + space[20] },
-          cardAnimatedStyle,
-        ]}>
-        <View style={styles.handle} />
-        <Text style={styles.speciesName}>{MOCK_RESULT.commonName}</Text>
-        <View style={styles.metaRow}>
-          <KingdomBadge label={MOCK_RESULT.kingdom} />
-          <Text style={styles.confidence}>{confidencePercent}% match</Text>
+      {isLoading ? (
+        <View style={styles.loadingCenter}>
+          <Animated.View style={[styles.pulseOuter, { transform: [{ scale: pulseAnim }] }]} />
+          <View style={styles.pulseInner} />
+          <Text style={styles.loadingLabel}>Identifying…</Text>
         </View>
-        <PopButton label="Add to collection" onPress={handleAddToCollection} />
-      </Animated.View>
+      ) : (
+        <ReAnimated.View
+          style={[
+            styles.card,
+            { paddingBottom: insets.bottom + space[20] },
+            cardAnimatedStyle,
+          ]}>
+          <View style={styles.handle} />
+          <Text style={styles.speciesName}>{result.commonName}</Text>
+
+          <View style={styles.metaRow}>
+            <KingdomBadge kind={result.kingdom} />
+          </View>
+
+          <View style={styles.confidenceRow}>
+            <Text style={styles.confidenceLabel}>Confidence</Text>
+            <Text style={styles.confidenceValue}>{confidencePercent}%</Text>
+          </View>
+          <View style={styles.confidenceBar}>
+            <ProgressBar progress={result.confidence} />
+          </View>
+          <PopButton label="Add to collection" onPress={handleAddToCollection} />
+        </ReAnimated.View>
+      )}
     </View>
   )
 }
@@ -114,6 +216,9 @@ const styles = StyleSheet.create({
   },
   photoFallback: {
     backgroundColor: colors.ink2,
+  },
+  darkOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.38)',
   },
   topOverlay: {
     position: 'absolute',
@@ -149,6 +254,32 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.88,
   },
+  loadingCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space[16],
+  },
+  pulseOuter: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: `${colors.green}40`,
+  },
+  pulseInner: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.green,
+  },
+  loadingLabel: {
+    marginTop: 68,
+    fontSize: typeTokens.size.label,
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.card,
+    letterSpacing: 0.3,
+  },
   card: {
     position: 'absolute',
     left: 0,
@@ -179,13 +310,26 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: space[20],
   },
-  confidence: {
+  confidenceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: space[8],
+  },
+  confidenceLabel: {
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.ink2,
+  },
+  confidenceValue: {
     fontSize: typeTokens.size.bodySM,
     fontWeight: typeTokens.body.weights.bold,
     color: colors.green,
+  },
+  confidenceBar: {
+    marginBottom: space[20],
   },
   popWrap: {
     backgroundColor: colors.greenDark,

@@ -169,7 +169,7 @@ export function ScanScreen() {
       </LinearGradient>
 
       <LinearGradient
-        colors={['transparent', 'rgba(21,33,48,0.92)']}
+        colors={['transparent', 'rgba(0,0,0,0.6)']}
         style={[styles.bottomGradient, { paddingBottom: insets.bottom + space[16] }]}
         pointerEvents="box-none">
         <View style={styles.bottomBar}>
@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: radius.pill,
-    borderWidth: 4,
+    borderWidth: 3,
     borderColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
