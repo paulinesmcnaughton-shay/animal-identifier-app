@@ -34,6 +34,8 @@ module.exports = {
     favicon: './assets/images/favicon.png',
   },
   plugins: [
+    'expo-dev-client',
+    'expo-secure-store',
     'expo-router',
     [
       'expo-camera',
@@ -68,5 +70,9 @@ module.exports = {
   extra: {
     mapboxToken: process.env.MAPBOX_ACCESS_TOKEN ?? '',
     inaturalistToken: process.env.INATURALIST_API_TOKEN ?? '',
+    inaturalistOAuthToken: process.env.INATURALIST_OAUTH_TOKEN ?? '',
+    inaturalistClientId: process.env.INATURALIST_CLIENT_ID ?? '',
+    inaturalistClientSecret: process.env.INATURALIST_CLIENT_SECRET ?? '',
+    googleVisionApiKey: process.env.GOOGLE_VISION_API_KEY ?? '',
   },
 }

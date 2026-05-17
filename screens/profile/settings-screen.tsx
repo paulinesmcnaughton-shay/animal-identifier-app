@@ -1,10 +1,20 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
+import { useCallback, useEffect, useState } from 'react'
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import {
+  connectInaturalistAccount,
+  disconnectInaturalistAccount,
+  getInaturalistRedirectUri,
+  getInaturalistStatusLabel,
+  isInaturalistConnected,
+  openInaturalistTokenPage,
+  saveInaturalistApiToken,
+} from '@/features/identify/inaturalist-auth'
+import { IdentifyError } from '@/features/identify/types'
 import { storage } from '@/util/storage'
 
 type RowAction =
@@ -61,6 +71,109 @@ export function SettingsScreenContent() {
   const [autoTagLocation, setAutoTagLocation] = useState(true)
   const [vibrateOnIdentify, setVibrateOnIdentify] = useState(false)
   const [useScientificNames, setUseScientificNames] = useState(false)
+  const [inatConnected, setInatConnected] = useState(false)
+  const [inatStatus, setInatStatus] = useState('Paste token from iNaturalist (~24h)')
+  const [inatBusy, setInatBusy] = useState(false)
+
+  const refreshInatStatus = useCallback(async () => {
+    setInatConnected(await isInaturalistConnected())
+    setInatStatus(await getInaturalistStatusLabel())
+  }, [])
+
+  useEffect(() => {
+    void refreshInatStatus()
+  }, [refreshInatStatus])
+
+  const handlePasteInaturalistToken = () => {
+    Alert.prompt(
+      'Paste iNaturalist token',
+      'Open the token page, copy the long string, paste here. Lasts ~24 hours. No .env edit needed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Save',
+          onPress: (text) => {
+            void (async () => {
+              setInatBusy(true)
+              try {
+                await saveInaturalistApiToken(text ?? '')
+                await refreshInatStatus()
+                Alert.alert('Saved', 'You can scan wildlife and plants now.')
+              } catch (error) {
+                const message =
+                  error instanceof IdentifyError ? error.message : 'Invalid token.'
+                Alert.alert('Could not save', message)
+              } finally {
+                setInatBusy(false)
+              }
+            })()
+          },
+        },
+      ],
+      'plain-text',
+    )
+  }
+
+  const handleConnectInaturalist = () => {
+    const tryOAuth = () => {
+      void (async () => {
+        setInatBusy(true)
+        try {
+          await connectInaturalistAccount()
+          await refreshInatStatus()
+          Alert.alert('Connected', 'Wildr will refresh your iNaturalist access automatically.')
+        } catch (error) {
+          const message =
+            error instanceof IdentifyError
+              ? error.message
+              : 'Could not connect. Use paste token instead.'
+          const redirect = getInaturalistRedirectUri()
+          Alert.alert(
+            'OAuth failed',
+            `${message}\n\nIf you get “no permission” on iNaturalist, use Paste token instead.\n\nRedirect URI (after approval):\n${redirect}`,
+          )
+        } finally {
+          setInatBusy(false)
+        }
+      })()
+    }
+
+    if (inatConnected) {
+      Alert.alert('iNaturalist', inatStatus, [
+        { text: 'Update token', onPress: handlePasteInaturalistToken },
+        { text: 'Open token page', onPress: () => void openInaturalistTokenPage() },
+        { text: 'OAuth sign-in', onPress: tryOAuth },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setInatBusy(true)
+              try {
+                await disconnectInaturalistAccount()
+                await refreshInatStatus()
+              } finally {
+                setInatBusy(false)
+              }
+            })()
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ])
+      return
+    }
+
+    Alert.alert(
+      'iNaturalist setup',
+      'iNaturalist blocks new OAuth apps until you are an “App Owner.” Use paste token instead — free, no permission needed.',
+      [
+        { text: 'Open token page', onPress: () => void openInaturalistTokenPage() },
+        { text: 'Paste token', onPress: handlePasteInaturalistToken },
+        { text: 'Try OAuth', onPress: tryOAuth },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    )
+  }
 
   const handleLogout = async () => {
     await storage.delete('isLoggedIn')
@@ -94,6 +207,25 @@ export function SettingsScreenContent() {
 
         <Text style={styles.sectionLabel}>Capture</Text>
         <View style={styles.group}>
+          <Pressable
+            onPress={handleConnectInaturalist}
+            disabled={inatBusy}
+            accessibilityRole="button"
+            accessibilityLabel={inatConnected ? 'Disconnect iNaturalist' : 'Connect iNaturalist'}
+            style={({ pressed }) => [styles.row, styles.rowBorder, pressed && styles.rowPressed]}>
+            <View style={[styles.iconWrap, { backgroundColor: colors.green }]}>
+              <Ionicons name="leaf" size={19} color={colors.card} />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={styles.rowTitle}>iNaturalist</Text>
+              <Text style={styles.rowSub}>{inatStatus}</Text>
+            </View>
+            {inatBusy ? (
+              <ActivityIndicator color={colors.green} />
+            ) : (
+              <Text style={styles.inatAction}>{inatConnected ? 'Manage' : 'Set up'}</Text>
+            )}
+          </Pressable>
           <SettingsRow icon="camera" iconBg={colors.sky} title="Camera quality" subtitle="High (12 MP)" action={{ type: 'chevron' }} />
           <SettingsRow icon="volume-high" iconBg={colors.plum} title="Auto-record sounds" action={{ type: 'toggle', value: autoRecordSounds, onToggle: setAutoRecordSounds }} />
           <SettingsRow icon="location" iconBg={colors.coral} title="Auto-tag location" action={{ type: 'toggle', value: autoTagLocation, onToggle: setAutoTagLocation }} />
@@ -203,6 +335,11 @@ const styles = StyleSheet.create({
   rowSub: {
     fontSize: typeTokens.size.bodySM,
     color: colors.dim,
+  },
+  inatAction: {
+    fontSize: typeTokens.size.label,
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.green,
   },
   logoutWrap: {
     marginTop: space[32],

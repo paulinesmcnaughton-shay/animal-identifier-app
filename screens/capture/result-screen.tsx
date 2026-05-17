@@ -1,8 +1,7 @@
 import { Ionicons } from '@expo/vector-icons'
-import Constants from 'expo-constants'
 import { Image } from 'expo-image'
 import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native'
 import ReAnimated, {
   useAnimatedStyle,
@@ -11,66 +10,11 @@ import ReAnimated, {
 } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { KingdomBadge, type KingdomKey } from '@/design/atoms/KingdomBadge'
+import { KingdomBadge } from '@/design/atoms/KingdomBadge'
 import { ProgressBar } from '@/components/ProgressBar'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
-
-const ICONIC_TAXON_MAP: Record<string, KingdomKey> = {
-  Mammalia:        'mammal',
-  Aves:            'bird',
-  Reptilia:        'reptile',
-  Amphibia:        'amphibian',
-  Actinopterygii:  'fish',
-  Insecta:         'insect',
-  Arachnida:       'arachnid',
-  Mollusca:        'mollusc',
-}
-
-interface IdentResult {
-  commonName: string
-  kingdom: KingdomKey
-  confidence: number
-}
-
-const FALLBACK: IdentResult = {
-  commonName: 'Buff-tailed Bumblebee',
-  kingdom: 'insect',
-  confidence: 0.87,
-}
-
-async function scoreImage(uri: string): Promise<IdentResult> {
-  const token = Constants.expoConfig?.extra?.inaturalistToken as string | undefined
-
-  const body = new FormData()
-  body.append('image', {
-    uri,
-    name: 'photo.jpg',
-    type: 'image/jpeg',
-  } as unknown as Blob)
-
-  const headers: Record<string, string> = { Accept: 'application/json' }
-  if (token) headers['Authorization'] = `Bearer ${token}`
-
-  const res = await fetch('https://api.inaturalist.org/v1/computervision/score_image', {
-    method: 'POST',
-    headers,
-    body,
-  })
-
-  if (!res.ok) throw new Error(`Vision API ${res.status}`)
-
-  const json = await res.json()
-  const top = json?.results?.[0]
-  if (!top) throw new Error('No results')
-
-  const commonName: string =
-    top.taxon?.preferred_common_name ?? top.taxon?.name ?? 'Unknown species'
-  const iconicName: string = top.taxon?.iconic_taxon_name ?? ''
-  const kingdom: KingdomKey = ICONIC_TAXON_MAP[iconicName] ?? 'insect'
-  const confidence: number = top.combined_score ?? 0
-
-  return { commonName, kingdom, confidence }
-}
+import { identifyAnimalOrPlant } from '@/features/identify/identify-image'
+import { type IdentResult, IdentifyError } from '@/features/identify/types'
 
 export function ResultScreen() {
   const insets = useSafeAreaInsets()
@@ -78,32 +22,45 @@ export function ResultScreen() {
   const photoUri = typeof uri === 'string' ? uri : undefined
 
   const [isLoading, setIsLoading] = useState(!!photoUri)
-  const [result, setResult] = useState<IdentResult>(FALLBACK)
+  const [result, setResult] = useState<IdentResult | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const pulseAnim = useRef(new Animated.Value(1)).current
 
-  useEffect(() => {
-    if (!photoUri) return
+  const runIdentification = useCallback(async (imageUri: string) => {
+    setIsLoading(true)
+    setErrorMessage(null)
+    setResult(null)
 
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.25, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1,    duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
+        Animated.timing(pulseAnim, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
     )
     pulse.start()
 
-    scoreImage(photoUri)
-      .then(setResult)
-      .catch(() => setResult(FALLBACK))
-      .finally(() => {
-        pulse.stop()
-        pulseAnim.setValue(1)
-        setIsLoading(false)
-      })
+    try {
+      const ident = await identifyAnimalOrPlant(imageUri)
+      setResult(ident)
+    } catch (error) {
+      const message =
+        error instanceof IdentifyError
+          ? error.message
+          : "Couldn't identify that one. Try a clearer angle."
+      setErrorMessage(message)
+      if (__DEV__) console.warn('[Wildr iNat]', error)
+    } finally {
+      pulse.stop()
+      pulseAnim.setValue(1)
+      setIsLoading(false)
+    }
+  }, [pulseAnim])
 
-    return () => pulse.stop()
-  }, [photoUri])
+  useEffect(() => {
+    if (!photoUri) return
+    void runIdentification(photoUri)
+  }, [photoUri, runIdentification])
 
   const cardOffset = useSharedValue(320)
 
@@ -126,7 +83,11 @@ export function ResultScreen() {
     router.replace('/(tabs)/dex')
   }
 
-  const confidencePercent = Math.round(result.confidence * 100)
+  const handleRetry = () => {
+    if (photoUri) void runIdentification(photoUri)
+  }
+
+  const confidencePercent = result ? Math.round(result.confidence * 100) : 0
 
   return (
     <View style={styles.root}>
@@ -146,7 +107,7 @@ export function ResultScreen() {
           <Ionicons name="close" size={22} color={colors.card} />
         </Pressable>
 
-        {!isLoading && (
+        {!isLoading && result ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="View in 3D"
@@ -154,7 +115,7 @@ export function ResultScreen() {
             style={({ pressed }) => [styles.view3dButton, pressed && styles.pressed]}>
             <Text style={styles.view3dText}>View in 3D</Text>
           </Pressable>
-        )}
+        ) : null}
       </View>
 
       {isLoading ? (
@@ -163,7 +124,26 @@ export function ResultScreen() {
           <View style={styles.pulseInner} />
           <Text style={styles.loadingLabel}>Identifying…</Text>
         </View>
-      ) : (
+      ) : errorMessage ? (
+        <ReAnimated.View
+          style={[
+            styles.card,
+            { paddingBottom: insets.bottom + space[20] },
+            cardAnimatedStyle,
+          ]}>
+          <View style={styles.handle} />
+          <Text style={styles.speciesName}>Couldn't identify</Text>
+          <Text style={styles.errorBody}>{errorMessage}</Text>
+          <PopButton label="Try again" onPress={handleRetry} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retake photo"
+            onPress={handleClose}
+            style={styles.secondaryAction}>
+            <Text style={styles.secondaryActionText}>Retake photo</Text>
+          </Pressable>
+        </ReAnimated.View>
+      ) : result ? (
         <ReAnimated.View
           style={[
             styles.card,
@@ -173,9 +153,11 @@ export function ResultScreen() {
           <View style={styles.handle} />
           <Text style={styles.speciesName}>{result.commonName}</Text>
 
-          <View style={styles.metaRow}>
-            <KingdomBadge kind={result.kingdom} />
-          </View>
+          {result.kingdom ? (
+            <View style={styles.metaRow}>
+              <KingdomBadge kind={result.kingdom} />
+            </View>
+          ) : null}
 
           <View style={styles.confidenceRow}>
             <Text style={styles.confidenceLabel}>Confidence</Text>
@@ -186,7 +168,7 @@ export function ResultScreen() {
           </View>
           <PopButton label="Add to collection" onPress={handleAddToCollection} />
         </ReAnimated.View>
-      )}
+      ) : null}
     </View>
   )
 }
@@ -307,6 +289,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.6,
     marginBottom: space[12],
   },
+  errorBody: {
+    fontSize: typeTokens.size.body,
+    color: colors.ink2,
+    lineHeight: 22,
+    marginBottom: space[20],
+  },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -330,6 +318,16 @@ const styles = StyleSheet.create({
   },
   confidenceBar: {
     marginBottom: space[20],
+  },
+  secondaryAction: {
+    alignItems: 'center',
+    paddingVertical: space[12],
+    marginTop: space[8],
+  },
+  secondaryActionText: {
+    fontSize: typeTokens.size.body,
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.ink2,
   },
   popWrap: {
     backgroundColor: colors.greenDark,
