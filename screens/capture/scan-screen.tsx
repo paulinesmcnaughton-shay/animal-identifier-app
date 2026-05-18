@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons'
 import { CameraView, useCameraPermissions } from 'expo-camera'
+import { StatusBar } from 'expo-status-bar'
 import * as Haptics from 'expo-haptics'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -60,7 +61,10 @@ export function ScanScreen() {
     setIsCapturing(true)
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.85 })
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.85,
+        imageType: 'jpg',
+      })
       if (photo?.uri) navigateToResult(photo.uri)
     } finally {
       setIsCapturing(false)
@@ -99,6 +103,7 @@ export function ScanScreen() {
   if (!permission) {
     return (
       <View style={[styles.centered, styles.darkScreen]}>
+        <StatusBar style="light" />
         <ActivityIndicator color={colors.card} />
       </View>
     )
@@ -113,6 +118,7 @@ export function ScanScreen() {
 
     return (
       <View style={[styles.centered, styles.darkScreen, styles.permissionScreen]}>
+        <StatusBar style="light" />
         <Text style={styles.permissionTitle}>Camera access needed</Text>
         <Text style={styles.permissionBody}>
           {canAskAgain
@@ -139,6 +145,7 @@ export function ScanScreen() {
 
   return (
     <View style={styles.root}>
+      <StatusBar style="light" />
       <CameraView
         ref={cameraRef}
         style={StyleSheet.absoluteFill}

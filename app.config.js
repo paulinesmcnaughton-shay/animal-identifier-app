@@ -1,3 +1,10 @@
+require('dotenv').config()
+
+function envString(name) {
+  const raw = process.env[name] ?? ''
+  return raw.replace(/^['"]|['"]$/g, '').trim()
+}
+
 module.exports = {
   name: 'Wildr',
   slug: 'wildr',
@@ -73,6 +80,6 @@ module.exports = {
     inaturalistOAuthToken: process.env.INATURALIST_OAUTH_TOKEN ?? '',
     inaturalistClientId: process.env.INATURALIST_CLIENT_ID ?? '',
     inaturalistClientSecret: process.env.INATURALIST_CLIENT_SECRET ?? '',
-    googleVisionApiKey: process.env.GOOGLE_VISION_API_KEY ?? '',
+    googleVisionApiKey: envString('GOOGLE_VISION_API_KEY'),
   },
 }

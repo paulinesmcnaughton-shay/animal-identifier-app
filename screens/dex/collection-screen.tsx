@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons'
-import { Link } from 'expo-router'
+import { Link, router } from 'expo-router'
 import { useMemo, useState } from 'react'
 import {
     Dimensions,
@@ -22,7 +22,7 @@ const GAP = space[10]
 const MOCK_SPECIES: DexCardSpecies[] = [
   { id: '1', number: '#012', name: 'Red Fox',  date: 'Today',     kingdom: 'mammal',    gradient: ['#FFB088', '#FF6B5B'], cornerBadge: 'NEW', showFootprint: true },
   { id: '2', number: '#089', name: 'Robin',    date: 'Yesterday', kingdom: 'bird',      gradient: ['#7FD8BE', '#15B981'] },
-  { id: '3', number: '#201', name: 'Monarch',  date: '3d ago',    kingdom: 'insect',    gradient: ['#FFB347', '#FF8C42'], cornerBadge: 'RARE' },
+  { id: '3', number: '#047', name: 'Monarch Butterfly', date: '3d ago', kingdom: 'insect', gradient: ['#FFB347', '#E85D04'], cornerBadge: 'RARE' },
   { id: '4', number: '#044', name: 'Badger',   date: '1w ago',    kingdom: 'mammal',    gradient: ['#A8D8EA', '#5BC0EB'] },
   { id: '5', number: '#156', name: 'Jay',      date: '2w ago',    kingdom: 'bird',      gradient: ['#C9B8FF', '#A855F7'] },
   { id: '6', number: '#078', name: 'Hare',     date: 'Today',     kingdom: 'mammal',    gradient: ['#FFD6A5', '#E8A87C'], showFootprint: true },
@@ -95,7 +95,7 @@ export function CollectionScreen() {
           {FILTERS.map((f) => {
             const active = activeFilter === f.key
             const kingdom = f.kind ? KINGDOM[f.kind] : null
-            const activeBg = kingdom ? kingdom.bg : colors.ink
+            const activeBg = kingdom ? kingdom.bg : colors.green
             return (
               <Pressable
                 key={f.key}
@@ -123,7 +123,24 @@ export function CollectionScreen() {
                 if (cell.kind === 'unknown') {
                   return <DexUnknownCard key="unknown" width={colWidth} />
                 }
-                return <DexCard key={cell.data.id} species={cell.data} width={colWidth} />
+                return (
+                  <DexCard
+                    key={cell.data.id}
+                    species={cell.data}
+                    width={colWidth}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/species/[id]',
+                        params: {
+                          id: cell.data.id,
+                          name: cell.data.name,
+                          number: cell.data.number,
+                          kingdom: cell.data.kingdom,
+                        },
+                      })
+                    }
+                  />
+                )
               })}
             </View>
           ))}

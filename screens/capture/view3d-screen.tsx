@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons'
+import { StatusBar } from 'expo-status-bar'
 import { router, useLocalSearchParams } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -12,6 +13,7 @@ export function View3DScreen() {
 
   return (
     <View style={styles.root}>
+      <StatusBar style="light" />
       <View style={[styles.topBar, { paddingTop: insets.top + space[8] }]}>
         <Pressable
           accessibilityRole="button"

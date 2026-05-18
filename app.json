@@ -67,10 +67,6 @@
     ],
     "experiments": {
       "typedRoutes": true
-    },
-    "extra": {
-      "mapboxToken": "",
-       "inaturalistToken": ""
     }
   }
 }

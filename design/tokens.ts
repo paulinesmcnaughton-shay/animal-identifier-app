@@ -45,6 +45,13 @@ export const shadow = {
     shadowRadius: 24,
     elevation: 8,
   },
+  dexCard: {
+    shadowColor: '#152130',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.22,
+    shadowRadius: 32,
+    elevation: 14,
+  },
 } as const
 
 export const space = { 2:2, 4:4, 6:6, 8:8, 10:10, 12:12, 14:14, 16:16, 20:20, 24:24, 28:28, 32:32, 40:40, 56:56 } as const

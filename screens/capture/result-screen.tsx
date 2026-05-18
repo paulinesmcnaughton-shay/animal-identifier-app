@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { KingdomBadge } from '@/design/atoms/KingdomBadge'
 import { ProgressBar } from '@/components/ProgressBar'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { slugifySpeciesName } from '@/data/species-catalog'
 import { identifyAnimalOrPlant } from '@/features/identify/identify-image'
 import { type IdentResult, IdentifyError } from '@/features/identify/types'
 
@@ -80,7 +81,20 @@ export function ResultScreen() {
   }
 
   const handleAddToCollection = () => {
-    router.replace('/(tabs)/dex')
+    if (!result) {
+      router.replace('/(tabs)/dex')
+      return
+    }
+    router.push({
+      pathname: '/species/[id]',
+      params: {
+        id: slugifySpeciesName(result.commonName),
+        name: result.commonName,
+        kingdom: result.kingdom ?? 'mammal',
+        confidence: String(result.confidence),
+        number: '#???',
+      },
+    })
   }
 
   const handleRetry = () => {

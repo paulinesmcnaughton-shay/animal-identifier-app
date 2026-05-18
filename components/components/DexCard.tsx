@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
-import { useEffect, useState } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
 
 export interface DexCardSpecies {
   id: string
@@ -18,41 +18,18 @@ export interface DexCardSpecies {
   showFootprint?: boolean
 }
 
-function useTaxaPhoto(name: string): string | null {
-  const [url, setUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    fetch(`https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(name)}&per_page=1`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled) {
-          const photoUrl = data?.results?.[0]?.default_photo?.medium_url ?? null
-          setUrl(photoUrl)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setUrl(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [name])
-
-  return url
-}
-
 interface DexCardProps {
   species: DexCardSpecies
   width: number
+  onPress?: () => void
 }
 
-export function DexCard({ species, width }: DexCardProps) {
+export function DexCard({ species, width, onPress }: DexCardProps) {
   const { number, name, date, gradient, cornerBadge, showFootprint, kingdom } = species
   const photoUrl = useTaxaPhoto(name)
   const kingdomBg = KINGDOM[kingdom]?.bg ?? colors.dim
 
-  return (
+  const card = (
     <View style={[styles.card, { width }]}>
       <View style={[styles.artWrap, { backgroundColor: kingdomBg }]}>
 
@@ -103,6 +80,18 @@ export function DexCard({ species, width }: DexCardProps) {
       </View>
     </View>
   )
+
+  if (!onPress) return card
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${name}, ${number}`}
+      onPress={onPress}
+      style={({ pressed }) => [pressed && styles.cardPressed]}>
+      {card}
+    </Pressable>
+  )
 }
 
 interface DexUnknownCardProps {
@@ -130,6 +119,10 @@ export function DexUnknownCard({ width }: DexUnknownCardProps) {
 const ART_HEIGHT = 112
 
 const styles = StyleSheet.create({
+  cardPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.98 }],
+  },
   card: {
     borderRadius: radius.md,
     backgroundColor: colors.card,

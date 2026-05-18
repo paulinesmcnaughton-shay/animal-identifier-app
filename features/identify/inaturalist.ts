@@ -3,6 +3,7 @@ import Constants from 'expo-constants'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 
 import { canUseInaturalistAuth, resolveInaturalistJwt } from './inaturalist-auth'
+import { normalizeImageUri } from './read-image-base64'
 import { type IdentResult, IdentifyError } from './types'
 
 const SCORE_IMAGE_URL = 'https://api.inaturalist.org/v2/computervision/score_image'
@@ -74,7 +75,7 @@ export async function scoreImageWithInaturalist(uri: string): Promise<IdentResul
 
   const body = new FormData()
   body.append('image', {
-    uri,
+    uri: normalizeImageUri(uri),
     name: 'photo.jpg',
     type: 'image/jpeg',
   } as unknown as Blob)

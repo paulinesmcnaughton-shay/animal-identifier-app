@@ -1,8 +1,8 @@
 import Constants from 'expo-constants'
-import { File } from 'expo-file-system'
 
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 
+import { readImageBase64 } from './read-image-base64'
 import { type IdentResult, IdentifyError } from './types'
 
 const VISION_URL = 'https://vision.googleapis.com/v1/images:annotate'
@@ -14,7 +14,10 @@ const ANIMAL_PLANT_LABEL =
   /\b(animal|mammal|bird|fish|insect|butterfly|bee|spider|reptile|snake|lizard|frog|mollusc|snail|dog|cat|pet|canine|feline|puppy|kitten|rabbit|bunny|hare|hamster|gerbil|guinea pig|chinchilla|ferret|rodent|mouse|rat|parrot|parakeet|budgie|cockatiel|canary|corgi|retriever|shepherd|terrier|poodle|husky|beagle|bulldog|labrador|collie|dachshund|chihuahua|siamese|persian|ragdoll|tabby|sphynx|bengal|maine coon|shorthair|plant|flower|tree|shrub|herb|grass|leaf|succulent|palm|fern|fauna|flora)\b/i
 
 const BREED_HINT =
-  /\b(corgi|retriever|shepherd|terrier|poodle|husky|beagle|bulldog|labrador|collie|dachshund|chihuahua|pomeranian|maltese|spaniel|whippet|greyhound|siamese|persian|ragdoll|tabby|sphynx|bengal|birman|burmese|abyssinian|shorthair|longhair|welsh|pembroke|maine coon|british|scottish fold|holland lop|netherland dwarf|syrian hamster|dwarf hamster|guinea pig|cockatiel|parakeet|mix)\b/i
+  /\b(corgi|pembroke|cardigan|welsh corgi|retriever|shepherd|terrier|poodle|husky|beagle|bulldog|labrador|collie|dachshund|chihuahua|pomeranian|maltese|spaniel|whippet|greyhound|siamese|persian|ragdoll|tabby|sphynx|bengal|birman|burmese|abyssinian|shorthair|longhair|maine coon|british|scottish fold|holland lop|netherland dwarf|syrian hamster|dwarf hamster|guinea pig|cockatiel|parakeet|mix)\b/i
+
+const VAGUE_GROUP_LABEL =
+  /\b(ancient dog|toy dog|sporting dog|working dog|herding dog|hound group|dog breeds?|breed group|companion dog|gun dog|non-?sporting|types of dog)\b/i
 
 const LABEL_KINGDOM: Array<{ pattern: RegExp; kingdom: KingdomKey }> = [
   { pattern: /\b(plant|flower|tree|shrub|herb|grass|leaf|foliage|succulent|palm|fern|moss|flora|rose|tulip|daisy)\b/i, kingdom: 'plant' },
@@ -36,7 +39,13 @@ interface VisionLabel {
 
 function getApiKey(): string {
   const key = Constants.expoConfig?.extra?.googleVisionApiKey
-  return typeof key === 'string' ? key.trim() : ''
+  if (typeof key !== 'string') return ''
+  return key.replace(/\s/g, '').trim()
+}
+
+function getIosBundleId(): string | undefined {
+  const id = Constants.expoConfig?.ios?.bundleIdentifier
+  return typeof id === 'string' && id.length > 0 ? id : undefined
 }
 
 export function isGenericAnimalName(name: string): boolean {
@@ -63,11 +72,13 @@ function titleCase(label: string): string {
 function rankLabel(description: string, apiScore: number): number {
   const lower = description.toLowerCase().trim()
   if (GENERIC_NAMES.test(lower)) return apiScore * 0.2
+  if (VAGUE_GROUP_LABEL.test(lower)) return apiScore * 0.15
   let rank = apiScore
   const words = lower.split(/\s+/).length
-  rank += words * 0.12
-  if (BREED_HINT.test(lower)) rank += 0.45
-  if (/\b(breed|mix|purebred)\b/i.test(lower)) rank += 0.1
+  rank += words * 0.15
+  if (BREED_HINT.test(lower)) rank += 0.65
+  if (/\b(welsh|pembroke|cardigan)\b/i.test(lower) && /\bcorgi\b/i.test(lower)) rank += 0.35
+  if (/\b(breed|mix|purebred)\b/i.test(lower) && !VAGUE_GROUP_LABEL.test(lower)) rank += 0.08
   return rank
 }
 
@@ -103,19 +114,22 @@ export async function scoreImageWithGoogleVision(uri: string): Promise<IdentResu
   const apiKey = getApiKey()
   if (!apiKey) {
     throw new IdentifyError(
-      'Add GOOGLE_VISION_API_KEY to .env for breed-level dog and cat labels.',
+      'Add GOOGLE_VISION_API_KEY to .env for dogs, cats, and other pets.',
       'NO_TOKEN',
     )
   }
 
-  const file = new File(uri)
-  const base64 = await file.base64()
+  const base64 = await readImageBase64(uri)
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const bundleId = getIosBundleId()
+  if (bundleId) headers['X-Ios-Bundle-Identifier'] = bundleId
 
   let res: Response
   try {
     res = await fetch(`${VISION_URL}?key=${apiKey}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         requests: [
           {
@@ -130,6 +144,7 @@ export async function scoreImageWithGoogleVision(uri: string): Promise<IdentResu
   }
 
   const json = (await res.json()) as {
+    error?: { message?: string; status?: string }
     responses?: Array<{
       labelAnnotations?: Array<{ description?: string; score?: number }>
       error?: { message?: string }
@@ -137,7 +152,10 @@ export async function scoreImageWithGoogleVision(uri: string): Promise<IdentResu
   }
 
   if (!res.ok) {
-    const msg = json.responses?.[0]?.error?.message ?? `Vision API ${res.status}`
+    const msg =
+      json.error?.message ??
+      json.responses?.[0]?.error?.message ??
+      `Vision API ${res.status}`
     throw new IdentifyError(msg, 'API')
   }
 
