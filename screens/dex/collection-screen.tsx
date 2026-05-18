@@ -14,9 +14,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CollectionStatsCard } from '@/components/collection-stats-card'
 import { DexCard, DexUnknownCard, type DexCardSpecies } from '@/components/DexCard'
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
+import { screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 
-const H_PAD = space[20]
+const H_PAD = screenLayout.padH
 const GAP = space[10]
 
 const MOCK_SPECIES: DexCardSpecies[] = [
@@ -66,7 +67,7 @@ export function CollectionScreen() {
   }, [activeFilter])
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top + space[8] }]}>
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100 }]}>

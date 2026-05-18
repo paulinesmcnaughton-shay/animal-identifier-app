@@ -60,6 +60,13 @@ module.exports = {
       },
     ],
     [
+      'expo-location',
+      {
+        locationWhenInUsePermission:
+          'Wildr tags your sightings with where you saw them and shows nearby species.',
+      },
+    ],
+    [
       'expo-splash-screen',
       {
         image: './assets/images/splash-icon.png',

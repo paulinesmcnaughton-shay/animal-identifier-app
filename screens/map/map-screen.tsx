@@ -9,7 +9,7 @@ import Mapbox, {
 } from '@rnmapbox/maps'
 import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   FlatList,
   Pressable,
@@ -28,8 +28,13 @@ import Animated, {
 } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { KingdomMapPin } from '@/components/map/KingdomMapPin'
+import { UserHeadingBeam } from '@/components/map/UserHeadingBeam'
 import { KINGDOM, KingdomBadge, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
+import { useDeviceHeading } from '@/features/map/use-device-heading'
+import { getKingdomPinZoomStyle } from '@/features/map/kingdom-pin-zoom'
+import { shiftSightingsNearUser, useUserLocation } from '@/features/map/use-user-location'
 
 const MAPBOX_TOKEN = (Constants.expoConfig?.extra?.mapboxToken as string) ?? ''
 Mapbox.setAccessToken(MAPBOX_TOKEN)
@@ -60,24 +65,8 @@ const MOCK_SIGHTINGS: Sighting[] = [
   { id: '10', name: 'Stag Beetle',  kingdom: 'insect',    lat: 51.5064, lng: -0.0833, date: '5d ago',    count: 2, isNew: true },
 ]
 
-const NEARBY_MOCK: (Sighting & { distanceM: number })[] = [
-  { ...MOCK_SIGHTINGS[0], distanceM: 120 },
-  { ...MOCK_SIGHTINGS[6], distanceM: 280 },
-  { ...MOCK_SIGHTINGS[1], distanceM: 350 },
-  { ...MOCK_SIGHTINGS[9], distanceM: 490 },
-  { ...MOCK_SIGHTINGS[3], distanceM: 620 },
-  { ...MOCK_SIGHTINGS[7], distanceM: 850 },
-  { ...MOCK_SIGHTINGS[4], distanceM: 1100 },
-  { ...MOCK_SIGHTINGS[2], distanceM: 1400 },
-]
-
-const USER_COORD: [number, number] = [-0.090, 51.505]
-
-
-const userGeoJSON: GeoJSON.FeatureCollection = {
-  type: 'FeatureCollection',
-  features: [{ type: 'Feature', id: 'user', geometry: { type: 'Point', coordinates: USER_COORD }, properties: {} }],
-}
+const NEARBY_DISTANCES_M = [120, 280, 350, 490, 620, 850, 1100, 1400] as const
+const NEARBY_SIGHTING_INDEX = [0, 6, 1, 9, 3, 7, 4, 2] as const
 
 function formatDist(m: number): string {
   return m < 1000 ? `${m}m away` : `${(m / 1000).toFixed(1)}km away`
@@ -103,9 +92,51 @@ export function MapScreenContent() {
   const [selectedSighting, setSelectedSighting] = useState<Sighting | null>(null)
   const [mapStyle, setMapStyle] = useState<'light' | 'terrain'>('light')
   const [zoom, setZoom] = useState(13)
+  const [mapBearing, setMapBearing] = useState(0)
+  const { heading: deviceHeading, isAvailable: hasHeading } = useDeviceHeading()
+  const { coordinate: userCoord, isLive: hasLiveLocation } = useUserLocation()
+  const hasCenteredOnUser = useRef(false)
 
-  const pinSize = calcPinSize(zoom)
-  const showEmoji = zoom >= 15
+  const sightingsOnMap = useMemo(
+    () => (hasLiveLocation ? shiftSightingsNearUser(MOCK_SIGHTINGS, userCoord) : MOCK_SIGHTINGS),
+    [hasLiveLocation, userCoord],
+  )
+
+  const nearbyList = useMemo(
+    () =>
+      NEARBY_SIGHTING_INDEX.map((index, i) => ({
+        ...sightingsOnMap[index],
+        distanceM: NEARBY_DISTANCES_M[i],
+      })),
+    [sightingsOnMap],
+  )
+
+  const userGeoJSON = useMemo<GeoJSON.FeatureCollection>(
+    () => ({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          id: 'user',
+          geometry: { type: 'Point', coordinates: userCoord },
+          properties: {},
+        },
+      ],
+    }),
+    [userCoord],
+  )
+
+  const pinZoomStyle = useMemo(() => getKingdomPinZoomStyle(zoom), [zoom])
+
+  useEffect(() => {
+    if (!hasLiveLocation || hasCenteredOnUser.current) return
+    hasCenteredOnUser.current = true
+    cameraRef.current?.setCamera({
+      centerCoordinate: userCoord,
+      zoomLevel: 15,
+      animationDuration: 800,
+    })
+  }, [hasLiveLocation, userCoord])
 
   // Prevents the MapView onPress from firing immediately after a pin tap
   const pinJustTappedRef = useRef(false)
@@ -164,7 +195,7 @@ export function MapScreenContent() {
 
   const handleLocateMe = () => {
     cameraRef.current?.setCamera({
-      centerCoordinate: USER_COORD,
+      centerCoordinate: userCoord,
       zoomLevel: 15,
       animationDuration: 600,
     })
@@ -182,6 +213,17 @@ export function MapScreenContent() {
     router.push('/(tabs)/dex' as never)
   }
 
+  const handleMapRegionUpdate = useCallback(
+    (feature: { properties: { zoomLevel: number; heading?: number } }) => {
+      setZoom(feature.properties.zoomLevel)
+      const heading = feature.properties.heading
+      if (typeof heading === 'number' && Number.isFinite(heading)) {
+        setMapBearing(heading)
+      }
+    },
+    [],
+  )
+
   return (
     <View style={styles.root}>
       <MapView
@@ -193,25 +235,38 @@ export function MapScreenContent() {
         compassEnabled={false}
         scaleBarEnabled={false}
         onPress={handleMapPress}
-        onRegionDidChange={(f) => setZoom(f.properties.zoomLevel)}
+        onRegionIsChanging={handleMapRegionUpdate}
+        onRegionDidChange={handleMapRegionUpdate}
         onMapLoadingError={() => console.warn('MapLoadError: check token and network')}>
 
         <Camera
           ref={cameraRef}
-          defaultSettings={{ centerCoordinate: USER_COORD, zoomLevel: 13 }}
+          defaultSettings={{ centerCoordinate: userCoord, zoomLevel: 13 }}
         />
 
-        <MarkerView coordinate={USER_COORD} anchor={{ x: 0.5, y: 0.5 }} allowOverlap isSelected>
-          <UserLocationMarker />
+        <MarkerView coordinate={userCoord} anchor={{ x: 0.5, y: 0.5 }} allowOverlap isSelected>
+          <UserLocationMarker
+            deviceHeading={deviceHeading}
+            mapBearing={mapBearing}
+            showHeadingBeam={hasHeading}
+          />
         </MarkerView>
 
-        {zoom >= 10 && MOCK_SIGHTINGS.map((s) => (
-          <MarkerView key={s.id} coordinate={[s.lng, s.lat]} anchor={{ x: 0.5, y: 1 }} allowOverlap>
-            <Pressable onPress={() => handleMarkerPress(s)} accessibilityRole="button" accessibilityLabel={s.name}>
-              <MapPin kingdom={s.kingdom} size={pinSize} showEmoji={showEmoji} />
-            </Pressable>
-          </MarkerView>
-        ))}
+        {pinZoomStyle.size > 0 &&
+          sightingsOnMap.map((s) => (
+            <MarkerView
+              key={s.id}
+              coordinate={[s.lng, s.lat]}
+              anchor={{ x: 0.5, y: 0.5 }}
+              allowOverlap>
+              <Pressable
+                onPress={() => handleMarkerPress(s)}
+                accessibilityRole="button"
+                accessibilityLabel={s.name}>
+                <KingdomMapPin kingdom={s.kingdom} zoomStyle={pinZoomStyle} />
+              </Pressable>
+            </MarkerView>
+          ))}
 
         {/* Radar rings — nearby mode only */}
         {viewMode === 'nearby' && (
@@ -291,8 +346,14 @@ export function MapScreenContent() {
       <GestureDetector gesture={panGesture}>
         <Animated.View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 70 }, sheetStyle]}>
           {viewMode === 'sightings'
-            ? <SightingsSheet selectedSighting={selectedSighting} onViewInDex={handleViewInDex} />
-            : <NearbySheet />
+            ? (
+                <SightingsSheet
+                  selectedSighting={selectedSighting}
+                  onViewInDex={handleViewInDex}
+                  areaLabel={hasLiveLocation ? 'Around you' : 'Hyde Park Area'}
+                />
+              )
+            : <NearbySheet items={nearbyList} />
           }
         </Animated.View>
       </GestureDetector>
@@ -305,15 +366,16 @@ export function MapScreenContent() {
 interface SheetProps {
   selectedSighting: Sighting | null
   onViewInDex: () => void
+  areaLabel: string
 }
 
-function SightingsSheet({ selectedSighting, onViewInDex }: SheetProps) {
+function SightingsSheet({ selectedSighting, onViewInDex, areaLabel }: SheetProps) {
   return (
     <View style={styles.sheetInner}>
       <View style={styles.handle} />
       <View style={styles.sheetRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.sheetTitle}>Hyde Park Area</Text>
+          <Text style={styles.sheetTitle}>{areaLabel}</Text>
           <Text style={styles.sheetSub}>47 species · 128 sightings</Text>
         </View>
         <View style={styles.statChip}>
@@ -326,14 +388,18 @@ function SightingsSheet({ selectedSighting, onViewInDex }: SheetProps) {
   )
 }
 
-function NearbySheet() {
+interface NearbySheetProps {
+  items: (Sighting & { distanceM: number })[]
+}
+
+function NearbySheet({ items }: NearbySheetProps) {
   return (
     <View style={styles.sheetInner}>
       <View style={styles.handle} />
       <Text style={styles.sheetTitle}>Nearby Species</Text>
       <Text style={[styles.sheetSub, { marginBottom: space[12] }]}>Within 2km of you</Text>
       <FlatList
-        data={NEARBY_MOCK}
+        data={items}
         keyExtractor={(item) => item.id}
         scrollEnabled
         style={styles.nearbyList}
@@ -386,86 +452,47 @@ function PinDetail({ sighting, onViewInDex }: { sighting: Sighting; onViewInDex:
   )
 }
 
-// ─── Map pin ─────────────────────────────────────────────────────────────────
-
-const PIN_SIZE = 46
-
-function calcPinSize(zoom: number): number {
-  const MIN_SIZE = 10
-  const MIN_ZOOM = 13
-  const MAX_ZOOM = 16
-  if (zoom >= MAX_ZOOM) return PIN_SIZE
-  const t = Math.max(0, (zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM))
-  return Math.round(MIN_SIZE + t * (PIN_SIZE - MIN_SIZE))
-}
-
-function darkenHex(hex: string, amount = 45): string {
-  const n = parseInt(hex.replace('#', ''), 16)
-  const r = Math.max(0, (n >> 16) - amount)
-  const g = Math.max(0, ((n >> 8) & 0xff) - amount)
-  const b = Math.max(0, (n & 0xff) - amount)
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
-}
-
-function MapPin({ kingdom: k, size, showEmoji }: { kingdom: KingdomKey; size: number; showEmoji: boolean }) {
-  const { bg, emoji } = KINGDOM[k]
-  const border = darkenHex(bg)
-  const borderWidth = Math.max(1.5, (size / PIN_SIZE) * 2.5)
-  const ptW = Math.max(3, Math.round(size * 0.2))
-  const ptH = Math.max(4, Math.round(size * 0.24))
-  const emojiFontSize = Math.round(size * 0.43)
-
-  return (
-    <View style={pinStyles.wrap}>
-      <View style={[
-        pinStyles.circleBase,
-        { width: size, height: size, borderRadius: size / 2, borderWidth, backgroundColor: bg, borderColor: border },
-      ]}>
-        {showEmoji && <Text style={{ fontSize: emojiFontSize, lineHeight: emojiFontSize + 4 }}>{emoji}</Text>}
-      </View>
-      {size >= 18 && <View style={[pinStyles.pointerBase, { borderLeftWidth: ptW, borderRightWidth: ptW, borderTopWidth: ptH, borderTopColor: border }]} />}
-    </View>
-  )
-}
-
-const pinStyles = StyleSheet.create({
-  wrap: { alignItems: 'center' },
-  circleBase: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#152130',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  pointerBase: {
-    width: 0,
-    height: 0,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    marginTop: -1,
-  },
-})
-
 // ─── User location marker ────────────────────────────────────────────────────
 
-function UserLocationMarker() {
+interface UserLocationMarkerProps {
+  deviceHeading: number | null
+  mapBearing: number
+  showHeadingBeam: boolean
+}
+
+function UserLocationMarker({ deviceHeading, mapBearing, showHeadingBeam }: UserLocationMarkerProps) {
   const scale = useSharedValue(0.4)
   const opacity = useSharedValue(0.9)
 
   useEffect(() => {
     scale.value = withRepeat(withTiming(3, { duration: 2200 }), -1, false)
     opacity.value = withRepeat(withTiming(0, { duration: 2200 }), -1, false)
-  }, [])
+  }, [opacity, scale])
 
   const ringStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
     opacity: opacity.value,
   }))
 
+  const beamRotation = useSharedValue(0)
+
+  useEffect(() => {
+    if (deviceHeading === null) return
+    const next = ((deviceHeading - mapBearing) % 360 + 360) % 360
+    beamRotation.value = withTiming(next, { duration: 120 })
+  }, [beamRotation, deviceHeading, mapBearing])
+
+  const beamStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${beamRotation.value}deg` }],
+  }))
+
   return (
     <View style={userStyles.wrap}>
+      {showHeadingBeam && deviceHeading !== null ? (
+        <Animated.View style={[userStyles.beamWrap, beamStyle]} pointerEvents="none">
+          <UserHeadingBeam />
+        </Animated.View>
+      ) : null}
       <Animated.View style={[userStyles.ring, ringStyle]} />
       <View style={userStyles.dot}>
         <View style={userStyles.dotCore} />
@@ -478,8 +505,13 @@ const USER_DOT = 22
 
 const userStyles = StyleSheet.create({
   wrap: {
-    width: 60,
-    height: 60,
+    width: 112,
+    height: 112,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  beamWrap: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },

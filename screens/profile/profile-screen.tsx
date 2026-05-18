@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router'
 import { ScrollView, StyleSheet, Text, Pressable, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import { OnboardingSpeciesArt } from '@/screens/onboarding/onboarding-species-art'
 
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
   },
   hero: {
     backgroundColor: colors.green,
-    paddingHorizontal: space[20],
+    paddingHorizontal: screenLayout.padH,
     paddingBottom: space[32],
   },
   heroNav: {

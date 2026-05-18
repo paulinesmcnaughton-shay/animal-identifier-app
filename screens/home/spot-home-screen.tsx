@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { DexCard } from '@/components/DexCard'
 import { mockCreatureOfDay, mockRecentFinds, mockUser, mockWeeklyQuest } from '@/data/mock'
+import { screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 
 function Header() {
@@ -182,7 +183,7 @@ export function SpotHomeScreen() {
       style={styles.root}
       contentContainerStyle={[
         styles.content,
-        { paddingTop: insets.top + space[8], paddingBottom: 100 + insets.bottom },
+        { paddingTop: insets.top, paddingBottom: 100 + insets.bottom },
       ]}
       showsVerticalScrollIndicator={false}>
       <Header />
@@ -205,7 +206,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   content: {
-    paddingHorizontal: space[20],
+    paddingHorizontal: screenLayout.padH,
     gap: space[24],
   },
 
@@ -569,6 +570,6 @@ const styles = StyleSheet.create({
   // Recent finds
   recentScroll: {
     gap: space[10],
-    paddingRight: space[20],
+    paddingRight: screenLayout.padH,
   },
 })

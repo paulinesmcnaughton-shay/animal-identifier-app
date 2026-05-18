@@ -7,6 +7,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
+import { ScreenHeader, ScreenHeaderIconButton } from '@/design/atoms/ScreenHeader'
+import { screenLayout } from '@/design/screen-layout'
 import {
   getSpeciesDetail,
   resolveRouteParam,
@@ -65,27 +67,23 @@ export function SpeciesDetailScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
         contentContainerStyle={[
           styles.scroll,
-          { paddingBottom: insets.bottom + space[32] },
+          { paddingTop: insets.top, paddingBottom: insets.bottom + space[32] },
         ]}>
-        <View style={[styles.header, { paddingTop: insets.top + space[4] }]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={handleBack}
-            style={({ pressed }) => [styles.headerIconBtn, pressed && styles.pressed]}>
-            <Ionicons name="arrow-back" size={22} color={colors.ink} />
-          </Pressable>
-          <Text style={styles.headerDex}>{species.dexNumber}</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Share species"
-            onPress={() => {}}
-            style={({ pressed }) => [styles.headerIconBtn, pressed && styles.pressed]}>
-            <Ionicons name="share-social-outline" size={22} color={colors.ink} />
-          </Pressable>
-        </View>
+        <ScreenHeader
+          onBack={handleBack}
+          center={<Text style={styles.headerDex}>{species.dexNumber}</Text>}
+          right={
+            <ScreenHeaderIconButton
+              accessibilityLabel="Share species"
+              icon="share-social-outline"
+              onPress={() => {}}
+            />
+          }
+          style={styles.screenHeaderInset}
+        />
 
         <View style={styles.profileCardShadow}>
           <View style={styles.profileCard}>
@@ -276,29 +274,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: space[16],
-    marginBottom: space[8],
-    backgroundColor: colors.bg,
-  },
   headerDex: {
     fontFamily: typeTokens.body.family,
     fontSize: typeTokens.size.bodySM,
     fontWeight: typeTokens.body.weights.bold,
     color: colors.ink,
     letterSpacing: 0.2,
-  },
-  headerIconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    backgroundColor: colors.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.card,
+    textAlign: 'center',
   },
   pressed: {
     opacity: 0.88,
@@ -306,8 +288,13 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     backgroundColor: colors.bg,
-    paddingHorizontal: space[20],
+    paddingHorizontal: screenLayout.padH,
     gap: space[16],
+  },
+  screenHeaderInset: {
+    marginHorizontal: -screenLayout.padH,
+    paddingHorizontal: screenLayout.padH,
+    backgroundColor: colors.bg,
   },
   profileCardShadow: {
     borderRadius: radius.xl,

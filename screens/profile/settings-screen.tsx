@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { ScreenHeader } from '@/design/atoms/ScreenHeader'
+import { screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import {
   connectInaturalistAccount,
@@ -182,17 +184,7 @@ export function SettingsScreenContent() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
-          <Ionicons name="arrow-back" size={24} color={colors.ink} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <ScreenHeader onBack={() => router.back()} title="Settings" />
 
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 60 + space[40] }]}
@@ -264,27 +256,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: space[16],
-    paddingVertical: space[12],
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: typeTokens.size.title,
-    fontWeight: typeTokens.body.weights.bold,
-    color: colors.ink,
-    textAlign: 'center',
-  },
   scroll: {
-    paddingHorizontal: space[16],
+    paddingHorizontal: screenLayout.padH,
   },
   sectionLabel: {
     fontSize: typeTokens.size.micro,
