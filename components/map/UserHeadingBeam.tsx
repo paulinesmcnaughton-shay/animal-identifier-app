@@ -24,9 +24,9 @@ export function UserHeadingBeam() {
     <Svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
       <Defs>
         <RadialGradient id="wildrHeadingBeam" cx="50%" cy="42%" rx="52%" ry="52%">
-          <Stop offset="0%" stopColor={colors.green} stopOpacity={0.42} />
-          <Stop offset="55%" stopColor={colors.green} stopOpacity={0.16} />
-          <Stop offset="100%" stopColor={colors.green} stopOpacity={0} />
+          <Stop offset="0%" stopColor={colors.mapUser} stopOpacity={0.42} />
+          <Stop offset="55%" stopColor={colors.mapUser} stopOpacity={0.16} />
+          <Stop offset="100%" stopColor={colors.mapUser} stopOpacity={0} />
         </RadialGradient>
       </Defs>
       <Path d={wedgePath(CENTER, CENTER, RADIUS, HALF_SPREAD)} fill="url(#wildrHeadingBeam)" />

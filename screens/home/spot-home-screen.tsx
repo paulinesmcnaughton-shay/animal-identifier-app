@@ -1,30 +1,56 @@
 import { Ionicons } from '@expo/vector-icons'
+import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { useState } from 'react'
+import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { CollectorTierBadge } from '@/components/CollectorTierBadge'
 import { DexCard } from '@/components/DexCard'
-import { mockCreatureOfDay, mockRecentFinds, mockUser, mockWeeklyQuest } from '@/data/mock'
-import { screenLayout } from '@/design/screen-layout'
-import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
+import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
+import {
+  getHomeRecentFinds,
+  mockCreatureOfDay,
+  mockHomeNotifications,
+  mockUser,
+  mockWeeklyQuest,
+  type RecentFindItem,
+} from '@/data/mock'
+import { dexCardHairline } from '@/design/dex-card-shell'
+import { contentTopInset, screenLayout } from '@/design/screen-layout'
+import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
+import { useAccountProfile } from '@/features/settings/account-profile'
 
-function Header() {
+interface HeaderProps {
+  firstName: string
+  onBadgePress: () => void
+  onBellPress: () => void
+  hasUnreadNotifications: boolean
+}
+
+function Header({ firstName, onBadgePress, onBellPress, hasUnreadNotifications }: HeaderProps) {
   const timeHour = new Date().getHours()
   const greeting = timeHour < 12 ? 'Good morning' : timeHour < 18 ? 'Good afternoon' : 'Good evening'
 
   return (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
-        <View style={styles.avatarWrap}>
-          <Text style={styles.avatarEmoji}>{mockUser.avatar}</Text>
-          <View style={styles.levelBadge}>
-            <Text style={styles.levelText}>{mockUser.level}</Text>
-          </View>
-        </View>
-        <View>
+        <Pressable
+          onPress={onBadgePress}
+          accessibilityRole="button"
+          accessibilityLabel="View badges">
+          <CollectorTierBadge captureCount={mockUser.spotsCaptured} size={52} />
+        </Pressable>
+        <View style={styles.headerTextCol}>
           <Text style={styles.greeting}>{greeting}</Text>
-          <Text style={styles.name}>Hey, {mockUser.name} 👋</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.name}>Hey, {firstName} 👋</Text>
+            <View style={styles.levelBadge}>
+              <Text style={styles.levelText}>LVL {mockUser.level}</Text>
+            </View>
+          </View>
         </View>
       </View>
       <View style={styles.headerRight}>
@@ -32,9 +58,18 @@ function Header() {
           <Ionicons name="flame" size={14} color={colors.coral} />
           <Text style={styles.streakText}>{mockUser.streakDays}</Text>
         </View>
-        <TouchableOpacity style={styles.bellBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.bellBtn}
+          activeOpacity={0.7}
+          onPress={onBellPress}
+          accessibilityRole="button"
+          accessibilityLabel="Notifications">
           <Ionicons name="notifications-outline" size={20} color={colors.ink} />
-          <View style={styles.bellDot} />
+          {hasUnreadNotifications ? (
+            <View style={styles.bellBadge}>
+              <Text style={styles.bellBadgeText}>{mockHomeNotifications.length}</Text>
+            </View>
+          ) : null}
         </TouchableOpacity>
       </View>
     </View>
@@ -47,7 +82,7 @@ function WeeklyQuestCard() {
 
   return (
     <LinearGradient
-      colors={[colors.green, colors.greenDark]}
+      colors={[colors.green, colors.greenLight]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.questCard}>
@@ -84,20 +119,22 @@ function WeeklyQuestCard() {
   )
 }
 
-function CreatureOfDayCard() {
-  const { commonName, scientificName, kingdom, description, bonusXp, gradient } = mockCreatureOfDay
+interface CreatureOfDayCardProps {
+  onInfoPress: () => void
+}
+
+function CreatureOfDayCard({ onInfoPress }: CreatureOfDayCardProps) {
+  const { commonName, scientificName, kingdom, description, bonusXp, heroImage } = mockCreatureOfDay
   const router = useRouter()
 
   return (
-    <View style={styles.creatureCard}>
-      <LinearGradient
-        colors={[...gradient]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.creatureArt}>
+    <View style={styles.creatureCardOuter}>
+      <View style={styles.creatureCard}>
+      <View style={styles.creatureArt}>
+        <Image source={heroImage} style={StyleSheet.absoluteFill} contentFit="cover" />
         <View style={styles.creatureBadges}>
           <View style={styles.kingdomBadge}>
-            <Ionicons name="leaf" size={11} color="#fff" />
+            <Text style={styles.kingdomEmoji}>🦎</Text>
             <Text style={styles.kingdomText}>{kingdom.toUpperCase()}</Text>
           </View>
           <View style={styles.featuredBadge}>
@@ -105,10 +142,7 @@ function CreatureOfDayCard() {
             <Text style={styles.featuredText}>FEATURED</Text>
           </View>
         </View>
-        <View style={styles.creatureSilhouette}>
-          <View style={styles.silhouetteBlob} />
-        </View>
-      </LinearGradient>
+      </View>
 
       <View style={styles.creatureInfo}>
         <View style={styles.creatureNameRow}>
@@ -130,17 +164,36 @@ function CreatureOfDayCard() {
             <Ionicons name="scan-circle-outline" size={20} color="#fff" />
             <Text style={styles.seeOneBtnText}>I SEE ONE!</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.infoBtn} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.infoBtn}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`More about ${commonName}`}
+            onPress={onInfoPress}>
             <Ionicons name="information-circle-outline" size={24} color={colors.ink2} />
           </TouchableOpacity>
         </View>
+      </View>
       </View>
     </View>
   )
 }
 
 function RecentFinds() {
+  const router = useRouter()
   const CARD_WIDTH = 120
+
+  const handleOpenSpecies = (item: (typeof mockRecentFinds)[number]) => {
+    router.push({
+      pathname: '/species/[id]',
+      params: {
+        id: item.id,
+        name: item.name,
+        number: item.number,
+        kingdom: item.kingdom,
+      },
+    })
+  }
 
   return (
     <View style={styles.section}>
@@ -149,15 +202,19 @@ function RecentFinds() {
           <Text style={styles.sectionTitle}>Recent finds</Text>
           <Text style={styles.sectionSub}>47 spotted · 200 left to discover</Text>
         </View>
-        <TouchableOpacity activeOpacity={0.7}>
-          <Text style={styles.seeAll}>All &gt;</Text>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          accessibilityRole="link"
+          accessibilityLabel="View all recent finds in Dex"
+          onPress={() => router.navigate('/dex')}>
+          <Text style={styles.seeAll}>View all</Text>
         </TouchableOpacity>
       </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.recentScroll}>
-        {mockRecentFinds.map((item) => (
+        {recentFinds.map((item) => (
           <DexCard
             key={item.id}
             width={CARD_WIDTH}
@@ -167,7 +224,9 @@ function RecentFinds() {
               name: item.name,
               date: item.date,
               gradient: item.gradient,
+              kingdom: item.kingdom,
             }}
+            onPress={() => handleOpenSpecies(item)}
           />
         ))}
       </ScrollView>
@@ -177,30 +236,72 @@ function RecentFinds() {
 
 export function SpotHomeScreen() {
   const insets = useSafeAreaInsets()
+  const router = useRouter()
+  const { firstName } = useAccountProfile()
+  const [creatureInfoOpen, setCreatureInfoOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true)
+
+  const handleOpenNotifications = () => {
+    setNotificationsOpen(true)
+    setHasUnreadNotifications(false)
+  }
+
+  const handleViewAllNotifications = () => {
+    setNotificationsOpen(false)
+    router.push('/notifications')
+  }
+
+  const handleOpenBadges = () => {
+    router.push('/badges')
+  }
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top, paddingBottom: 100 + insets.bottom },
-      ]}
-      showsVerticalScrollIndicator={false}>
-      <Header />
-      <WeeklyQuestCard />
-      <View style={styles.sectionGap}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Creature of the day</Text>
-          <Text style={styles.newEvery}>NEW EVERY 24H</Text>
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: contentTopInset(insets.top), paddingBottom: 100 + insets.bottom },
+        ]}
+        showsVerticalScrollIndicator={false}>
+        <Header
+          firstName={firstName}
+          onBadgePress={handleOpenBadges}
+          onBellPress={handleOpenNotifications}
+          hasUnreadNotifications={hasUnreadNotifications}
+        />
+        <WeeklyQuestCard />
+        <View style={styles.sectionGap}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Creature of the day</Text>
+            <Text style={styles.newEvery}>NEW EVERY 24H</Text>
+          </View>
+          <CreatureOfDayCard onInfoPress={() => setCreatureInfoOpen(true)} />
         </View>
-        <CreatureOfDayCard />
-      </View>
-      <RecentFinds />
-    </ScrollView>
+        <RecentFinds />
+      </ScrollView>
+
+      <CreatureInfoOverlay
+        visible={creatureInfoOpen}
+        creature={mockCreatureOfDay}
+        onClose={() => setCreatureInfoOpen(false)}
+      />
+
+      <HomeNotificationsPopover
+        visible={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+        onViewAll={handleViewAllNotifications}
+      />
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
   root: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -219,39 +320,27 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[12],
+    gap: space[8],
   },
-  avatarWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: colors.sun,
+  headerTextCol: {
+    gap: space[4],
+  },
+  nameRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: colors.green,
-  },
-  avatarEmoji: {
-    fontSize: 26,
+    gap: space[8],
+    flexWrap: 'wrap',
   },
   levelBadge: {
-    position: 'absolute',
-    bottom: -6,
-    right: -6,
-    backgroundColor: colors.green,
+    backgroundColor: colors.sun,
     borderRadius: radius.pill,
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.bg,
+    paddingHorizontal: space[8],
+    paddingVertical: 2,
   },
   levelText: {
-    fontSize: typeTokens.size.micro,
-    fontWeight: '800',
-    color: '#fff',
+    fontSize: typeTokens.size.caption,
+    fontWeight: typeTokens.body.weights.black,
+    color: colors.ink,
   },
   greeting: {
     fontSize: typeTokens.size.caption,
@@ -269,15 +358,15 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[10],
+    gap: space[8],
   },
   streakPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: `${colors.coral}18`,
-    paddingHorizontal: space[10],
-    paddingVertical: space[6],
+    paddingHorizontal: space[8],
+    paddingVertical: space[8],
     borderRadius: radius.pill,
   },
   streakText: {
@@ -298,31 +387,39 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  bellDot: {
+  bellBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: radius.pill,
     backgroundColor: colors.coral,
     borderWidth: 1.5,
     borderColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: {
+    fontSize: 9,
+    fontWeight: typeTokens.body.weights.black,
+    color: colors.card,
   },
 
   // Quest card
   questCard: {
     borderRadius: radius.xl,
-    padding: space[20],
-    gap: space[14],
+    padding: space[16],
+    gap: space[16],
   },
   questTop: {
-    gap: space[6],
+    gap: space[8],
   },
   questTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[6],
+    gap: space[8],
   },
   questLabel: {
     fontSize: typeTokens.size.micro,
@@ -338,7 +435,7 @@ const styles = StyleSheet.create({
     lineHeight: 28,
   },
   questBottom: {
-    gap: space[10],
+    gap: space[8],
   },
   progressBarTrack: {
     height: 8,
@@ -359,7 +456,7 @@ const styles = StyleSheet.create({
   progressEmojis: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[6],
+    gap: space[8],
   },
   progressLabel: {
     fontSize: typeTokens.size.micro,
@@ -388,8 +485,8 @@ const styles = StyleSheet.create({
   },
   xpPill: {
     backgroundColor: colors.sun,
-    paddingHorizontal: space[12],
-    paddingVertical: space[6],
+    paddingHorizontal: space[16],
+    paddingVertical: space[8],
     borderRadius: radius.pill,
   },
   xpText: {
@@ -400,10 +497,10 @@ const styles = StyleSheet.create({
 
   // Section
   section: {
-    gap: space[12],
+    gap: space[16],
   },
   sectionGap: {
-    gap: space[10],
+    gap: space[8],
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -433,34 +530,41 @@ const styles = StyleSheet.create({
     color: colors.green,
   },
 
-  // Creature card
-  creatureCard: {
+  // Creature of the day — outer shell casts shadow; inner clips image corners
+  creatureCardOuter: {
+    borderRadius: radius.xl,
     backgroundColor: colors.card,
+    ...shadow.featured,
+  },
+  creatureCard: {
     borderRadius: radius.xl,
     overflow: 'hidden',
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
+    backgroundColor: colors.card,
+    ...dexCardHairline,
   },
   creatureArt: {
     height: 200,
-    padding: space[14],
+    padding: space[16],
     justifyContent: 'space-between',
+    overflow: 'hidden',
+    backgroundColor: colors.hairline,
   },
   creatureBadges: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    zIndex: 2,
   },
   kingdomBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: 'rgba(0,0,0,0.25)',
-    paddingHorizontal: space[10],
+    paddingHorizontal: space[8],
     paddingVertical: space[4],
     borderRadius: radius.pill,
+  },
+  kingdomEmoji: {
+    fontSize: 11,
   },
   kingdomText: {
     fontSize: typeTokens.size.micro,
@@ -473,7 +577,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: colors.sun,
-    paddingHorizontal: space[10],
+    paddingHorizontal: space[8],
     paddingVertical: space[4],
     borderRadius: radius.pill,
   },
@@ -483,20 +587,9 @@ const styles = StyleSheet.create({
     color: colors.ink,
     letterSpacing: 0.5,
   },
-  creatureSilhouette: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  silhouetteBlob: {
-    width: 120,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
   creatureInfo: {
     padding: space[16],
-    gap: space[10],
+    gap: space[8],
   },
   creatureNameRow: {
     flexDirection: 'row',
@@ -539,7 +632,7 @@ const styles = StyleSheet.create({
   creatureActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[10],
+    gap: space[8],
     marginTop: space[4],
   },
   seeOneBtn: {
@@ -549,7 +642,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: space[8],
     backgroundColor: colors.green,
-    paddingVertical: space[14],
+    paddingVertical: space[16],
     borderRadius: radius.lg,
   },
   seeOneBtnText: {
@@ -569,7 +662,7 @@ const styles = StyleSheet.create({
 
   // Recent finds
   recentScroll: {
-    gap: space[10],
+    gap: space[8],
     paddingRight: screenLayout.padH,
   },
 })

@@ -1,11 +1,15 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { ScrollView, StyleSheet, Text, Pressable, View } from 'react-native'
+import { useCallback, useMemo } from 'react'
+import { Dimensions, ScrollView, StyleSheet, Text, Pressable, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { screenLayout } from '@/design/screen-layout'
-import { colors, radius, space, type as typeTokens } from '@/design/tokens'
-import { OnboardingSpeciesArt } from '@/screens/onboarding/onboarding-species-art'
+import { DexCard, type DexCardSpecies } from '@/components/DexCard'
+import { ProfileAvatar } from '@/components/profile/ProfileAvatar'
+import { dexCardHairline } from '@/design/dex-card-shell'
+import { contentTopInset, screenLayout } from '@/design/screen-layout'
+import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
+import { useAccountProfile } from '@/features/settings/account-profile'
 
 const XP_CURRENT = 2340
 const XP_NEXT = 3000
@@ -18,40 +22,204 @@ const STATS = [
   { value: '23', label: 'Badges',  color: colors.plum },
 ]
 
-const RECENT_SPOTS = [
-  { kind: 'fox'      as const, name: 'Red Fox',            when: 'Today' },
-  { kind: 'monarch'  as const, name: 'Monarch Butter...', when: 'Yesterday' },
-  { kind: 'cardinal' as const, name: 'Northern Cardin...', when: '2d ago' },
-  { kind: 'frog'     as const, name: 'Tree Frog',          when: '3d ago' },
+const H_PAD = screenLayout.padH
+const GRID_GAP = space[8]
+
+const MAX_RECENT_SPOTS = 10
+
+const RECENT_SPOTS: DexCardSpecies[] = [
+  {
+    id: 'fox',
+    number: '#012',
+    name: 'Red Fox',
+    date: 'Today',
+    kingdom: 'mammal',
+    gradient: ['#FFB088', '#FF6B5B'],
+    cornerBadge: 'NEW',
+    showFootprint: true,
+  },
+  {
+    id: 'monarch',
+    number: '#047',
+    name: 'Monarch Butterfly',
+    date: 'Yesterday',
+    kingdom: 'insect',
+    gradient: ['#FFB347', '#E85D04'],
+    cornerBadge: 'RARE',
+  },
+  {
+    id: 'cardinal',
+    number: '#089',
+    name: 'Northern Cardinal',
+    date: '2d ago',
+    kingdom: 'bird',
+    gradient: ['#FF6B5B', '#E04A39'],
+  },
+  {
+    id: 'frog',
+    number: '#033',
+    name: 'Tree Frog',
+    date: '3d ago',
+    kingdom: 'amphibian',
+    gradient: ['#98E2C6', '#3DCCA8'],
+  },
+  {
+    id: 'robin',
+    number: '#089',
+    name: 'Robin',
+    date: '4d ago',
+    kingdom: 'bird',
+    gradient: ['#52b788', '#1a3d2b'],
+  },
+  {
+    id: 'badger',
+    number: '#044',
+    name: 'Badger',
+    date: '5d ago',
+    kingdom: 'mammal',
+    gradient: ['#A8D8EA', '#5BC0EB'],
+  },
+  {
+    id: 'jay',
+    number: '#156',
+    name: 'Jay',
+    date: '1w ago',
+    kingdom: 'bird',
+    gradient: ['#C9B8FF', '#A855F7'],
+  },
+  {
+    id: 'hare',
+    number: '#078',
+    name: 'Hare',
+    date: '1w ago',
+    kingdom: 'mammal',
+    gradient: ['#FFD6A5', '#E8A87C'],
+  },
+  {
+    id: 'newt',
+    number: '#033',
+    name: 'Newt',
+    date: '2w ago',
+    kingdom: 'amphibian',
+    gradient: ['#98E2C6', '#3DCCA8'],
+  },
+  {
+    id: 'owl',
+    number: '#112',
+    name: 'Tawny Owl',
+    date: '2w ago',
+    kingdom: 'bird',
+    gradient: ['#D4C4F5', '#9B7ED9'],
+    cornerBadge: 'NEW',
+  },
 ]
 
-const HEATMAP_WEEKS = 12
-const HEATMAP_DAYS  = 7
-const HEATMAP_DATA  = Array.from({ length: HEATMAP_WEEKS * HEATMAP_DAYS }, () => {
-  const rand = Math.random()
+const XP_TO_STATS_GAP = space[24]
+/** Green hero tucks under ~half of the stats card (Spotted, Rare, Streak, Badges). */
+const STATS_CARD_HERO_OVERLAP = space[40]
+
+const HEATMAP_MONTHS = 12
+const HEATMAP_DAYS = 7
+
+const HEAT_DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
+const HEAT_MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
+
+const HEAT_CELL = 10
+const HEAT_GAP = 3
+const HEAT_DAY_LABEL_W = 30
+const HEAT_MONTH_ROW_H = 16
+
+interface SpottingHeatmap {
+  monthCount: number
+  monthLabels: string[]
+  levels: (number | null)[]
+}
+
+function mockActivityLevel(year: number, monthIndex: number, dayIndex: number): number {
+  const seed = year * 372 + monthIndex * 31 + dayIndex
+  const rand = (Math.sin(seed) + 1) / 2
   if (rand < 0.15) return 0
   if (rand < 0.35) return 1
   if (rand < 0.60) return 2
   if (rand < 0.80) return 3
   return 4
-})
+}
 
-const HEAT_COLORS = ['#E7EDF3', '#A7D4BA', '#6BBF98', '#3DA876', colors.green]
+function buildCurrentYearHeatmap(today: Date): SpottingHeatmap {
+  const year = today.getFullYear()
+  const currentMonth = today.getMonth()
+
+  const monthLabels = [...HEAT_MONTH_SHORT]
+
+  const levels: (number | null)[] = []
+  for (let monthIndex = 0; monthIndex < HEATMAP_MONTHS; monthIndex++) {
+    for (let dayIndex = 0; dayIndex < HEATMAP_DAYS; dayIndex++) {
+      levels.push(
+        monthIndex > currentMonth
+          ? null
+          : mockActivityLevel(year, monthIndex, dayIndex),
+      )
+    }
+  }
+
+  return { monthCount: HEATMAP_MONTHS, monthLabels, levels }
+}
+
+const HEAT_THEME = {
+  card: colors.card,
+  label: colors.dim,
+  total: colors.green,
+  future: colors.hairline,
+  levels: ['#E7EDF3', '#A7D4BA', '#6BBF98', '#3DA876', colors.green] as const,
+}
 
 export function ProfileScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { displayName, username } = useAccountProfile()
   const xpProgress = XP_CURRENT / XP_NEXT
+
+  const colWidth = useMemo(() => {
+    const w = Dimensions.get('window').width
+    return (w - H_PAD * 2 - GRID_GAP * 2) / 3
+  }, [])
+
+  const recentSpots = useMemo(
+    () => RECENT_SPOTS.slice(0, MAX_RECENT_SPOTS),
+    [],
+  )
+
+  const spottingHeatmap = useMemo(() => buildCurrentYearHeatmap(new Date()), [])
+
+  const handleSeeAllSpots = useCallback(() => {
+    router.push('/(tabs)/dex')
+  }, [router])
 
   return (
     <View style={styles.root}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 60 + space[40] }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 60 + space[24] }}
         showsVerticalScrollIndicator={false}>
 
         {/* Green hero header */}
-        <View style={[styles.hero, { paddingTop: insets.top + space[12] }]}>
-          <View style={styles.heroNav}>
+        <View style={[styles.hero, { paddingTop: contentTopInset(insets.top) }]}>
+          <View style={styles.userRow}>
+            <View style={styles.avatarWrap}>
+              <ProfileAvatar size={72} borderColor={colors.card} borderWidth={3} />
+            </View>
+            <View style={styles.userInfo}>
+              <View style={styles.nameRow}>
+                <Text style={styles.userName}>{displayName}</Text>
+                <View style={styles.levelBadge}>
+                  <Text style={styles.levelText}>LVL {LEVEL}</Text>
+                </View>
+              </View>
+              <Text style={styles.handle}>@{username}</Text>
+              <View style={styles.streakRow}>
+                <Text style={styles.streakFlame}>🔥</Text>
+                <Text style={styles.streakText}>12-day streak</Text>
+              </View>
+            </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Open settings"
@@ -59,26 +227,6 @@ export function ProfileScreen() {
               style={({ pressed }) => [styles.navBtn, pressed && { opacity: 0.7 }]}>
               <Ionicons name="settings-outline" size={22} color={colors.card} />
             </Pressable>
-          </View>
-
-          {/* Avatar + user info */}
-          <View style={styles.userRow}>
-            <View style={styles.avatarWrap}>
-              <OnboardingSpeciesArt kind="fox" size={72} rounded={18} />
-            </View>
-            <View style={styles.userInfo}>
-              <View style={styles.nameRow}>
-                <Text style={styles.userName}>Alex Riley</Text>
-                <View style={styles.levelBadge}>
-                  <Text style={styles.levelText}>LVL {LEVEL}</Text>
-                </View>
-              </View>
-              <Text style={styles.handle}>@alexinthewild</Text>
-              <View style={styles.streakRow}>
-                <Text style={styles.streakFlame}>🔥</Text>
-                <Text style={styles.streakText}>12-day streak</Text>
-              </View>
-            </View>
           </View>
 
           {/* XP bar */}
@@ -107,19 +255,36 @@ export function ProfileScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent spots</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="See all spots">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="See all spots in Wild Dex"
+              onPress={handleSeeAllSpots}
+              style={({ pressed }) => pressed && { opacity: 0.7 }}>
               <Text style={styles.seeAll}>See all</Text>
             </Pressable>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.spotsScroll}>
-            {RECENT_SPOTS.map((spot) => (
-              <View key={spot.name} style={styles.spotCard}>
-                <View style={styles.spotArt}>
-                  <OnboardingSpeciesArt kind={spot.kind} size={120} rounded={12} />
-                </View>
-                <Text style={styles.spotName}>{spot.name}</Text>
-                <Text style={styles.spotWhen}>{spot.when}</Text>
-              </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.spotsScroll}
+            style={styles.spotsScrollWrap}>
+            {recentSpots.map((species) => (
+              <DexCard
+                key={species.id}
+                species={species}
+                width={colWidth}
+                onPress={() =>
+                  router.push({
+                    pathname: '/species/[id]',
+                    params: {
+                      id: species.id,
+                      name: species.name,
+                      number: species.number,
+                      kingdom: species.kingdom,
+                    },
+                  })
+                }
+              />
             ))}
           </ScrollView>
         </View>
@@ -129,23 +294,66 @@ export function ProfileScreen() {
           <Text style={styles.sectionTitle}>Spotting activity</Text>
           <View style={styles.heatCard}>
             <View style={styles.heatHeader}>
-              <Text style={styles.heatPeriod}>Last {HEATMAP_WEEKS} weeks</Text>
+              <Text style={styles.heatPeriod}>Current year</Text>
               <Text style={styles.heatTotal}>247 spots</Text>
             </View>
-            <View style={styles.heatGrid}>
-              {Array.from({ length: HEATMAP_WEEKS }, (_, w) => (
-                <View key={w} style={styles.heatCol}>
-                  {Array.from({ length: HEATMAP_DAYS }, (_, d) => {
-                    const level = HEATMAP_DATA[w * HEATMAP_DAYS + d]
-                    return (
-                      <View
-                        key={d}
-                        style={[styles.heatCell, { backgroundColor: HEAT_COLORS[level] }]}
-                      />
-                    )
-                  })}
+
+            <View style={styles.heatChart}>
+              <View style={styles.heatChartBody}>
+                <View style={styles.heatDayLabelsCol}>
+                  <View style={{ height: HEAT_MONTH_ROW_H }} />
+                  {HEAT_DAY_LABELS.map((dayLabel) => (
+                    <View key={dayLabel} style={styles.heatDayLabelCell}>
+                      <Text style={[styles.heatAxisLabel, styles.heatDayLabel]}>{dayLabel}</Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
+
+                <View style={styles.heatGrid}>
+                  <View style={styles.heatMonthRow}>
+                    {spottingHeatmap.monthLabels.map((label, monthIndex) => (
+                      <Text
+                        key={`month-${monthIndex}`}
+                        style={[styles.heatAxisLabel, styles.heatMonthLabel]}
+                        numberOfLines={1}>
+                        {label}
+                      </Text>
+                    ))}
+                  </View>
+
+                  {HEAT_DAY_LABELS.map((dayLabel, dayIndex) => (
+                    <View key={dayLabel} style={styles.heatGridRow}>
+                      {Array.from({ length: spottingHeatmap.monthCount }, (_, monthIndex) => {
+                        const level =
+                          spottingHeatmap.levels[monthIndex * HEATMAP_DAYS + dayIndex]
+                        const month = spottingHeatmap.monthLabels[monthIndex]
+                        const fill =
+                          level === null
+                            ? HEAT_THEME.future
+                            : HEAT_THEME.levels[level]
+                        return (
+                          <View
+                            key={monthIndex}
+                            accessibilityLabel={`${dayLabel}, ${month}, ${level === null ? 'no activity yet' : `level ${level}`}`}
+                            style={[styles.heatCell, { backgroundColor: fill }]}
+                          />
+                        )
+                      })}
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.heatLegendRow}>
+                <View style={{ flex: 1 }} />
+                <View style={styles.heatLegend}>
+                  <Text style={styles.heatLegendText}>Less</Text>
+                  {HEAT_THEME.levels.map((fill, i) => (
+                    <View key={i} style={[styles.heatLegendCell, { backgroundColor: fill }]} />
+                  ))}
+                  <Text style={styles.heatLegendText}>More</Text>
+                </View>
+              </View>
             </View>
           </View>
         </View>
@@ -163,17 +371,13 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: colors.green,
     paddingHorizontal: screenLayout.padH,
-    paddingBottom: space[32],
-  },
-  heroNav: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: space[20],
+    paddingBottom: XP_TO_STATS_GAP + STATS_CARD_HERO_OVERLAP,
   },
   navBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    flexShrink: 0,
+    width: screenLayout.iconBtnSize,
+    height: screenLayout.iconBtnSize,
+    borderRadius: screenLayout.iconBtnSize / 2,
     backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -182,18 +386,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: space[16],
-    marginBottom: space[20],
+    marginBottom: space[16],
   },
   avatarWrap: {
     width: 80,
     height: 80,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: colors.sun,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   userInfo: {
     flex: 1,
-    paddingTop: space[4],
     gap: space[4],
   },
   nameRow: {
@@ -238,8 +440,8 @@ const styles = StyleSheet.create({
   xpCard: {
     backgroundColor: 'rgba(0,0,0,0.15)',
     borderRadius: radius.md,
-    padding: space[14],
-    gap: space[10],
+    padding: space[16],
+    gap: space[8],
   },
   xpLabels: {
     flexDirection: 'row',
@@ -270,13 +472,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: radius.xl,
     marginHorizontal: space[16],
-    marginTop: -space[20],
-    paddingVertical: space[20],
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
+    marginTop: -STATS_CARD_HERO_OVERLAP,
+    paddingVertical: space[16],
+    ...shadow.card,
   },
   statItem: {
     flex: 1,
@@ -300,13 +498,13 @@ const styles = StyleSheet.create({
   },
   section: {
     paddingHorizontal: space[16],
-    marginTop: space[28],
+    marginTop: space[24],
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: space[14],
+    marginBottom: space[16],
   },
   sectionTitle: {
     fontSize: typeTokens.size.displaySM,
@@ -318,70 +516,101 @@ const styles = StyleSheet.create({
     fontWeight: typeTokens.body.weights.bold,
     color: colors.green,
   },
+  spotsScrollWrap: {
+    marginHorizontal: -space[16],
+  },
   spotsScroll: {
-    gap: space[12],
-    paddingRight: space[4],
-  },
-  spotCard: {
-    width: 140,
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  spotArt: {
-    width: '100%',
-    height: 120,
-  },
-  spotName: {
-    fontSize: typeTokens.size.bodySM,
-    fontWeight: typeTokens.body.weights.bold,
-    color: colors.ink,
-    paddingHorizontal: space[10],
-    paddingTop: space[8],
-  },
-  spotWhen: {
-    fontSize: typeTokens.size.caption,
-    color: colors.dim,
-    paddingHorizontal: space[10],
-    paddingBottom: space[10],
-    paddingTop: 2,
+    paddingHorizontal: space[16],
+    gap: GRID_GAP,
   },
   heatCard: {
-    backgroundColor: colors.card,
+    backgroundColor: HEAT_THEME.card,
     borderRadius: radius.lg,
     padding: space[16],
-    marginTop: space[12],
+    marginTop: space[16],
+    ...dexCardHairline,
+    ...shadow.card,
   },
   heatHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: space[12],
+    alignItems: 'center',
+    marginBottom: space[8],
   },
   heatPeriod: {
     fontSize: typeTokens.size.bodySM,
     fontWeight: typeTokens.body.weights.bold,
-    color: colors.ink,
+    color: HEAT_THEME.label,
   },
   heatTotal: {
     fontSize: typeTokens.size.bodySM,
     fontWeight: typeTokens.body.weights.bold,
-    color: colors.green,
+    color: HEAT_THEME.total,
+  },
+  heatChart: {
+    gap: space[8],
+  },
+  heatChartBody: {
+    flexDirection: 'row',
+  },
+  heatDayLabelsCol: {
+    width: HEAT_DAY_LABEL_W,
+  },
+  heatDayLabelCell: {
+    flex: 1,
+    marginBottom: HEAT_GAP,
+    justifyContent: 'center',
+  },
+  heatDayLabel: {
+    textAlign: 'right',
+    paddingRight: space[8],
   },
   heatGrid: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  heatCol: {
     flex: 1,
-    gap: 4,
+  },
+  heatMonthRow: {
+    flexDirection: 'row',
+    height: HEAT_MONTH_ROW_H,
+    marginBottom: space[4],
+    gap: HEAT_GAP,
+  },
+  heatMonthLabel: {
+    flex: 1,
+    textAlign: 'center',
+  },
+  heatGridRow: {
+    flexDirection: 'row',
+    gap: HEAT_GAP,
+    marginBottom: HEAT_GAP,
+  },
+  heatAxisLabel: {
+    fontSize: 9,
+    fontWeight: typeTokens.body.weights.medium,
+    color: HEAT_THEME.label,
+    textAlign: 'center',
   },
   heatCell: {
+    flex: 1,
     aspectRatio: 1,
-    borderRadius: 3,
+    borderRadius: 2,
+  },
+  heatLegendRow: {
+    flexDirection: 'row',
+    marginTop: space[8],
+  },
+  heatLegend: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  heatLegendText: {
+    fontSize: 9,
+    fontWeight: typeTokens.body.weights.medium,
+    color: HEAT_THEME.label,
+  },
+  heatLegendCell: {
+    width: HEAT_CELL,
+    height: HEAT_CELL,
+    borderRadius: 2,
   },
 })

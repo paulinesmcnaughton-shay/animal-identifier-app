@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ScreenHeader } from '@/design/atoms/ScreenHeader'
+import { ToggleSwitch } from '@/design/atoms/ToggleSwitch'
 import { screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import {
@@ -17,6 +18,21 @@ import {
   saveInaturalistApiToken,
 } from '@/features/identify/inaturalist-auth'
 import { IdentifyError } from '@/features/identify/types'
+import {
+  formatAccountSubtitle,
+  useAccountProfile,
+} from '@/features/settings/account-profile'
+import {
+  SETTINGS_DEFAULTS,
+  loadSettingsPreferences,
+  saveAutoRecordSounds,
+  saveAutoTagLocation,
+  saveUseScientificNames,
+  saveVibrateOnIdentify,
+  settingsRowSubtitles,
+  type SettingsRowSubtitles,
+} from '@/features/settings/preferences'
+import { mockUser } from '@/data/mock'
 import { storage } from '@/util/storage'
 
 type RowAction =
@@ -54,12 +70,7 @@ function SettingsRow({ icon, iconBg, title, subtitle, action, isLast }: RowProps
         <Ionicons name="chevron-forward" size={17} color={colors.dim} />
       )}
       {action.type === 'toggle' && (
-        <Switch
-          value={action.value}
-          onValueChange={action.onToggle}
-          trackColor={{ false: colors.hairline, true: colors.green }}
-          thumbColor={colors.card}
-        />
+        <ToggleSwitch value={action.value} onValueChange={action.onToggle} />
       )}
     </Pressable>
   )
@@ -69,6 +80,28 @@ export function SettingsScreenContent() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
 
+  const { displayName, username } = useAccountProfile()
+  const [rowSubtitles, setRowSubtitles] = useState<SettingsRowSubtitles>(() =>
+    settingsRowSubtitles({
+      displayName: SETTINGS_DEFAULTS.displayName,
+      username: SETTINGS_DEFAULTS.username,
+      email: SETTINGS_DEFAULTS.email,
+      phone: SETTINGS_DEFAULTS.phone,
+      cameraQuality: 'high',
+      appearance: 'light',
+      dexLayout: 'grid-3',
+      sightingsVisibility: 'public',
+      streakReminder: true,
+      streakReminderTime: '19:00',
+      notifyNewSpecies: true,
+      notifyBadgeUnlocked: true,
+      notifyWeeklyQuest: true,
+      autoRecordSounds: true,
+      autoTagLocation: true,
+      vibrateOnIdentify: false,
+      useScientificNames: false,
+    }),
+  )
   const [autoRecordSounds, setAutoRecordSounds] = useState(true)
   const [autoTagLocation, setAutoTagLocation] = useState(true)
   const [vibrateOnIdentify, setVibrateOnIdentify] = useState(false)
@@ -82,9 +115,24 @@ export function SettingsScreenContent() {
     setInatStatus(await getInaturalistStatusLabel())
   }, [])
 
+  const refreshPreferences = useCallback(async () => {
+    const prefs = await loadSettingsPreferences(mockUser.level)
+    setRowSubtitles(settingsRowSubtitles(prefs, mockUser.level))
+    setAutoRecordSounds(prefs.autoRecordSounds)
+    setAutoTagLocation(prefs.autoTagLocation)
+    setVibrateOnIdentify(prefs.vibrateOnIdentify)
+    setUseScientificNames(prefs.useScientificNames)
+  }, [])
+
   useEffect(() => {
     void refreshInatStatus()
   }, [refreshInatStatus])
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshPreferences()
+    }, [refreshPreferences]),
+  )
 
   const handlePasteInaturalistToken = () => {
     Alert.prompt(
@@ -187,14 +235,33 @@ export function SettingsScreenContent() {
       <ScreenHeader onBack={() => router.back()} title="Settings" />
 
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 60 + space[40] }]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + space[24] }]}
         showsVerticalScrollIndicator={false}>
 
         <Text style={styles.sectionLabel}>Account</Text>
         <View style={styles.group}>
-          <SettingsRow icon="person" iconBg={colors.green} title="Alex Riley" subtitle="@alexinthewild · Level 14" action={{ type: 'chevron' }} />
-          <SettingsRow icon="star" iconBg={colors.coral} title="Wildr Pro" subtitle="Unlock unlimited IDs & sounds" action={{ type: 'chevron' }} />
-          <SettingsRow icon="notifications" iconBg={colors.sun} title="Notifications" subtitle="Daily streak reminder · 7:00pm" action={{ type: 'chevron' }} isLast />
+          <SettingsRow
+            icon="person"
+            iconBg={colors.greenLight}
+            title={displayName}
+            subtitle={formatAccountSubtitle(username)}
+            action={{ type: 'chevron', onPress: () => router.push('/settings-account') }}
+          />
+          <SettingsRow
+            icon="star"
+            iconBg={colors.coral}
+            title="Wildr Pro"
+            subtitle="Unlock unlimited IDs & sounds"
+            action={{ type: 'chevron', onPress: () => router.push('/settings-wildr-pro') }}
+          />
+          <SettingsRow
+            icon="notifications"
+            iconBg={colors.sun}
+            title="Notifications"
+            subtitle={rowSubtitles.notifications}
+            action={{ type: 'chevron', onPress: () => router.push('/settings-notifications') }}
+            isLast
+          />
         </View>
 
         <Text style={styles.sectionLabel}>Capture</Text>
@@ -205,7 +272,7 @@ export function SettingsScreenContent() {
             accessibilityRole="button"
             accessibilityLabel={inatConnected ? 'Disconnect iNaturalist' : 'Connect iNaturalist'}
             style={({ pressed }) => [styles.row, styles.rowBorder, pressed && styles.rowPressed]}>
-            <View style={[styles.iconWrap, { backgroundColor: colors.green }]}>
+            <View style={[styles.iconWrap, { backgroundColor: colors.greenLight }]}>
               <Ionicons name="leaf" size={19} color={colors.card} />
             </View>
             <View style={styles.rowText}>
@@ -213,27 +280,102 @@ export function SettingsScreenContent() {
               <Text style={styles.rowSub}>{inatStatus}</Text>
             </View>
             {inatBusy ? (
-              <ActivityIndicator color={colors.green} />
+              <ActivityIndicator color={colors.greenLight} />
             ) : (
               <Text style={styles.inatAction}>{inatConnected ? 'Manage' : 'Set up'}</Text>
             )}
           </Pressable>
-          <SettingsRow icon="camera" iconBg={colors.sky} title="Camera quality" subtitle="High (12 MP)" action={{ type: 'chevron' }} />
-          <SettingsRow icon="volume-high" iconBg={colors.plum} title="Auto-record sounds" action={{ type: 'toggle', value: autoRecordSounds, onToggle: setAutoRecordSounds }} />
-          <SettingsRow icon="location" iconBg={colors.coral} title="Auto-tag location" action={{ type: 'toggle', value: autoTagLocation, onToggle: setAutoTagLocation }} />
-          <SettingsRow icon="flash" iconBg={colors.sun} title="Vibrate on identify" action={{ type: 'toggle', value: vibrateOnIdentify, onToggle: setVibrateOnIdentify }} isLast />
+          <SettingsRow
+            icon="camera"
+            iconBg={colors.sky}
+            title="Camera quality"
+            subtitle={rowSubtitles.cameraQuality}
+            action={{ type: 'chevron', onPress: () => router.push('/settings-camera-quality') }}
+          />
+          <SettingsRow
+            icon="volume-high"
+            iconBg={colors.plum}
+            title="Auto-record sounds"
+            action={{
+              type: 'toggle',
+              value: autoRecordSounds,
+              onToggle: (v) => {
+                setAutoRecordSounds(v)
+                void saveAutoRecordSounds(v)
+              },
+            }}
+          />
+          <SettingsRow
+            icon="location"
+            iconBg={colors.coral}
+            title="Auto-tag location"
+            action={{
+              type: 'toggle',
+              value: autoTagLocation,
+              onToggle: (v) => {
+                setAutoTagLocation(v)
+                void saveAutoTagLocation(v)
+              },
+            }}
+          />
+          <SettingsRow
+            icon="flash"
+            iconBg={colors.sun}
+            title="Vibrate on identify"
+            action={{
+              type: 'toggle',
+              value: vibrateOnIdentify,
+              onToggle: (v) => {
+                setVibrateOnIdentify(v)
+                void saveVibrateOnIdentify(v)
+              },
+            }}
+            isLast
+          />
         </View>
 
         <Text style={styles.sectionLabel}>Display</Text>
         <View style={styles.group}>
-          <SettingsRow icon="sunny" iconBg={colors.sun} title="Appearance" subtitle="Light" action={{ type: 'chevron' }} />
-          <SettingsRow icon="leaf" iconBg={colors.green} title="Use scientific names" action={{ type: 'toggle', value: useScientificNames, onToggle: setUseScientificNames }} />
-          <SettingsRow icon="grid" iconBg={colors.plum} title="Dex layout" subtitle="Grid · 3 columns" action={{ type: 'chevron' }} isLast />
+          <SettingsRow
+            icon="sunny"
+            iconBg={colors.sun}
+            title="Appearance"
+            subtitle={rowSubtitles.appearance}
+            action={{ type: 'chevron', onPress: () => router.push('/settings-appearance') }}
+          />
+          <SettingsRow
+            icon="leaf"
+            iconBg={colors.greenLight}
+            title="Use scientific names"
+            action={{
+              type: 'toggle',
+              value: useScientificNames,
+              onToggle: (v) => {
+                setUseScientificNames(v)
+                void saveUseScientificNames(v)
+              },
+            }}
+          />
+          <SettingsRow
+            icon="grid"
+            iconBg={colors.plum}
+            title="Dex layout"
+            subtitle={rowSubtitles.dexLayout}
+            action={{ type: 'chevron', onPress: () => router.push('/settings-dex-layout') }}
+            isLast
+          />
         </View>
 
         <Text style={styles.sectionLabel}>Privacy & Data</Text>
         <View style={styles.group}>
-          <SettingsRow icon="eye" iconBg={colors.green} title="Sightings visibility" subtitle="Public" action={{ type: 'chevron' }} isLast />
+          <SettingsRow
+            icon="eye"
+            iconBg={colors.greenLight}
+            title="Sightings visibility"
+            subtitle={rowSubtitles.sightingsVisibility}
+            action={{ type: 'chevron', onPress: () => router.push('/settings-sightings-visibility') }}
+            isLast
+          />
         </View>
 
         <View style={styles.logoutWrap}>
@@ -266,7 +408,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: space[8],
-    marginTop: space[20],
+    marginTop: space[16],
     marginLeft: space[4],
   },
   group: {
@@ -277,9 +419,9 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: space[14],
-    paddingVertical: space[12],
-    gap: space[12],
+    paddingHorizontal: space[16],
+    paddingVertical: space[16],
+    gap: space[16],
     backgroundColor: colors.card,
   },
   rowBorder: {
@@ -312,10 +454,10 @@ const styles = StyleSheet.create({
   inatAction: {
     fontSize: typeTokens.size.label,
     fontWeight: typeTokens.body.weights.bold,
-    color: colors.green,
+    color: colors.greenLight,
   },
   logoutWrap: {
-    marginTop: space[32],
+    marginTop: space[24],
     backgroundColor: colors.coralDeep,
     borderRadius: radius.lg,
     paddingBottom: 4,

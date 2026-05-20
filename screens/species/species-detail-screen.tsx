@@ -2,27 +2,51 @@ import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router, useLocalSearchParams } from 'expo-router'
-import { type ReactNode } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import {
+  SpeciesDexDetailSections,
+  SpeciesGameStatsGrid,
+} from '@/components/species/SpeciesDexDetailSections'
+import { Button } from '@/design/atoms/Button'
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { ScreenHeader, ScreenHeaderIconButton } from '@/design/atoms/ScreenHeader'
 import { screenLayout } from '@/design/screen-layout'
-import {
-  getSpeciesDetail,
-  resolveRouteParam,
-  type SpeciesStat,
-  type SpeciesVital,
-} from '@/data/species-catalog'
+import { resolveRouteParam } from '@/data/species-catalog'
+import { isPlaceholderDexNumber } from '@/features/species/resolve-dex-number'
+import { getLocalSpeciesHeroImage } from '@/features/species/resolve-species-hero-image'
+import { useSpeciesDetail } from '@/features/species/use-species-detail'
 import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
-import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
+import {
+  colors,
+  profileCardShadow as profileCardShadowStyle,
+  radius,
+  space,
+  type as typeTokens,
+} from '@/design/tokens'
 
 const RARITY_BADGE_BG: Record<string, string> = {
-  Common: colors.ink2,
-  Uncommon: colors.earth,
   Rare: colors.sun,
   'Very Rare': colors.coralDeep,
+}
+
+const GLASS_RARITY_LABELS = new Set(['Common', 'Uncommon'])
+
+function rarityChipVariantStyle(rarity: string) {
+  if (GLASS_RARITY_LABELS.has(rarity)) {
+    return {
+      backgroundColor: 'rgba(255, 255, 255, 0.5)',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.hairline,
+    }
+  }
+  return { backgroundColor: RARITY_BADGE_BG[rarity] ?? colors.earth }
+}
+
+function isGlassRarityChip(rarity: string): boolean {
+  return GLASS_RARITY_LABELS.has(rarity)
 }
 
 export function SpeciesDetailScreen() {
@@ -34,26 +58,65 @@ export function SpeciesDetailScreen() {
     kingdom?: string | string[]
     confidence?: string | string[]
     latin?: string | string[]
+    domestic?: string | string[]
+    fromCapture?: string | string[]
   }>()
+
+  const fromCapture = resolveRouteParam(params.fromCapture) === '1'
 
   const id = resolveRouteParam(params.id) ?? 'unknown'
   const paramName = resolveRouteParam(params.name)
+  const paramLatin = resolveRouteParam(params.latin)
+  const isDomesticRoute = resolveRouteParam(params.domestic) === '1'
   const paramNumber = resolveRouteParam(params.number)
   const kingdomRaw = resolveRouteParam(params.kingdom)
   const kingdomOverride =
     kingdomRaw && kingdomRaw in KINGDOM ? (kingdomRaw as KingdomKey) : undefined
+  const dexOverride =
+    paramNumber && !isPlaceholderDexNumber(paramNumber) ? paramNumber : undefined
 
-  const species = getSpeciesDetail(id, {
-    commonName: paramName,
-    dexNumber: paramNumber,
-    kingdom: kingdomOverride,
-    spottedAt: paramName ? undefined : 'Just now',
+  const { species, heroImageUrl, isLoading: isSpeciesLoading } = useSpeciesDetail({
+    id,
+    isDomestic: isDomesticRoute,
+    latinNameHint: paramLatin,
+    overrides: {
+      commonName: paramName,
+      ...(paramLatin ? { latinName: paramLatin } : {}),
+      ...(dexOverride ? { dexNumber: dexOverride } : {}),
+      kingdom: kingdomOverride,
+      spottedAt: paramName ? undefined : 'Just now',
+    },
   })
 
-  const photoUrl = useTaxaPhoto(species.latinName || species.commonName)
+  const localHeroImage = useMemo(
+    () =>
+      getLocalSpeciesHeroImage(id) ??
+      getLocalSpeciesHeroImage(paramName ?? '') ??
+      getLocalSpeciesHeroImage(species.commonName),
+    [id, paramName, species.commonName],
+  )
+
+  const taxaPhotoUrl = useTaxaPhoto(species.commonName || species.latinName, species.kingdom)
+  const remotePhotoUrl = heroImageUrl?.trim() || taxaPhotoUrl || null
+
+  const [remoteImageFailed, setRemoteImageFailed] = useState(false)
+  useEffect(() => {
+    setRemoteImageFailed(false)
+  }, [remotePhotoUrl])
+
+  const heroImageSource = useMemo(() => {
+    if (localHeroImage) return localHeroImage
+    if (remotePhotoUrl && !remoteImageFailed) return { uri: remotePhotoUrl }
+    return null
+  }, [localHeroImage, remotePhotoUrl, remoteImageFailed])
+
   const kingdomMeta = KINGDOM[species.kingdom]
 
   const handleBack = () => {
+    if (fromCapture) {
+      router.dismiss(1)
+      return
+    }
     if (router.canGoBack()) router.back()
     else router.replace('/(tabs)/dex')
   }
@@ -61,6 +124,12 @@ export function SpeciesDetailScreen() {
   const handleView3d = () => {
     router.push({ pathname: '/capture/view3d', params: { name: species.commonName } })
   }
+
+  const handleGoToDex = () => {
+    router.replace('/(tabs)/dex')
+  }
+
+  const footerHeight = space[16] + space[16] + 48 + insets.bottom
 
   return (
     <View style={styles.screen}>
@@ -70,7 +139,10 @@ export function SpeciesDetailScreen() {
         contentInsetAdjustmentBehavior="never"
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: insets.top, paddingBottom: insets.bottom + space[32] },
+          {
+            paddingTop: insets.top,
+            paddingBottom: fromCapture ? footerHeight + space[24] : insets.bottom + space[32],
+          },
         ]}>
         <ScreenHeader
           onBack={handleBack}
@@ -88,8 +160,18 @@ export function SpeciesDetailScreen() {
         <View style={styles.profileCardShadow}>
           <View style={styles.profileCard}>
           <View style={styles.heroArt}>
-            {photoUrl ? (
-              <Image source={{ uri: photoUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
+            {isSpeciesLoading ? (
+              <View style={styles.heroLoading}>
+                <ActivityIndicator color={colors.card} size="large" />
+              </View>
+            ) : heroImageSource ? (
+              <Image
+                source={heroImageSource}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                contentPosition="center"
+                onError={() => setRemoteImageFailed(true)}
+              />
             ) : (
               <LinearGradient
                 colors={[...species.gradient]}
@@ -104,9 +186,19 @@ export function SpeciesDetailScreen() {
               <Text style={styles.kingdomChipLabel}>{kingdomMeta?.label?.toUpperCase() ?? 'SPECIES'}</Text>
             </View>
 
-            <View style={[styles.rarityChip, { backgroundColor: RARITY_BADGE_BG[species.rarity] ?? colors.earth }]}>
-              <Ionicons name="star" size={12} color={colors.card} />
-              <Text style={styles.rarityChipText}>{species.rarity}</Text>
+            <View style={[styles.rarityChip, rarityChipVariantStyle(species.rarity)]}>
+              <Ionicons
+                name="star"
+                size={12}
+                color={isGlassRarityChip(species.rarity) ? colors.ink : colors.card}
+              />
+              <Text
+                style={[
+                  styles.rarityChipText,
+                  isGlassRarityChip(species.rarity) && styles.rarityChipTextGlass,
+                ]}>
+                {species.rarity}
+              </Text>
             </View>
 
             <HeroActionButton
@@ -116,47 +208,46 @@ export function SpeciesDetailScreen() {
               <Ionicons name="cube-outline" size={18} color={colors.ink} />
             </HeroActionButton>
 
-            {species.sounds ? (
-              <HeroActionButton
-                accessibilityLabel="Play species sound"
-                onPress={() => {}}
-                position="right">
-                <Ionicons name="volume-high" size={18} color={colors.ink} />
-              </HeroActionButton>
-            ) : null}
+            <HeroActionButton
+              accessibilityLabel="Play species sound"
+              onPress={() => {}}
+              position="right">
+              <Ionicons name="volume-high" size={18} color={colors.ink} />
+            </HeroActionButton>
           </View>
 
           <View style={styles.profileBody}>
             <Text style={styles.commonName}>{species.commonName}</Text>
             <Text style={styles.latinName}>{species.latinName}</Text>
 
-            <View style={styles.gameStatsGrid}>
-              {species.stats.map((stat) => (
-                <GameStat key={stat.label} stat={stat} />
-              ))}
+            <View style={styles.gameStatsWrap}>
+              <SpeciesGameStatsGrid species={species} />
             </View>
           </View>
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>VITALS</Text>
-        <View style={styles.vitalsRows}>
-          {chunkPairs(species.vitals).map((row, rowIndex) => (
-            <View key={`vital-row-${rowIndex}`} style={styles.vitalsRow}>
-              {row.map((vital) => (
-                <VitalCard key={vital.label} vital={vital} />
-              ))}
-            </View>
-          ))}
-        </View>
-
-        <Text style={styles.sectionTitle}>TAXONOMY</Text>
-        <View style={styles.taxonomyCard}>
-          <TaxonomyRow label="KINGDOM" value={species.taxonomy.kingdom} />
-          <TaxonomyRow label="PHYLUM" value={species.taxonomy.phylum} />
-          <TaxonomyRow label="CLASS" value={species.taxonomy.class} isLast />
-        </View>
+        <SpeciesDexDetailSections
+          species={species}
+          showDexNumber={false}
+          showStats={false}
+        />
       </ScrollView>
+
+      {fromCapture ? (
+        <View
+          style={[styles.captureFooter, { paddingBottom: insets.bottom + space[16] }]}
+          pointerEvents="box-none">
+          <LinearGradient
+            colors={['rgba(255,248,231,0)', colors.bg]}
+            style={styles.captureFooterFade}
+            pointerEvents="none"
+          />
+          <View style={styles.captureFooterButtonWrap}>
+            <Button label="Go to Dex" onPress={handleGoToDex} style={styles.captureFooterButton} />
+          </View>
+        </View>
+      ) : null}
     </View>
   )
 }
@@ -190,75 +281,6 @@ function HeroActionButton({
         ]}>
         {children}
       </Pressable>
-    </View>
-  )
-}
-
-function chunkPairs<T>(items: T[]): T[][] {
-  const rows: T[][] = []
-  for (let i = 0; i < items.length; i += 2) {
-    rows.push(items.slice(i, i + 2))
-  }
-  return rows
-}
-
-function GameStat({ stat }: { stat: SpeciesStat }) {
-  return (
-    <View style={styles.gameStat}>
-      <View style={styles.gameStatHeader}>
-        <Text style={styles.gameStatLabel}>{stat.label}</Text>
-        <Text style={[styles.gameStatValue, { color: stat.color }]}>{stat.value}</Text>
-      </View>
-      <View style={styles.gameStatTrack}>
-        <View
-          style={[
-            styles.gameStatFill,
-            { width: `${Math.min(100, stat.value)}%`, backgroundColor: stat.color },
-          ]}
-        />
-      </View>
-    </View>
-  )
-}
-
-function VitalCard({ vital }: { vital: SpeciesVital }) {
-  const iconName =
-    vital.icon === 'flash'
-      ? 'flash'
-      : vital.icon === 'heart'
-        ? 'heart'
-        : vital.icon === 'leaf'
-          ? 'leaf'
-          : 'resize-outline'
-
-  return (
-    <View style={styles.vitalCard}>
-      <View style={[styles.vitalIconWrap, { backgroundColor: vital.tint }]}>
-        <Ionicons name={iconName} size={16} color={vital.iconColor} />
-      </View>
-      <View style={styles.vitalTextCol}>
-        <Text style={styles.vitalLabel}>{vital.label}</Text>
-        <Text style={styles.vitalValue} numberOfLines={2}>
-          {vital.value}
-        </Text>
-      </View>
-    </View>
-  )
-}
-
-function TaxonomyRow({
-  label,
-  value,
-  isLast,
-}: {
-  label: string
-  value: string
-  isLast?: boolean
-}) {
-  return (
-    <View style={[styles.taxonomyRow, !isLast && styles.taxonomyRowBorder]}>
-      <Text style={styles.taxonomyLabel}>{label}</Text>
-      <Text style={styles.taxonomyValue}>{value}</Text>
     </View>
   )
 }
@@ -298,35 +320,47 @@ const styles = StyleSheet.create({
   },
   profileCardShadow: {
     borderRadius: radius.xl,
-    backgroundColor: 'transparent',
-    ...shadow.dexCard,
+    ...profileCardShadowStyle,
   },
   profileCard: {
     borderRadius: radius.xl,
-    overflow: 'hidden',
     backgroundColor: colors.card,
+    overflow: 'visible',
   },
   heroArt: {
     height: HERO_HEIGHT,
     backgroundColor: colors.hairline,
+    overflow: 'hidden',
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+  },
+  heroLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.ink2,
   },
   profileBody: {
     position: 'relative',
     backgroundColor: colors.card,
-    paddingHorizontal: space[20],
-    paddingTop: space[20],
-    paddingBottom: space[20],
+    paddingHorizontal: space[16],
+    paddingTop: space[16],
+    paddingBottom: space[16],
     gap: space[4],
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl,
+    overflow: 'hidden',
   },
   kingdomChip: {
     position: 'absolute',
-    top: space[12],
-    left: space[12],
+    top: space[16],
+    left: space[16],
+    zIndex: 2,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[6],
-    paddingHorizontal: space[10],
-    paddingVertical: space[6],
+    gap: space[8],
+    paddingHorizontal: space[8],
+    paddingVertical: space[8],
     borderRadius: radius.pill,
   },
   kingdomChipEmoji: {
@@ -340,13 +374,14 @@ const styles = StyleSheet.create({
   },
   rarityChip: {
     position: 'absolute',
-    top: space[12],
-    right: space[12],
+    top: space[16],
+    right: space[16],
+    zIndex: 2,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[4],
-    paddingHorizontal: space[10],
-    paddingVertical: space[6],
+    paddingHorizontal: space[8],
+    paddingVertical: space[8],
     borderRadius: radius.pill,
   },
   rarityChipText: {
@@ -354,13 +389,21 @@ const styles = StyleSheet.create({
     fontWeight: typeTokens.body.weights.bold,
     color: colors.card,
   },
+  rarityChipTextGlass: {
+    color: colors.ink,
+  },
   heroActionShadow: {
     position: 'absolute',
-    bottom: space[8],
+    bottom: space[16],
     borderRadius: radius.pill,
-    backgroundColor: `${colors.ink}0E`,
-    paddingBottom: space[2],
-    zIndex: 2,
+    backgroundColor: 'rgba(21, 33, 48, 0.22)',
+    paddingBottom: 4,
+    zIndex: 3,
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 6,
   },
   heroActionBtn: {
     width: 44,
@@ -369,11 +412,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadow.card,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2,
   },
   heroActionBtnPressed: {
     transform: [{ translateY: 1 }],
@@ -396,126 +434,31 @@ const styles = StyleSheet.create({
     fontWeight: typeTokens.body.weights.medium,
     fontStyle: 'italic',
     color: colors.ink2,
-    marginBottom: space[12],
+    marginBottom: space[16],
   },
-  gameStatsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: space[14],
+  gameStatsWrap: {
     marginTop: space[4],
   },
-  gameStat: {
-    width: '47%',
-    gap: space[6],
+  captureFooter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: screenLayout.padH,
+    paddingTop: space[24],
+    backgroundColor: colors.bg,
   },
-  gameStatHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  captureFooterFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: -space[32],
+    height: space[32],
   },
-  gameStatLabel: {
-    fontSize: typeTokens.size.micro,
-    fontWeight: typeTokens.body.weights.black,
-    color: colors.dim,
-    letterSpacing: 0.5,
-  },
-  gameStatValue: {
-    fontSize: typeTokens.size.bodySM,
-    fontWeight: typeTokens.body.weights.bold,
-    color: colors.ink,
-  },
-  gameStatTrack: {
-    height: 8,
-    borderRadius: radius.pill,
-    backgroundColor: colors.hairline,
-    overflow: 'hidden',
-  },
-  gameStatFill: {
-    height: '100%',
-    borderRadius: radius.pill,
-  },
-  sectionTitle: {
-    fontFamily: typeTokens.display.family,
-    fontSize: typeTokens.size.title,
-    fontWeight: typeTokens.display.weight,
-    color: colors.ink,
-    letterSpacing: -0.3,
-    marginTop: space[8],
-  },
-  vitalsRows: {
+  captureFooterButtonWrap: {
     width: '100%',
-    gap: space[8],
   },
-  vitalsRow: {
-    flexDirection: 'row',
-    width: '100%',
-    gap: space[8],
-  },
-  vitalCard: {
-    flex: 1,
-    flexBasis: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    paddingVertical: space[10],
-    paddingHorizontal: space[10],
-    gap: space[10],
-    ...shadow.card,
-  },
-  vitalIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  vitalTextCol: {
-    flex: 1,
-    gap: space[2],
-    justifyContent: 'center',
-  },
-  vitalLabel: {
-    fontSize: typeTokens.size.micro,
-    fontWeight: typeTokens.body.weights.black,
-    color: colors.dim,
-    letterSpacing: 0.5,
-  },
-  vitalValue: {
-    fontSize: typeTokens.size.caption,
-    fontWeight: typeTokens.body.weights.bold,
-    color: colors.ink,
-    lineHeight: 16,
-  },
-  taxonomyCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    paddingHorizontal: space[16],
-    ...shadow.card,
-  },
-  taxonomyRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: space[14],
-    gap: space[12],
-  },
-  taxonomyRowBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.hairline,
-  },
-  taxonomyLabel: {
-    fontSize: typeTokens.size.micro,
-    fontWeight: typeTokens.body.weights.black,
-    color: colors.dim,
-    letterSpacing: 0.5,
-  },
-  taxonomyValue: {
-    flex: 1,
-    textAlign: 'right',
-    fontSize: typeTokens.size.bodySM,
-    fontWeight: typeTokens.body.weights.bold,
-    color: colors.ink,
+  captureFooterButton: {
+    alignSelf: 'stretch',
   },
 })

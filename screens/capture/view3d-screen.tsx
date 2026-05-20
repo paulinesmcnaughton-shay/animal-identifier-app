@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { contentTopInset } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 
 export function View3DScreen() {
@@ -14,7 +15,7 @@ export function View3DScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      <View style={[styles.topBar, { paddingTop: insets.top + space[8] }]}>
+      <View style={[styles.topBar, { paddingTop: contentTopInset(insets.top) }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Go back"
@@ -58,7 +59,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space[24],
-    gap: space[12],
+    gap: space[16],
   },
   animalName: {
     fontFamily: typeTokens.display.family,

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { StyleSheet, Text, View } from 'react-native'
 
 import { ProgressBar } from '@/components/ProgressBar'
-import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
 
 interface CollectionStatsCardProps {
   collected: number
@@ -44,12 +44,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: radius.md,
     padding: space[16],
-    gap: space[12],
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    gap: space[16],
+    ...shadow.card,
   },
   topRow: {
     flexDirection: 'row',
@@ -79,8 +75,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[4],
-    paddingHorizontal: space[10],
-    paddingVertical: space[6],
+    paddingHorizontal: space[8],
+    paddingVertical: space[8],
     borderRadius: radius.pill,
   },
   badgeStreak: {

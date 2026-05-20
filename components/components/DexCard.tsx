@@ -4,7 +4,8 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
-import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { dexCardHairline } from '@/design/dex-card-shell'
+import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
 import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
 
 export interface DexCardSpecies {
@@ -26,7 +27,7 @@ interface DexCardProps {
 
 export function DexCard({ species, width, onPress }: DexCardProps) {
   const { number, name, date, gradient, cornerBadge, showFootprint, kingdom } = species
-  const photoUrl = useTaxaPhoto(name)
+  const photoUrl = useTaxaPhoto(name, kingdom)
   const kingdomBg = KINGDOM[kingdom]?.bg ?? colors.dim
 
   const card = (
@@ -127,11 +128,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.card,
     overflow: 'hidden',
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    ...dexCardHairline,
+    ...shadow.card,
   },
   artWrap: {
     height: ART_HEIGHT,
@@ -155,7 +153,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: space[10],
+    paddingHorizontal: space[8],
     paddingTop: space[16],
     paddingBottom: space[8],
     justifyContent: 'flex-end',
@@ -175,7 +173,7 @@ const styles = StyleSheet.create({
     top: space[8],
     left: space[8],
     paddingHorizontal: space[8],
-    paddingVertical: space[2],
+    paddingVertical: space[4],
     borderRadius: radius.pill,
   },
   pillNew: {
@@ -206,9 +204,9 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
   },
   footer: {
-    paddingHorizontal: space[10],
-    paddingVertical: space[10],
-    gap: space[2],
+    paddingHorizontal: space[8],
+    paddingVertical: space[8],
+    gap: space[4],
   },
   name: {
     fontSize: typeTokens.size.bodySM,

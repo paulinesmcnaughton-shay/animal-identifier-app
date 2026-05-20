@@ -20,8 +20,8 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[6],
-    paddingHorizontal: space[12],
+    gap: space[8],
+    paddingHorizontal: space[16],
     paddingVertical: space[8],
     borderRadius: radius.pill,
     backgroundColor: colors.bg2,

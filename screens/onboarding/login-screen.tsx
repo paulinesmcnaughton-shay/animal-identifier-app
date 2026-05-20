@@ -20,6 +20,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { assignTesterAvatar } from '@/features/settings/profile-avatar'
+import { setTesterAccount } from '@/features/settings/tester-account'
 import { storage } from '@/util/storage'
 
 export function LoginScreen() {
@@ -34,6 +36,8 @@ export function LoginScreen() {
 
   const handleLogin = async () => {
     await storage.set('isLoggedIn', 'true')
+    await setTesterAccount(true)
+    await assignTesterAvatar()
     router.replace('/home')
   }
 
@@ -175,14 +179,14 @@ const styles = StyleSheet.create({
   sub: {
     fontSize: typeTokens.size.bodyLG,
     color: colors.dim,
-    marginBottom: space[40],
+    marginBottom: space[24],
   },
   fields: {
-    gap: space[20],
-    marginBottom: space[32],
+    gap: space[16],
+    marginBottom: space[24],
   },
   fieldGroup: {
-    gap: space[6],
+    gap: space[8],
   },
   label: {
     fontSize: typeTokens.size.label,
@@ -196,7 +200,7 @@ const styles = StyleSheet.create({
     borderColor: colors.hairline,
     borderRadius: radius.md,
     paddingHorizontal: space[16],
-    paddingVertical: space[14],
+    paddingVertical: space[16],
     fontSize: typeTokens.size.bodyLG,
     color: colors.ink,
   },
@@ -209,7 +213,7 @@ const styles = StyleSheet.create({
     color: colors.green,
   },
   ctaWrap: {
-    backgroundColor: colors.greenDark,
+    backgroundColor: colors.greenDeep,
     borderRadius: radius.lg,
     paddingBottom: 4,
     marginBottom: space[24],
@@ -233,7 +237,7 @@ const styles = StyleSheet.create({
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[12],
+    gap: space[16],
     marginBottom: space[16],
   },
   dividerLine: {
@@ -247,7 +251,7 @@ const styles = StyleSheet.create({
   },
   socialRow: {
     flexDirection: 'row',
-    gap: space[12],
+    gap: space[16],
     marginBottom: space[24],
   },
   socialBtn: {
@@ -260,7 +264,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.hairline,
     borderRadius: radius.lg,
-    paddingVertical: space[14],
+    paddingVertical: space[16],
   },
   socialText: {
     fontSize: typeTokens.size.body,

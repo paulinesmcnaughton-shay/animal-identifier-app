@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     bottom: space[16],
   },
   ctaWrap: {
-    backgroundColor: colors.greenDark,
+    backgroundColor: colors.greenDeep,
     borderRadius: radius.lg,
     paddingBottom: 4,
   },

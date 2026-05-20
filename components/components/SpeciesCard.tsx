@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native'
 
-import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
 
 interface SpeciesCardProps {
   name: string
@@ -18,9 +18,10 @@ export function SpeciesCard({ name, subtitle }: SpeciesCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    padding: space[12],
+    padding: space[16],
     borderRadius: radius.md,
     backgroundColor: colors.card,
+    ...shadow.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.hairline,
   },

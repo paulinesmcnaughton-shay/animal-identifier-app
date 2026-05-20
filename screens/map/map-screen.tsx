@@ -3,9 +3,11 @@ import { Ionicons } from '@expo/vector-icons'
 import Mapbox, {
   Camera,
   CircleLayer,
+  LineLayer,
   MapView,
   MarkerView,
   ShapeSource,
+  VectorSource,
 } from '@rnmapbox/maps'
 import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
@@ -18,7 +20,11 @@ import {
   TextInput,
   View,
 } from 'react-native'
-import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import {
+  Gesture,
+  GestureDetector,
+  NativeViewGestureHandler,
+} from 'react-native-gesture-handler'
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -29,12 +35,16 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { KingdomMapPin } from '@/components/map/KingdomMapPin'
+import { NearbyRadarRings } from '@/components/map/NearbyRadarRings'
 import { UserHeadingBeam } from '@/components/map/UserHeadingBeam'
 import { KINGDOM, KingdomBadge, type KingdomKey } from '@/design/atoms/KingdomBadge'
+import { slideUpSheetHandle, slideUpSheetShell } from '@/design/slide-up-sheet'
+import { contentTopInset } from '@/design/screen-layout'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
 import { useDeviceHeading } from '@/features/map/use-device-heading'
 import { getKingdomPinZoomStyle } from '@/features/map/kingdom-pin-zoom'
 import { shiftSightingsNearUser, useUserLocation } from '@/features/map/use-user-location'
+import { PAN_ACTIVE_OFFSET_Y, PAN_FAIL_OFFSET_X } from '@/lib/draggable-sheet'
 
 const MAPBOX_TOKEN = (Constants.expoConfig?.extra?.mapboxToken as string) ?? ''
 Mapbox.setAccessToken(MAPBOX_TOKEN)
@@ -74,12 +84,31 @@ function formatDist(m: number): string {
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
+const WILDR_MAP_STYLE = 'mapbox://styles/test4backend/cmpd0l12s006v01rv1tgt72g0'
+const TERRAIN_MAP_STYLE = 'mapbox://styles/mapbox/outdoors-v12'
+const MAPBOX_STREETS_SOURCE = 'mapbox://mapbox.mapbox-streets-v8'
+const GREENSPACE_STROKE = colors.green
+const GREENSPACE_STROKE_STYLE = {
+  lineColor: GREENSPACE_STROKE,
+  lineWidth: 0.5,
+  lineOpacity: 0.4,
+} as const
+
 const SHEET_HEIGHT = 380
 const SHEET_HEADER_HEIGHT = 80
 const TAB_BAR_HEIGHT = 60
+const FAB_SIZE = 56
 const GAP_ABOVE_NAV = 0
+const GAP_ABOVE_FAB = space[48]
 const SNAP_EXPANDED = 0
 const SPRING = { damping: 42, stiffness: 180 }
+/** Pin detail body: handle → View in Dex (excludes bottom inset above nav). */
+const PIN_PANEL_BODY_HEIGHT = 232
+
+function sheetBottomInset(bottomSafeArea: number): number {
+  const fabTopFromBottom = bottomSafeArea + TAB_BAR_HEIGHT - FAB_SIZE / 2
+  return fabTopFromBottom + GAP_ABOVE_FAB
+}
 
 type ViewMode = 'sightings' | 'nearby'
 
@@ -88,6 +117,7 @@ export function MapScreenContent() {
   const insets = useSafeAreaInsets()
   const cameraRef = useRef<Camera>(null)
   const mapRef = useRef<MapView>(null)
+  const mapNativeGestureRef = useRef<NativeViewGestureHandler>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('sightings')
   const [selectedSighting, setSelectedSighting] = useState<Sighting | null>(null)
   const [mapStyle, setMapStyle] = useState<'light' | 'terrain'>('light')
@@ -111,21 +141,6 @@ export function MapScreenContent() {
     [sightingsOnMap],
   )
 
-  const userGeoJSON = useMemo<GeoJSON.FeatureCollection>(
-    () => ({
-      type: 'FeatureCollection',
-      features: [
-        {
-          type: 'Feature',
-          id: 'user',
-          geometry: { type: 'Point', coordinates: userCoord },
-          properties: {},
-        },
-      ],
-    }),
-    [userCoord],
-  )
-
   const pinZoomStyle = useMemo(() => getKingdomPinZoomStyle(zoom), [zoom])
 
   useEffect(() => {
@@ -141,24 +156,52 @@ export function MapScreenContent() {
   // Prevents the MapView onPress from firing immediately after a pin tap
   const pinJustTappedRef = useRef(false)
 
-  const snapCollapsed = SHEET_HEIGHT - (insets.bottom + TAB_BAR_HEIGHT + GAP_ABOVE_NAV + SHEET_HEADER_HEIGHT)
+  const tabBarClearance = insets.bottom + TAB_BAR_HEIGHT + space[16]
+  const snapCollapsed = SHEET_HEIGHT - (tabBarClearance + GAP_ABOVE_NAV + SHEET_HEADER_HEIGHT)
+  const fabClearance = sheetBottomInset(insets.bottom)
+  const snapExpandedPin = Math.max(
+    SNAP_EXPANDED,
+    SHEET_HEIGHT - PIN_PANEL_BODY_HEIGHT - fabClearance,
+  )
+  const snapExpandedY = viewMode === 'nearby' ? SNAP_EXPANDED : snapExpandedPin
 
   const translateY = useSharedValue(snapCollapsed)
   const context = useSharedValue(0)
 
-  const panGesture = Gesture.Pan()
-    .onStart(() => { context.value = translateY.value })
-    .onUpdate((e) => {
-      translateY.value = Math.max(SNAP_EXPANDED, Math.min(snapCollapsed, context.value + e.translationY))
-    })
-    .onEnd((e) => {
-      const mid = snapCollapsed / 2
-      if (e.velocityY < -500 || translateY.value < mid) {
-        translateY.value = withSpring(SNAP_EXPANDED, SPRING)
-      } else {
-        translateY.value = withSpring(snapCollapsed, SPRING)
-      }
-    })
+  /** My Sightings is header-only until a pin is tapped; Nearby list can always expand. */
+  const sheetExpandable = viewMode === 'nearby' || selectedSighting !== null
+
+  useEffect(() => {
+    if (!sheetExpandable) {
+      translateY.value = withSpring(snapCollapsed, SPRING)
+    }
+  }, [sheetExpandable, snapCollapsed, translateY])
+
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(sheetExpandable)
+        .activeOffsetY([-PAN_ACTIVE_OFFSET_Y, PAN_ACTIVE_OFFSET_Y])
+        .failOffsetX([...PAN_FAIL_OFFSET_X])
+        .onStart(() => {
+          context.value = translateY.value
+        })
+        .onUpdate((e) => {
+          translateY.value = Math.max(
+            snapExpandedY,
+            Math.min(snapCollapsed, context.value + e.translationY),
+          )
+        })
+        .onEnd((e) => {
+          const mid = (snapCollapsed + snapExpandedY) / 2
+          if (e.velocityY < -500 || translateY.value < mid) {
+            translateY.value = withSpring(snapExpandedY, SPRING)
+          } else {
+            translateY.value = withSpring(snapCollapsed, SPRING)
+          }
+        }),
+    [context, sheetExpandable, snapCollapsed, snapExpandedY, translateY],
+  )
 
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -167,7 +210,7 @@ export function MapScreenContent() {
   const handleMarkerPress = (sighting: Sighting) => {
     pinJustTappedRef.current = true
     setSelectedSighting(sighting)
-    translateY.value = withSpring(SNAP_EXPANDED, SPRING)
+    translateY.value = withSpring(snapExpandedPin, SPRING)
   }
 
   const handleMapPress = () => {
@@ -207,6 +250,10 @@ export function MapScreenContent() {
 
   const handleToggleView = (mode: ViewMode) => {
     setViewMode(mode)
+    if (mode === 'sightings') {
+      setSelectedSighting(null)
+      translateY.value = withSpring(snapCollapsed, SPRING)
+    }
   }
 
   const handleViewInDex = () => {
@@ -226,63 +273,110 @@ export function MapScreenContent() {
 
   return (
     <View style={styles.root}>
-      <MapView
-        ref={mapRef}
+      <NativeViewGestureHandler
+        ref={mapNativeGestureRef}
         style={StyleSheet.absoluteFill}
-        styleURL={mapStyle === 'light' ? 'mapbox://styles/mapbox/light-v11' : 'mapbox://styles/mapbox/outdoors-v12'}
-        logoEnabled={false}
-        attributionEnabled={false}
-        compassEnabled={false}
-        scaleBarEnabled={false}
-        onPress={handleMapPress}
-        onRegionIsChanging={handleMapRegionUpdate}
-        onRegionDidChange={handleMapRegionUpdate}
-        onMapLoadingError={() => console.warn('MapLoadError: check token and network')}>
+        disallowInterruption>
+        <MapView
+          ref={mapRef}
+          style={StyleSheet.absoluteFill}
+          styleURL={mapStyle === 'light' ? WILDR_MAP_STYLE : TERRAIN_MAP_STYLE}
+          scrollEnabled
+          zoomEnabled
+          pitchEnabled={false}
+          rotateEnabled
+          requestDisallowInterceptTouchEvent
+          gestureSettings={{
+            pinchZoomEnabled: true,
+            pinchPanEnabled: true,
+            panEnabled: true,
+            rotateEnabled: true,
+          }}
+          logoEnabled={false}
+          attributionEnabled={false}
+          compassEnabled={false}
+          scaleBarEnabled={false}
+          onPress={handleMapPress}
+          onRegionIsChanging={handleMapRegionUpdate}
+          onRegionDidChange={handleMapRegionUpdate}
+          onMapLoadingError={() => console.warn('MapLoadError: check token and network')}>
 
-        <Camera
-          ref={cameraRef}
-          defaultSettings={{ centerCoordinate: userCoord, zoomLevel: 13 }}
-        />
-
-        <MarkerView coordinate={userCoord} anchor={{ x: 0.5, y: 0.5 }} allowOverlap isSelected>
-          <UserLocationMarker
-            deviceHeading={deviceHeading}
-            mapBearing={mapBearing}
-            showHeadingBeam={hasHeading}
+          <Camera
+            ref={cameraRef}
+            defaultSettings={{ centerCoordinate: userCoord, zoomLevel: 13 }}
           />
-        </MarkerView>
 
-        {pinZoomStyle.size > 0 &&
-          sightingsOnMap.map((s) => (
-            <MarkerView
-              key={s.id}
-              coordinate={[s.lng, s.lat]}
-              anchor={{ x: 0.5, y: 0.5 }}
-              allowOverlap>
-              <Pressable
-                onPress={() => handleMarkerPress(s)}
-                accessibilityRole="button"
-                accessibilityLabel={s.name}>
-                <KingdomMapPin kingdom={s.kingdom} zoomStyle={pinZoomStyle} />
-              </Pressable>
+          <VectorSource id="wildr-greenspace-strokes" url={MAPBOX_STREETS_SOURCE}>
+            <LineLayer
+              id="wildr-greenspace-landcover-stroke"
+              sourceLayerID="landcover"
+              filter={[
+                'match',
+                ['get', 'class'],
+                ['grass', 'wood', 'scrub', 'crop'],
+                true,
+                false,
+              ]}
+              style={GREENSPACE_STROKE_STYLE}
+              minZoomLevel={10}
+            />
+            <LineLayer
+              id="wildr-greenspace-landuse-stroke"
+              sourceLayerID="landuse"
+              filter={[
+                'match',
+                ['get', 'class'],
+                ['park', 'grass', 'scrub', 'cemetery', 'golf_course', 'pitch'],
+                true,
+                false,
+              ]}
+              style={GREENSPACE_STROKE_STYLE}
+              minZoomLevel={10}
+            />
+            <LineLayer
+              id="wildr-greenspace-park-stroke"
+              sourceLayerID="landuse_overlay"
+              filter={['==', ['get', 'class'], 'national_park']}
+              style={GREENSPACE_STROKE_STYLE}
+              minZoomLevel={6}
+            />
+          </VectorSource>
+
+          {viewMode === 'nearby' && (
+            <MarkerView coordinate={userCoord} anchor={{ x: 0.5, y: 0.5 }} allowOverlap>
+              <NearbyRadarRings />
             </MarkerView>
-          ))}
+          )}
 
-        {/* Radar rings — nearby mode only */}
-        {viewMode === 'nearby' && (
-          <ShapeSource id="radar-src" shape={userGeoJSON}>
-            <CircleLayer id="ring3" style={{ circleRadius: 90, circleColor: colors.green, circleOpacity: 0.04 }} />
-            <CircleLayer id="ring2" style={{ circleRadius: 60, circleColor: colors.green, circleOpacity: 0.07 }} />
-            <CircleLayer id="ring1" style={{ circleRadius: 30, circleColor: colors.green, circleOpacity: 0.12 }} />
-            <CircleLayer id="ring-b3" style={{ circleRadius: 90, circleColor: 'transparent', circleStrokeWidth: 1.5, circleStrokeColor: `${colors.green}40` }} />
-            <CircleLayer id="ring-b2" style={{ circleRadius: 60, circleColor: 'transparent', circleStrokeWidth: 1.5, circleStrokeColor: `${colors.green}60` }} />
-            <CircleLayer id="ring-b1" style={{ circleRadius: 30, circleColor: 'transparent', circleStrokeWidth: 1.5, circleStrokeColor: `${colors.green}99` }} />
-          </ShapeSource>
-        )}
-      </MapView>
+          <MarkerView coordinate={userCoord} anchor={{ x: 0.5, y: 0.5 }} allowOverlap isSelected>
+            <UserLocationMarker
+              deviceHeading={deviceHeading}
+              mapBearing={mapBearing}
+              showHeadingBeam={hasHeading}
+            />
+          </MarkerView>
+
+          {pinZoomStyle.size > 0 &&
+            sightingsOnMap.map((s) => (
+              <MarkerView
+                key={s.id}
+                coordinate={[s.lng, s.lat]}
+                anchor={{ x: 0.5, y: 0.5 }}
+                allowOverlap>
+                <Pressable
+                  onPress={() => handleMarkerPress(s)}
+                  accessibilityRole="button"
+                  accessibilityLabel={s.name}>
+                  <KingdomMapPin kingdom={s.kingdom} zoomStyle={pinZoomStyle} />
+                </Pressable>
+              </MarkerView>
+            ))}
+
+        </MapView>
+      </NativeViewGestureHandler>
 
       {/* ── Top overlay ── */}
-      <View style={[styles.topOverlay, { paddingTop: insets.top + space[8] }]}>
+      <View style={[styles.topOverlay, { paddingTop: contentTopInset(insets.top) }]}>
         <View style={styles.searchBar}>
           <Ionicons name="search" size={16} color={colors.dim} />
           <TextInput
@@ -344,7 +438,8 @@ export function MapScreenContent() {
 
       {/* ── Bottom sheet ── */}
       <GestureDetector gesture={panGesture}>
-        <Animated.View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 70 }, sheetStyle]}>
+        <Animated.View
+          style={[styles.bottomSheet, { paddingBottom: tabBarClearance }, sheetStyle]}>
           {viewMode === 'sightings'
             ? (
                 <SightingsSheet
@@ -397,7 +492,7 @@ function NearbySheet({ items }: NearbySheetProps) {
     <View style={styles.sheetInner}>
       <View style={styles.handle} />
       <Text style={styles.sheetTitle}>Nearby Species</Text>
-      <Text style={[styles.sheetSub, { marginBottom: space[12] }]}>Within 2km of you</Text>
+      <Text style={[styles.sheetSub, { marginBottom: space[16] }]}>Within 2km of you</Text>
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
@@ -520,18 +615,18 @@ const userStyles = StyleSheet.create({
     width: USER_DOT,
     height: USER_DOT,
     borderRadius: USER_DOT / 2,
-    backgroundColor: `${colors.green}30`,
+    backgroundColor: `${colors.mapUser}30`,
     borderWidth: 1.5,
-    borderColor: `${colors.green}70`,
+    borderColor: `${colors.mapUser}70`,
   },
   dot: {
     width: USER_DOT,
     height: USER_DOT,
     borderRadius: USER_DOT / 2,
-    backgroundColor: colors.green,
+    backgroundColor: colors.mapUser,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.green,
+    shadowColor: colors.mapUser,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.55,
     shadowRadius: 8,
@@ -560,7 +655,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: space[16],
-    gap: space[10],
+    gap: space[8],
   },
   searchBar: {
     flexDirection: 'row',
@@ -569,7 +664,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: radius.pill,
     paddingHorizontal: space[16],
-    paddingVertical: space[10],
+    paddingVertical: space[8],
     ...shadow.card,
   },
   searchInput: {
@@ -588,7 +683,7 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   toggleOption: {
-    paddingHorizontal: space[20],
+    paddingHorizontal: space[16],
     paddingVertical: space[8],
     borderRadius: radius.pill,
   },
@@ -630,28 +725,21 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: SHEET_HEIGHT,
-    backgroundColor: colors.card,
-    borderTopLeftRadius: radius.xxl,
-    borderTopRightRadius: radius.xxl,
-    ...shadow.pop,
+    ...slideUpSheetShell(),
   },
   sheetInner: {
-    paddingHorizontal: space[20],
-    paddingTop: space[12],
-    paddingBottom: space[8],
+    flex: 1,
+    paddingHorizontal: space[16],
+    paddingTop: space[16],
   },
   handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.hairline,
-    marginBottom: space[14],
+    ...slideUpSheetHandle,
+    marginBottom: space[16],
   },
   sheetRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[12],
+    gap: space[16],
   },
   sheetTitle: {
     fontSize: typeTokens.size.title,
@@ -662,15 +750,15 @@ const styles = StyleSheet.create({
     fontSize: typeTokens.size.caption,
     fontWeight: typeTokens.body.weights.medium,
     color: colors.dim,
-    marginTop: space[2],
+    marginTop: space[4],
   },
   statChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[4],
     backgroundColor: `${colors.green}18`,
-    paddingHorizontal: space[10],
-    paddingVertical: space[6],
+    paddingHorizontal: space[8],
+    paddingVertical: space[8],
     borderRadius: radius.pill,
   },
   statChipText: {
@@ -688,8 +776,8 @@ const styles = StyleSheet.create({
   pinDetailHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[12],
-    marginBottom: space[20],
+    gap: space[16],
+    marginBottom: space[16],
   },
   pinDetailName: {
     fontSize: typeTokens.size.displaySM,
@@ -705,14 +793,14 @@ const styles = StyleSheet.create({
 
   // Duolingo bottom-shadow CTA
   btnShadow: {
-    backgroundColor: colors.greenDark,
+    backgroundColor: colors.greenDeep,
     borderRadius: radius.sm,
     paddingBottom: 4,
   },
   btnInner: {
     backgroundColor: colors.green,
     borderRadius: radius.sm,
-    paddingVertical: space[14],
+    paddingVertical: space[16],
     alignItems: 'center',
     transform: [{ translateY: 0 }],
   },
@@ -728,7 +816,7 @@ const styles = StyleSheet.create({
 
   // Nearby list
   nearbyList: {
-    maxHeight: 200,
+    flex: 1,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
@@ -738,7 +826,7 @@ const styles = StyleSheet.create({
   nearbyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[10],
+    gap: space[8],
   },
   nearbyMeta: {
     flex: 1,
@@ -746,7 +834,7 @@ const styles = StyleSheet.create({
   nearbyNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[6],
+    gap: space[8],
   },
   nearbyName: {
     fontSize: typeTokens.size.bodySM,
@@ -757,12 +845,12 @@ const styles = StyleSheet.create({
     fontSize: typeTokens.size.caption,
     fontWeight: typeTokens.body.weights.medium,
     color: colors.dim,
-    marginTop: space[2],
+    marginTop: space[4],
   },
   newTag: {
     backgroundColor: `${colors.sun}30`,
     paddingHorizontal: space[8],
-    paddingVertical: space[2],
+    paddingVertical: space[4],
     borderRadius: radius.pill,
   },
   newTagText: {

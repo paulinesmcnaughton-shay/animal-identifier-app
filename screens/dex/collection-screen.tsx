@@ -12,23 +12,23 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { CollectionStatsCard } from '@/components/collection-stats-card'
-import { DexCard, DexUnknownCard, type DexCardSpecies } from '@/components/DexCard'
+import { DexCard, type DexCardSpecies } from '@/components/DexCard'
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
-import { screenLayout } from '@/design/screen-layout'
+import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 
 const H_PAD = screenLayout.padH
-const GAP = space[10]
+const GAP = space[8]
 
 const MOCK_SPECIES: DexCardSpecies[] = [
   { id: '1', number: '#012', name: 'Red Fox',  date: 'Today',     kingdom: 'mammal',    gradient: ['#FFB088', '#FF6B5B'], cornerBadge: 'NEW', showFootprint: true },
-  { id: '2', number: '#089', name: 'Robin',    date: 'Yesterday', kingdom: 'bird',      gradient: ['#7FD8BE', '#15B981'] },
+  { id: '2', number: '#089', name: 'Robin',    date: 'Yesterday', kingdom: 'bird',      gradient: ['#52b788', '#1a3d2b'] },
   { id: '3', number: '#047', name: 'Monarch Butterfly', date: '3d ago', kingdom: 'insect', gradient: ['#FFB347', '#E85D04'], cornerBadge: 'RARE' },
   { id: '4', number: '#044', name: 'Badger',   date: '1w ago',    kingdom: 'mammal',    gradient: ['#A8D8EA', '#5BC0EB'] },
   { id: '5', number: '#156', name: 'Jay',      date: '2w ago',    kingdom: 'bird',      gradient: ['#C9B8FF', '#A855F7'] },
   { id: '6', number: '#078', name: 'Hare',     date: 'Today',     kingdom: 'mammal',    gradient: ['#FFD6A5', '#E8A87C'], showFootprint: true },
   { id: '7', number: '#033', name: 'Newt',     date: '4d ago',    kingdom: 'amphibian', gradient: ['#98E2C6', '#3DCCA8'] },
-  { id: '8', number: '#112', name: 'Owl',      date: '1w ago',    kingdom: 'bird',      gradient: ['#D4C4F5', '#9B7ED9'], cornerBadge: 'NEW' },
+  { id: '8', number: '#112', name: 'Tawny Owl', date: '1w ago',    kingdom: 'bird',      gradient: ['#D4C4F5', '#9B7ED9'], cornerBadge: 'NEW' },
 ]
 
 const FILTERS: { key: string; label: string; kind: KingdomKey | null }[] = [
@@ -48,26 +48,20 @@ export function CollectionScreen() {
   }, [])
 
   const rows = useMemo(() => {
-    const filtered = activeFilter === 'all'
-      ? MOCK_SPECIES
-      : MOCK_SPECIES.filter((s) => s.kingdom === activeFilter)
+    const filtered =
+      activeFilter === 'all'
+        ? MOCK_SPECIES
+        : MOCK_SPECIES.filter((s) => s.kingdom === activeFilter)
 
-    const items: ({ kind: 'species'; data: DexCardSpecies } | { kind: 'unknown' })[] =
-      filtered.map((s) => ({ kind: 'species' as const, data: s }))
-
-    const withUnknown = activeFilter === 'all'
-      ? [...items.slice(0, 5), { kind: 'unknown' as const }, ...items.slice(5)]
-      : items
-
-    const result: ({ kind: 'species'; data: DexCardSpecies } | { kind: 'unknown' })[][] = []
-    for (let i = 0; i < withUnknown.length; i += 3) {
-      result.push(withUnknown.slice(i, i + 3))
+    const result: DexCardSpecies[][] = []
+    for (let i = 0; i < filtered.length; i += 3) {
+      result.push(filtered.slice(i, i + 3))
     }
     return result
   }, [activeFilter])
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View style={[styles.screen, { paddingTop: contentTopInset(insets.top) }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100 }]}>
@@ -120,29 +114,24 @@ export function CollectionScreen() {
         <View style={styles.grid}>
           {rows.map((row, ri) => (
             <View key={`row-${ri}`} style={styles.gridRow}>
-              {row.map((cell) => {
-                if (cell.kind === 'unknown') {
-                  return <DexUnknownCard key="unknown" width={colWidth} />
-                }
-                return (
-                  <DexCard
-                    key={cell.data.id}
-                    species={cell.data}
-                    width={colWidth}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/species/[id]',
-                        params: {
-                          id: cell.data.id,
-                          name: cell.data.name,
-                          number: cell.data.number,
-                          kingdom: cell.data.kingdom,
-                        },
-                      })
-                    }
-                  />
-                )
-              })}
+              {row.map((species) => (
+                <DexCard
+                  key={species.id}
+                  species={species}
+                  width={colWidth}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/species/[id]',
+                      params: {
+                        id: species.id,
+                        name: species.name,
+                        number: species.number,
+                        kingdom: species.kingdom,
+                      },
+                    })
+                  }
+                />
+              ))}
             </View>
           ))}
         </View>
@@ -162,8 +151,9 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: screenLayout.iconBtnSize,
   },
   headerText: {
     flex: 1,
@@ -182,9 +172,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   filterBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: screenLayout.iconBtnSize,
+    height: screenLayout.iconBtnSize,
+    borderRadius: screenLayout.iconBtnSize / 2,
     backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
@@ -207,7 +197,7 @@ const styles = StyleSheet.create({
   },
   chip: {
     paddingHorizontal: space[16],
-    paddingVertical: space[10],
+    paddingVertical: space[8],
     borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
   },

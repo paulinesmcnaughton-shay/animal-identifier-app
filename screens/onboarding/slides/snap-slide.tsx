@@ -153,9 +153,9 @@ const styles = StyleSheet.create({
     height: 300,
   },
   copy: {
-    paddingHorizontal: space[12],
+    paddingHorizontal: space[16],
     alignItems: 'center',
-    gap: space[12],
+    gap: space[16],
   },
   headline: {
     fontSize: typeTokens.size.displayLG,
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     paddingTop: space[24],
   },
   ctaWrap: {
-    backgroundColor: colors.greenDark,
+    backgroundColor: colors.greenDeep,
     borderRadius: radius.lg,
     paddingBottom: 4,
   },

@@ -28,7 +28,7 @@ module.exports = {
   },
   android: {
     adaptiveIcon: {
-      backgroundColor: '#15B981',
+      backgroundColor: '#1a3d2b',
       foregroundImage: './assets/images/android-icon-foreground.png',
       backgroundImage: './assets/images/android-icon-background.png',
       monochromeImage: './assets/images/android-icon-monochrome.png',
@@ -72,8 +72,8 @@ module.exports = {
         image: './assets/images/splash-icon.png',
         imageWidth: 200,
         resizeMode: 'contain',
-        backgroundColor: '#15B981',
-        dark: { backgroundColor: '#15B981' },
+        backgroundColor: '#1a3d2b',
+        dark: { backgroundColor: '#1a3d2b' },
       },
     ],
     '@rnmapbox/maps',
@@ -87,6 +87,15 @@ module.exports = {
     inaturalistOAuthToken: process.env.INATURALIST_OAUTH_TOKEN ?? '',
     inaturalistClientId: process.env.INATURALIST_CLIENT_ID ?? '',
     inaturalistClientSecret: process.env.INATURALIST_CLIENT_SECRET ?? '',
+    anthropicApiKey: envString('ANTHROPIC_API_KEY'),
     googleVisionApiKey: envString('GOOGLE_VISION_API_KEY'),
+    SUPABASE_URL: envString('SUPABASE_URL') || 'https://wiysesftlprovkpouvqu.supabase.co',
+    SUPABASE_PUBLISHABLE_KEY:
+      envString('SUPABASE_PUBLISHABLE_KEY') ||
+      'sb_publishable_QLe0faP1klanHt3V_HFy1w_K8EDJmUD',
+    supabaseUrl: envString('SUPABASE_URL') || 'https://wiysesftlprovkpouvqu.supabase.co',
+    supabasePublishableKey:
+      envString('SUPABASE_PUBLISHABLE_KEY') ||
+      'sb_publishable_QLe0faP1klanHt3V_HFy1w_K8EDJmUD',
   },
 }

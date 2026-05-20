@@ -17,8 +17,8 @@ export function Pill({ children, variant = 'neutral' }: PillProps) {
 
 const styles = StyleSheet.create({
   pill: {
-    paddingHorizontal: space[12],
-    paddingVertical: space[6],
+    paddingHorizontal: space[16],
+    paddingVertical: space[8],
     borderRadius: radius.pill,
     backgroundColor: colors.hairline,
   },

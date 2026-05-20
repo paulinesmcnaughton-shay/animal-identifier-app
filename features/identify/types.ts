@@ -1,13 +1,41 @@
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 
-export type IdentifySource = 'inaturalist' | 'google'
+export type PipelineCategory =
+  | 'domestic_dog'
+  | 'domestic_cat'
+  | 'bird'
+  | 'insect'
+  | 'reptile'
+  | 'plant'
+  | 'wild_mammal'
+  | 'unknown'
+
+export type IdentifySource = 'claude' | 'inaturalist' | 'google' | 'manual'
 
 export interface IdentResult {
   commonName: string
   kingdom: KingdomKey | null
   confidence: number
   source: IdentifySource
+  latinName?: string
+  isDomestic?: boolean
+  lookupId?: string
+  dexNumber?: string
 }
+
+export type IdentifyOutcome =
+  | {
+      status: 'identified'
+      uri: string
+      result: IdentResult
+    }
+  | {
+      status: 'manual'
+      uri: string
+      category?: PipelineCategory
+      hintCommonName?: string
+      hintKingdom?: string
+    }
 
 export class IdentifyError extends Error {
   constructor(
@@ -25,3 +53,6 @@ export class IdentifyError extends Error {
     this.name = 'IdentifyError'
   }
 }
+
+export const MANUAL_PICKER_CONFIDENCE_THRESHOLD = 0.7
+export const INATURALIST_CONFIDENCE_THRESHOLD = 0.65

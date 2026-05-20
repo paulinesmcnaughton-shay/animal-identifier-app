@@ -29,8 +29,8 @@ export function Button({ label, variant = 'primary', style, textStyle, ...rest }
 
 const styles = StyleSheet.create({
   base: {
-    paddingVertical: space[12],
-    paddingHorizontal: space[20],
+    paddingVertical: space[16],
+    paddingHorizontal: space[16],
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',

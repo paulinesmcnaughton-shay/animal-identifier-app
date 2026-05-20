@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   pill: {
     backgroundColor: colors.coral,
     paddingVertical: space[4],
-    paddingHorizontal: space[10],
+    paddingHorizontal: space[8],
     borderRadius: radius.sm,
   },
   pillText: {
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   body: {
-    marginTop: space[12],
+    marginTop: space[16],
     fontSize: typeTokens.size.title,
     lineHeight: 24,
     color: colors.ink2,
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
     paddingTop: space[24],
   },
   ctaWrap: {
-    backgroundColor: colors.greenDark,
+    backgroundColor: colors.greenDeep,
     borderRadius: radius.lg,
     paddingBottom: 4,
   },

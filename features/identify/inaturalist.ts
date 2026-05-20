@@ -1,10 +1,15 @@
 import Constants from 'expo-constants'
 
+import { slugifySpeciesName } from '@/data/species-catalog'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 
 import { canUseInaturalistAuth, resolveInaturalistJwt } from './inaturalist-auth'
 import { normalizeImageUri } from './read-image-base64'
-import { type IdentResult, IdentifyError } from './types'
+import {
+  INATURALIST_CONFIDENCE_THRESHOLD,
+  type IdentResult,
+  IdentifyError,
+} from './types'
 
 const SCORE_IMAGE_URL = 'https://api.inaturalist.org/v2/computervision/score_image'
 
@@ -67,7 +72,28 @@ function parseResults(json: unknown): IdentResult {
   }
   const confidence = typeof top.combined_score === 'number' ? top.combined_score : 0
 
-  return { commonName, kingdom, confidence, source: 'inaturalist' }
+  return {
+    commonName,
+    kingdom,
+    confidence,
+    source: 'inaturalist',
+    latinName: top.taxon.name,
+    isDomestic: false,
+    lookupId: slugifySpeciesName(commonName),
+  }
+}
+
+export async function scoreImageWithInaturalistIfConfident(
+  uri: string,
+): Promise<IdentResult | null> {
+  try {
+    const result = await scoreImageWithInaturalist(uri)
+    if (result.confidence < INATURALIST_CONFIDENCE_THRESHOLD) return null
+    return result
+  } catch (error) {
+    if (error instanceof IdentifyError && error.code === 'NO_RESULTS') return null
+    throw error
+  }
 }
 
 export async function scoreImageWithInaturalist(uri: string): Promise<IdentResult> {

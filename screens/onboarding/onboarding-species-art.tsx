@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   },
   frogRow: {
     flexDirection: 'row',
-    gap: space[14],
+    gap: space[16],
     marginBottom: space[4],
   },
   frogEye: {

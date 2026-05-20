@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: FAB_SIZE / 2,
-    backgroundColor: colors.greenDark,
+    backgroundColor: colors.greenDeep,
   },
   fab: {
     width: FAB_SIZE,

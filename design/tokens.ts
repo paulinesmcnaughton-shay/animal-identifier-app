@@ -1,7 +1,10 @@
 export const colors = {
-  // Brand primary
-  green:      '#15B981',
-  greenDark:  '#0E8F65',
+  // Brand greens — primary (dark), secondary (light), deep (button shadow)
+  green:      '#1a3d2b',
+  greenLight: '#52b788',
+  greenDeep:  '#0f2419',
+  /** @deprecated Use `greenLight` for secondary; `greenDeep` for button depth */
+  greenDark:  '#52b788',
   lime:       '#A4DE3A',
   // Brand accents
   coral:      '#FF6B5B',
@@ -12,6 +15,8 @@ export const colors = {
   plum:       '#A855F7',
   earth:      '#92633A',
   earthLight: '#D4B896',
+  /** Map user location dot + heading beam */
+  mapUser:    '#d4a853',
   // Text
   ink:        '#152130',
   ink2:       '#33455A',
@@ -19,8 +24,11 @@ export const colors = {
   // Surfaces
   bg:         '#FFF8E7',
   bg2:        '#FFFBF0',
+  canvas:     '#FFF8E7',
   card:       '#FFFFFF',
   hairline:   '#E7EDF3',
+  /** Toggle switch track — off (use with `greenLight` for on). See `ToggleSwitch`. */
+  switchOff:  '#B5C2CE',
 } as const
 
 /** @deprecated Use `colors` */
@@ -30,13 +38,26 @@ export const color = {
   black: '#000000',
 } as const
 
+const cardDropShadow = {
+  shadowColor: '#152130',
+  shadowOffset: { width: 0, height: 14 },
+  shadowOpacity: 0.22,
+  shadowRadius: 32,
+  elevation: 14,
+} as const
+
 export const shadow = {
-  card: {
-    shadowColor: '#152130',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
+  /** Default for all content cards (species profile, dex grid, vitals, home, etc.). */
+  card: cardDropShadow,
+  /** @deprecated Use `shadow.card` — identical values. */
+  dexCard: cardDropShadow,
+  /** Creature of the day / featured hero cards. */
+  featured: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 28,
+    elevation: 12,
   },
   pop: {
     shadowColor: '#152130',
@@ -45,16 +66,31 @@ export const shadow = {
     shadowRadius: 24,
     elevation: 8,
   },
-  dexCard: {
-    shadowColor: '#152130',
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.22,
-    shadowRadius: 32,
-    elevation: 14,
-  },
 } as const
 
-export const space = { 2:2, 4:4, 6:6, 8:8, 10:10, 12:12, 14:14, 16:16, 20:20, 24:24, 28:28, 32:32, 40:40, 56:56 } as const
+/** Shadow wrapper for hero/profile cards — use on an outer View with borderRadius. */
+export const profileCardShadow = {
+  backgroundColor: 'transparent',
+  ...cardDropShadow,
+} as const
+
+/**
+ * Layout spacing — 4pt grid up to 24px; above 24 use multiples of 8 (32, 40, 48…).
+ * Never use raw pixel literals for margin, padding, or gap.
+ */
+export const space = {
+  4: 4,
+  8: 8,
+  16: 16,
+  24: 24,
+  32: 32,
+  40: 40,
+  48: 48,
+  56: 56,
+  64: 64,
+  72: 72,
+  80: 80,
+} as const
 
 export const radius = { sm:8, md:14, lg:18, xl:22, xxl:28, pill:999 } as const
 

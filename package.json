@@ -13,7 +13,8 @@
     "ios:sim": "REACT_NATIVE_PACKAGER_HOSTNAME=127.0.0.1 expo run:ios",
     "ios:device": "expo run:ios --device",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "download-avatars": "node scripts/download-shuffle-avatars.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
@@ -25,6 +26,7 @@
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
     "@rnmapbox/maps": "^10.3.0",
+    "@supabase/supabase-js": "^2.106.0",
     "expo": "~54.0.33",
     "expo-auth-session": "~7.0.11",
     "expo-camera": "~17.0.10",
@@ -36,6 +38,8 @@
     "expo-gl": "~16.0.10",
     "expo-haptics": "~15.0.8",
     "expo-image": "~3.0.11",
+    "expo-image-manipulator": "~14.0.8",
+    "expo-image-picker": "~17.0.11",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.11",
     "expo-location": "~19.0.8",

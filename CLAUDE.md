@@ -109,8 +109,9 @@ All values live in `src/design/tokens.ts`. Never hardcode any of these values an
 ```typescript
 export const colors = {
   // Brand primary
-  green:      '#15B981',
-  greenDark:  '#0E8F65',
+  green:      '#1a3d2b',
+  greenLight: '#52b788',
+  greenDeep:  '#0f2419',
   lime:       '#A4DE3A',
   // Brand accents
   coral:      '#FF6B5B',
@@ -153,12 +154,12 @@ export type KingdomKey = keyof typeof kingdom
 
 ### Spacing
 
-4pt grid. Use only these values.
+4pt grid up to 24px (`space[4]`, `space[8]`, `space[16]`, `space[24]`). Above 24px use multiples of 8 (`space[32]`, `space[40]`, `space[48]`, …). Never raw pixel literals for margin, padding, or gap.
 
 ```typescript
 export const space = {
-  2:2, 4:4, 6:6, 8:8, 10:10, 12:12, 14:14, 16:16,
-  20:20, 24:24, 28:28, 32:32, 40:40, 56:56
+  4: 4, 8: 8, 16: 16, 24: 24,
+  32: 32, 40: 40, 48: 48, 56: 56, 64: 64, 72: 72, 80: 80,
 } as const
 ```
 
@@ -237,7 +238,8 @@ export const shadow = {
 
 ### Color rules
 
-- Brand green (`#15B981`) is the primary action color. All primary CTAs, active states, and success feedback.
+- Brand green (`#1a3d2b`) is the primary action color; `#52b788` (`greenLight`) is the secondary accent. All primary CTAs, active states, and success feedback use `colors.green`.
+- Toggle switches: always use `ToggleSwitch` from `design/atoms/ToggleSwitch.tsx` — off track `colors.switchOff`, on track `colors.greenLight`, white thumb. Never inline `Switch` track colors.
 - Kingdom colors are identity only — never use them as generic accent colors outside of species-related UI.
 - `ink` (#152130) for primary text, `ink2` (#33455A) for secondary, `dim` (#7388A0) for tertiary and metadata.
 - `bg` (#FFF8E7) is the warm cream background — the emotional warmth of the brand lives here. Never use pure white as a background.
@@ -451,6 +453,7 @@ Shows dex number, species name in display font, kingdom badge, rarity indicator,
 - Follow expo-router file-based routing conventions. Screen files live in `app/`, not `src/screens/`.
 - Run the simulator with: `REACT_NATIVE_PACKAGER_HOSTNAME=127.0.0.1 npx expo run:ios`
 - Auth state (isLoggedIn) is stored via AsyncStorage in `src/util/storage.ts`. Never manage auth state inline in a component.
+- **Account identity (display name, username, email, phone)** is a single source of truth in `features/settings/account-profile.ts`. Screens use `useAccountProfile()`; writes use `updateAccountProfile()`. Never hardcode names or use `mockUser` for identity — only for level/streak/stats.
 - Never use "Pokédex", "Pokedex", or any Pokémon-related terminology anywhere in the app, codebase, or copy.
 
 ---

@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
 import { router, useLocalSearchParams } from 'expo-router'
+import type { IdentifySource } from '@/features/identify/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native'
 import ReAnimated, {
@@ -12,19 +13,48 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { KingdomBadge } from '@/design/atoms/KingdomBadge'
 import { ProgressBar } from '@/components/ProgressBar'
+import { contentTopInset } from '@/design/screen-layout'
+import { slideUpSheetHandle, slideUpSheetShell } from '@/design/slide-up-sheet'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import { slugifySpeciesName } from '@/data/species-catalog'
 import { identifyAnimalOrPlant } from '@/features/identify/identify-image'
-import { type IdentResult, IdentifyError } from '@/features/identify/types'
+import { buildManualPickerRouteParams } from '@/features/identify/manual-picker-params'
+import { friendlyIdentifyError } from '@/features/identify/friendly-identify-error'
+import type { IdentResult } from '@/features/identify/types'
 
 export function ResultScreen() {
   const insets = useSafeAreaInsets()
-  const { uri } = useLocalSearchParams<{ uri?: string }>()
-  const photoUri = typeof uri === 'string' ? uri : undefined
+  const params = useLocalSearchParams<{
+    uri?: string
+    identified?: string
+    commonName?: string
+    kingdom?: string
+    confidence?: string
+    source?: string
+    errorMessage?: string
+  }>()
+  const photoUri = typeof params.uri === 'string' ? params.uri : undefined
 
-  const [isLoading, setIsLoading] = useState(!!photoUri)
-  const [result, setResult] = useState<IdentResult | null>(null)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const prefilledResult: IdentResult | null =
+    params.identified === '1' && typeof params.commonName === 'string'
+      ? {
+          commonName: params.commonName,
+          kingdom:
+            typeof params.kingdom === 'string' && params.kingdom.length > 0
+              ? (params.kingdom as IdentResult['kingdom'])
+              : null,
+          confidence: Number(params.confidence) || 0,
+          source: (params.source as IdentifySource) || 'inaturalist',
+        }
+      : null
+  const prefilledError =
+    typeof params.errorMessage === 'string' && params.errorMessage.length > 0
+      ? params.errorMessage
+      : null
+
+  const [isLoading, setIsLoading] = useState(!!photoUri && !prefilledResult && !prefilledError)
+  const [result, setResult] = useState<IdentResult | null>(prefilledResult)
+  const [errorMessage, setErrorMessage] = useState<string | null>(prefilledError)
 
   const pulseAnim = useRef(new Animated.Value(1)).current
 
@@ -42,14 +72,17 @@ export function ResultScreen() {
     pulse.start()
 
     try {
-      const ident = await identifyAnimalOrPlant(imageUri)
-      setResult(ident)
+      const outcome = await identifyAnimalOrPlant(imageUri)
+      if (outcome.status === 'manual') {
+        router.replace({
+          pathname: '/identify/manual-picker',
+          params: buildManualPickerRouteParams({ ...outcome, uri: imageUri }),
+        })
+        return
+      }
+      setResult(outcome.result)
     } catch (error) {
-      const message =
-        error instanceof IdentifyError
-          ? error.message
-          : "Couldn't identify that one. Try a clearer angle."
-      setErrorMessage(message)
+      setErrorMessage(friendlyIdentifyError(error))
       if (__DEV__) console.warn('[Wildr iNat]', error)
     } finally {
       pulse.stop()
@@ -59,9 +92,9 @@ export function ResultScreen() {
   }, [pulseAnim])
 
   useEffect(() => {
-    if (!photoUri) return
+    if (!photoUri || prefilledResult || prefilledError) return
     void runIdentification(photoUri)
-  }, [photoUri, runIdentification])
+  }, [photoUri, prefilledResult, prefilledError, runIdentification])
 
   const cardOffset = useSharedValue(320)
 
@@ -76,8 +109,8 @@ export function ResultScreen() {
   }))
 
   const handleClose = () => {
-    if (router.canGoBack()) router.back()
-    else router.replace('/(tabs)/home')
+    if (router.canDismiss()) router.dismiss(1)
+    else router.replace('/capture/scan')
   }
 
   const handleAddToCollection = () => {
@@ -85,14 +118,17 @@ export function ResultScreen() {
       router.replace('/(tabs)/dex')
       return
     }
-    router.push({
+    router.replace({
       pathname: '/species/[id]',
       params: {
-        id: slugifySpeciesName(result.commonName),
+        id: result.lookupId ?? slugifySpeciesName(result.commonName),
         name: result.commonName,
         kingdom: result.kingdom ?? 'mammal',
+        number: result.dexNumber ?? '',
         confidence: String(result.confidence),
-        number: '#???',
+        ...(result.latinName ? { latin: result.latinName } : {}),
+        ...(result.isDomestic ? { domestic: '1' } : {}),
+        fromCapture: '1',
       },
     })
   }
@@ -112,7 +148,7 @@ export function ResultScreen() {
       )}
       <View style={[StyleSheet.absoluteFill, styles.darkOverlay]} />
 
-      <View style={[styles.topOverlay, { paddingTop: insets.top + space[8] }]}>
+      <View style={[styles.topOverlay, { paddingTop: contentTopInset(insets.top) }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Close"
@@ -142,7 +178,7 @@ export function ResultScreen() {
         <ReAnimated.View
           style={[
             styles.card,
-            { paddingBottom: insets.bottom + space[20] },
+            { paddingBottom: insets.bottom + space[16] },
             cardAnimatedStyle,
           ]}>
           <View style={styles.handle} />
@@ -161,7 +197,7 @@ export function ResultScreen() {
         <ReAnimated.View
           style={[
             styles.card,
-            { paddingBottom: insets.bottom + space[20] },
+            { paddingBottom: insets.bottom + space[16] },
             cardAnimatedStyle,
           ]}>
           <View style={styles.handle} />
@@ -236,7 +272,7 @@ const styles = StyleSheet.create({
   },
   view3dButton: {
     minHeight: 44,
-    paddingHorizontal: space[14],
+    paddingHorizontal: space[16],
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -281,18 +317,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.card,
-    borderTopLeftRadius: radius.xxl,
-    borderTopRightRadius: radius.xxl,
-    paddingHorizontal: space[20],
-    paddingTop: space[12],
+    ...slideUpSheetShell(),
+    paddingHorizontal: space[16],
+    paddingTop: space[16],
   },
   handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.hairline,
+    ...slideUpSheetHandle,
     marginBottom: space[16],
   },
   speciesName: {
@@ -301,18 +331,18 @@ const styles = StyleSheet.create({
     fontWeight: typeTokens.display.weight,
     color: colors.ink,
     letterSpacing: -0.6,
-    marginBottom: space[12],
+    marginBottom: space[16],
   },
   errorBody: {
     fontSize: typeTokens.size.body,
     color: colors.ink2,
     lineHeight: 22,
-    marginBottom: space[20],
+    marginBottom: space[16],
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: space[20],
+    marginBottom: space[16],
   },
   confidenceRow: {
     flexDirection: 'row',
@@ -331,11 +361,11 @@ const styles = StyleSheet.create({
     color: colors.green,
   },
   confidenceBar: {
-    marginBottom: space[20],
+    marginBottom: space[16],
   },
   secondaryAction: {
     alignItems: 'center',
-    paddingVertical: space[12],
+    paddingVertical: space[16],
     marginTop: space[8],
   },
   secondaryActionText: {
@@ -344,7 +374,7 @@ const styles = StyleSheet.create({
     color: colors.ink2,
   },
   popWrap: {
-    backgroundColor: colors.greenDark,
+    backgroundColor: colors.greenDeep,
     borderRadius: radius.lg,
     paddingBottom: 4,
   },

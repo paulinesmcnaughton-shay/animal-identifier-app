@@ -7,6 +7,8 @@ import { colors, space, type as typeTokens } from '@/design/tokens'
 
 interface ScreenHeaderProps {
   onBack: () => void
+  /** Back arrow by default; use `close` after capture flow */
+  leadingAction?: 'back' | 'close'
   title?: string
   center?: ReactNode
   right?: ReactNode
@@ -35,7 +37,14 @@ export function ScreenHeaderIconButton({
   )
 }
 
-export function ScreenHeader({ onBack, title, center, right, style }: ScreenHeaderProps) {
+export function ScreenHeader({
+  onBack,
+  leadingAction = 'back',
+  title,
+  center,
+  right,
+  style,
+}: ScreenHeaderProps) {
   const centerContent =
     center ??
     (title ? (
@@ -44,14 +53,17 @@ export function ScreenHeader({ onBack, title, center, right, style }: ScreenHead
       </Text>
     ) : null)
 
+  const leadingIcon = leadingAction === 'close' ? 'close' : 'arrow-back'
+  const leadingLabel = leadingAction === 'close' ? 'Close' : 'Go back'
+
   return (
     <View style={[styles.header, style]}>
       <Pressable
         onPress={onBack}
         accessibilityRole="button"
-        accessibilityLabel="Go back"
+        accessibilityLabel={leadingLabel}
         style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}>
-        <Ionicons name="arrow-back" size={screenLayout.iconSize} color={colors.ink} />
+        <Ionicons name={leadingIcon} size={screenLayout.iconSize} color={colors.ink} />
       </Pressable>
 
       {centerContent ? <View style={styles.center}>{centerContent}</View> : <View style={styles.flex} />}
@@ -66,7 +78,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: screenLayout.padH,
-    paddingVertical: screenLayout.headerPadV,
+    paddingTop: screenLayout.headerTop,
+    paddingBottom: screenLayout.headerPadV,
     backgroundColor: colors.bg,
   },
   iconBtn: {
