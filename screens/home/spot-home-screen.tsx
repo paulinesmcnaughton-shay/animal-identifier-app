@@ -11,15 +11,13 @@ import { DexCard, type DexCardSpecies } from '@/components/DexCard'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
 import {
-import {
   getRecentFindDexCards,
   getRecentFinds,
-  recentFindRouteParams,
-} from '@/data/mock'
   mockCreatureOfDay,
   mockHomeNotifications,
   mockUser,
   mockWeeklyQuest,
+  recentFindRouteParams,
 } from '@/data/mock'
 import { dexCardHairline } from '@/design/dex-card-shell'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'

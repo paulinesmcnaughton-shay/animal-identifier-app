@@ -20,6 +20,7 @@ import {
 } from '@/data/dex-collection'
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
+import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import { speciesDetailRouteParamsFromId } from '@/features/species/species-latin-names'
 
 const H_PAD = screenLayout.padH
@@ -44,8 +45,8 @@ export function CollectionScreen() {
   const rows = useMemo(() => {
     const filtered =
       activeFilter === 'all'
-        ? MOCK_SPECIES
-        : MOCK_SPECIES.filter((s) => s.kingdom === activeFilter)
+        ? getDexCollectionSorted()
+        : getDexCollectionByKingdom(activeFilter as KingdomKey)
 
     const result: DexCardSpecies[][] = []
     for (let i = 0; i < filtered.length; i += 3) {
