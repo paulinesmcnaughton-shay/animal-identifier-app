@@ -16,6 +16,7 @@ import {
   scoreImageWithInaturalist,
   scoreImageWithInaturalistIfConfident,
 } from '@/features/identify/inaturalist'
+import { enrichIdentResult } from '@/features/species/dex-number-registry'
 import { kingdomKeyFromTaxonomy } from '@/features/species/kingdom-from-taxonomy'
 import { fetchDomesticSpeciesFromSupabase } from '@/features/species/fetch-domestic-species'
 import {
@@ -154,15 +155,17 @@ async function lookupWildTaxon(commonName: string): Promise<IdentResult | null> 
   const iconic = taxon.iconic_taxon_name ?? 'Animalia'
   const resolvedName = taxon.preferred_common_name?.trim() || taxon.name?.trim() || commonName
 
-  return {
-    commonName: resolvedName,
-    kingdom: INAT_ICONIC_MAP[iconic] ?? 'mammal',
-    confidence: MANUAL_PICKER_CONFIDENCE_THRESHOLD,
-    source: 'inaturalist',
-    latinName: taxon.name,
-    isDomestic: false,
-    lookupId: slugifySpeciesName(resolvedName),
-  }
+  return enrichIdentResult(
+    {
+      commonName: resolvedName,
+      kingdom: INAT_ICONIC_MAP[iconic] ?? 'mammal',
+      confidence: MANUAL_PICKER_CONFIDENCE_THRESHOLD,
+      source: 'inaturalist',
+      latinName: taxon.name,
+      isDomestic: false,
+    },
+    { inatTaxonId: taxon.id },
+  )
 }
 
 async function resolveDomesticBreed(
@@ -450,7 +453,7 @@ async function routeWildAnthropicFallback(
     return {
       status: 'identified',
       uri,
-      result: {
+      result: enrichIdentResult({
         commonName: claude.commonName,
         kingdom,
         confidence: claude.confidence,
@@ -458,7 +461,7 @@ async function routeWildAnthropicFallback(
         latinName: claude.latinName,
         isDomestic: false,
         lookupId: slugifySpeciesName(claude.commonName),
-      },
+      }),
     }
   }
 

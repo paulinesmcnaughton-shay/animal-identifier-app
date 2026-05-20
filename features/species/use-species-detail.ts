@@ -123,19 +123,35 @@ export function useSpeciesDetail({
       return { species: merged, resolvedLatinSource: source }
     }
 
+    const commonName = overrides?.commonName ?? remoteDetail.commonName
+    const latinName =
+      remoteDetail.latinName?.trim() ||
+      latinNameHint?.trim() ||
+      overrides?.latinName?.trim() ||
+      fallback.latinName
+    const kingdom = overrides?.kingdom ?? remoteDetail.kingdom
+
     const merged = {
       ...fallback,
       ...remoteDetail,
       ...overrides,
       id: remoteDetail.id,
-      commonName: overrides?.commonName ?? remoteDetail.commonName,
-      latinName:
-        remoteDetail.latinName?.trim() ||
-        latinNameHint?.trim() ||
-        overrides?.latinName?.trim() ||
-        fallback.latinName,
-      dexNumber: resolveDexNumber(overrides?.dexNumber, remoteDetail.dexNumber, fallback.dexNumber),
-      kingdom: overrides?.kingdom ?? remoteDetail.kingdom,
+      commonName,
+      latinName,
+      kingdom,
+      dexNumber: resolveDexNumber(
+        overrides?.dexNumber,
+        remoteDetail.dexNumber,
+        fallback.dexNumber,
+        {
+          speciesId: id,
+          lookupId: id,
+          commonName,
+          latinName,
+          kingdom,
+          isDomestic,
+        },
+      ),
       stats: remoteDetail.stats.length > 0 ? remoteDetail.stats : fallback.stats,
       vitals: remoteDetail.vitals.length > 0 ? remoteDetail.vitals : fallback.vitals,
     }

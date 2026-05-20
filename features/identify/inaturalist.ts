@@ -1,7 +1,7 @@
 import Constants from 'expo-constants'
 
-import { slugifySpeciesName } from '@/data/species-catalog'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
+import { enrichIdentResult } from '@/features/species/dex-number-registry'
 
 import { canUseInaturalistAuth, resolveInaturalistJwt } from './inaturalist-auth'
 import { normalizeImageUri } from './read-image-base64'
@@ -27,6 +27,7 @@ const ICONIC_TAXON_MAP: Record<string, KingdomKey> = {
 }
 
 interface InatTaxon {
+  id?: number
   preferred_common_name?: string
   name?: string
   iconic_taxon_name?: string
@@ -72,15 +73,19 @@ function parseResults(json: unknown): IdentResult {
   }
   const confidence = typeof top.combined_score === 'number' ? top.combined_score : 0
 
-  return {
-    commonName,
-    kingdom,
-    confidence,
-    source: 'inaturalist',
-    latinName: top.taxon.name,
-    isDomestic: false,
-    lookupId: slugifySpeciesName(commonName),
-  }
+  const taxonId = typeof top.taxon.id === 'number' ? top.taxon.id : undefined
+
+  return enrichIdentResult(
+    {
+      commonName,
+      kingdom,
+      confidence,
+      source: 'inaturalist',
+      latinName: top.taxon.name,
+      isDomestic: false,
+    },
+    taxonId != null ? { inatTaxonId: taxonId } : undefined,
+  )
 }
 
 export async function scoreImageWithInaturalistIfConfident(

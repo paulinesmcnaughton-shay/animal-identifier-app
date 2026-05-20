@@ -4,7 +4,8 @@ import { useCallback, useMemo } from 'react'
 import { Dimensions, ScrollView, StyleSheet, Text, Pressable, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { DexCard, type DexCardSpecies } from '@/components/DexCard'
+import { DexCard } from '@/components/DexCard'
+import { getRecentFindDexCards } from '@/data/mock'
 import { ProfileAvatar } from '@/components/profile/ProfileAvatar'
 import { dexCardHairline } from '@/design/dex-card-shell'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
@@ -24,95 +25,6 @@ const STATS = [
 
 const H_PAD = screenLayout.padH
 const GRID_GAP = space[8]
-
-const MAX_RECENT_SPOTS = 10
-
-const RECENT_SPOTS: DexCardSpecies[] = [
-  {
-    id: 'fox',
-    number: '#012',
-    name: 'Red Fox',
-    date: 'Today',
-    kingdom: 'mammal',
-    gradient: ['#FFB088', '#FF6B5B'],
-    cornerBadge: 'NEW',
-    showFootprint: true,
-  },
-  {
-    id: 'monarch',
-    number: '#047',
-    name: 'Monarch Butterfly',
-    date: 'Yesterday',
-    kingdom: 'insect',
-    gradient: ['#FFB347', '#E85D04'],
-    cornerBadge: 'RARE',
-  },
-  {
-    id: 'cardinal',
-    number: '#089',
-    name: 'Northern Cardinal',
-    date: '2d ago',
-    kingdom: 'bird',
-    gradient: ['#FF6B5B', '#E04A39'],
-  },
-  {
-    id: 'frog',
-    number: '#033',
-    name: 'Tree Frog',
-    date: '3d ago',
-    kingdom: 'amphibian',
-    gradient: ['#98E2C6', '#3DCCA8'],
-  },
-  {
-    id: 'robin',
-    number: '#089',
-    name: 'Robin',
-    date: '4d ago',
-    kingdom: 'bird',
-    gradient: ['#52b788', '#1a3d2b'],
-  },
-  {
-    id: 'badger',
-    number: '#044',
-    name: 'Badger',
-    date: '5d ago',
-    kingdom: 'mammal',
-    gradient: ['#A8D8EA', '#5BC0EB'],
-  },
-  {
-    id: 'jay',
-    number: '#156',
-    name: 'Jay',
-    date: '1w ago',
-    kingdom: 'bird',
-    gradient: ['#C9B8FF', '#A855F7'],
-  },
-  {
-    id: 'hare',
-    number: '#078',
-    name: 'Hare',
-    date: '1w ago',
-    kingdom: 'mammal',
-    gradient: ['#FFD6A5', '#E8A87C'],
-  },
-  {
-    id: 'newt',
-    number: '#033',
-    name: 'Newt',
-    date: '2w ago',
-    kingdom: 'amphibian',
-    gradient: ['#98E2C6', '#3DCCA8'],
-  },
-  {
-    id: 'owl',
-    number: '#112',
-    name: 'Tawny Owl',
-    date: '2w ago',
-    kingdom: 'bird',
-    gradient: ['#D4C4F5', '#9B7ED9'],
-    cornerBadge: 'NEW',
-  },
-]
 
 const XP_TO_STATS_GAP = space[24]
 /** Green hero tucks under ~half of the stats card (Spotted, Rare, Streak, Badges). */
@@ -184,10 +96,7 @@ export function ProfileScreen() {
     return (w - H_PAD * 2 - GRID_GAP * 2) / 3
   }, [])
 
-  const recentSpots = useMemo(
-    () => RECENT_SPOTS.slice(0, MAX_RECENT_SPOTS),
-    [],
-  )
+  const recentSpots = useMemo(() => getRecentFindDexCards(), [])
 
   const spottingHeatmap = useMemo(() => buildCurrentYearHeatmap(new Date()), [])
 

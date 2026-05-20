@@ -42,6 +42,8 @@ export function mixedBreedIdentResult(kind: DomesticPetKind, confidence: number)
     kingdom: 'mammal',
     confidence: Math.max(confidence, 0.35),
     source: 'claude',
+    isDomestic: true,
+    dexNumber: kind === 'cat' ? DOMESTIC_DEX_CAT : DOMESTIC_DEX_DOG,
   }
 }
 

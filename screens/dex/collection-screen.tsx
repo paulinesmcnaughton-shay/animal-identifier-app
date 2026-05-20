@@ -13,6 +13,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { CollectionStatsCard } from '@/components/collection-stats-card'
 import { DexCard, type DexCardSpecies } from '@/components/DexCard'
+import {
+  DEX_COLLECTION_SIZE,
+  getDexCollectionByKingdom,
+  getDexCollectionSorted,
+} from '@/data/dex-collection'
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
@@ -20,22 +25,11 @@ import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 const H_PAD = screenLayout.padH
 const GAP = space[8]
 
-const MOCK_SPECIES: DexCardSpecies[] = [
-  { id: '1', number: '#012', name: 'Red Fox',  date: 'Today',     kingdom: 'mammal',    gradient: ['#FFB088', '#FF6B5B'], cornerBadge: 'NEW', showFootprint: true },
-  { id: '2', number: '#089', name: 'Robin',    date: 'Yesterday', kingdom: 'bird',      gradient: ['#52b788', '#1a3d2b'] },
-  { id: '3', number: '#047', name: 'Monarch Butterfly', date: '3d ago', kingdom: 'insect', gradient: ['#FFB347', '#E85D04'], cornerBadge: 'RARE' },
-  { id: '4', number: '#044', name: 'Badger',   date: '1w ago',    kingdom: 'mammal',    gradient: ['#A8D8EA', '#5BC0EB'] },
-  { id: '5', number: '#156', name: 'Jay',      date: '2w ago',    kingdom: 'bird',      gradient: ['#C9B8FF', '#A855F7'] },
-  { id: '6', number: '#078', name: 'Hare',     date: 'Today',     kingdom: 'mammal',    gradient: ['#FFD6A5', '#E8A87C'], showFootprint: true },
-  { id: '7', number: '#033', name: 'Newt',     date: '4d ago',    kingdom: 'amphibian', gradient: ['#98E2C6', '#3DCCA8'] },
-  { id: '8', number: '#112', name: 'Tawny Owl', date: '1w ago',    kingdom: 'bird',      gradient: ['#D4C4F5', '#9B7ED9'], cornerBadge: 'NEW' },
-]
-
 const FILTERS: { key: string; label: string; kind: KingdomKey | null }[] = [
-  { key: 'all',       label: 'All 47',  kind: null },
-  { key: 'mammal',    label: 'Mammals', kind: 'mammal' },
-  { key: 'bird',      label: 'Birds',   kind: 'bird' },
-  { key: 'insect',    label: 'Insects', kind: 'insect' },
+  { key: 'all', label: `All ${DEX_COLLECTION_SIZE}`, kind: null },
+  { key: 'mammal', label: 'Mammals', kind: 'mammal' },
+  { key: 'bird', label: 'Birds', kind: 'bird' },
+  { key: 'insect', label: 'Insects', kind: 'insect' },
 ]
 
 export function CollectionScreen() {
@@ -80,7 +74,7 @@ export function CollectionScreen() {
           </Link>
         </View>
 
-        <CollectionStatsCard collected={47} total={247} streakDays={12} trophies={8} />
+        <CollectionStatsCard collected={DEX_COLLECTION_SIZE} total={DEX_COLLECTION_SIZE} streakDays={12} trophies={8} />
 
         <ScrollView
           horizontal

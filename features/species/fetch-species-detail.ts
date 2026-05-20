@@ -11,6 +11,7 @@ import {
   fetchDomesticSpeciesFromSupabase,
   type FetchDomesticSpeciesOptions,
 } from '@/features/species/fetch-domestic-species'
+import { isDomesticDexNumber, resolveGlobalDexNumber } from '@/features/species/dex-number-registry'
 import { kingdomKeyFromTaxonomy } from '@/features/species/kingdom-from-taxonomy'
 import type {
   LatinNameSource,
@@ -38,7 +39,6 @@ const KINGDOM_KEYS: KingdomKey[] = [
 
 const RARITIES: SpeciesRarity[] = ['Common', 'Uncommon', 'Rare', 'Very Rare']
 
-const DOMESTIC_DEX_RE = /^#?D\d+$/i
 const INAT_LOOKUP_RE = /^inat-(\d+)$/i
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -151,7 +151,7 @@ export function mapSpeciesRowToDetail(row: SpeciesRow): SpeciesDetail {
 
 function isDomesticDexLookup(lookupId: string): boolean {
   const safe = lookupId.replace(/[^a-zA-Z0-9#_-]/g, '')
-  return DOMESTIC_DEX_RE.test(safe)
+  return isDomesticDexNumber(safe)
 }
 
 function parseInatTaxonId(lookupId: string): number | null {
@@ -206,13 +206,20 @@ function mapInatTaxonToWildResult(
   const commonName =
     taxon.preferred_common_name?.trim() || taxon.name?.trim() || 'Unknown species'
   const kingdom = kingdomKeyFromTaxonomy(taxon.iconic_taxon_name ?? 'Animalia')
+  const dexNumber = resolveGlobalDexNumber({
+    lookupId,
+    commonName,
+    latinName,
+    inatTaxonId: taxon.id,
+    kingdom,
+  })
   const imageUrl =
     taxon.default_photo?.medium_url?.trim() ||
     taxon.default_photo?.square_url?.trim() ||
     null
 
   return {
-    detail: wildDetailShell(lookupId, commonName, latinName, kingdom),
+    detail: { ...wildDetailShell(lookupId, commonName, latinName, kingdom), dexNumber },
     imageUrl,
     isDomestic: false,
     latinNameSource: 'inaturalist.taxon.name',

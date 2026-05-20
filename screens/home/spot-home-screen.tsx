@@ -7,16 +7,15 @@ import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { CollectorTierBadge } from '@/components/CollectorTierBadge'
-import { DexCard } from '@/components/DexCard'
+import { DexCard, type DexCardSpecies } from '@/components/DexCard'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
 import {
-  getHomeRecentFinds,
+  getRecentFindDexCards,
   mockCreatureOfDay,
   mockHomeNotifications,
   mockUser,
   mockWeeklyQuest,
-  type RecentFindItem,
 } from '@/data/mock'
 import { dexCardHairline } from '@/design/dex-card-shell'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
@@ -182,15 +181,16 @@ function CreatureOfDayCard({ onInfoPress }: CreatureOfDayCardProps) {
 function RecentFinds() {
   const router = useRouter()
   const CARD_WIDTH = 120
+  const recentFinds = getRecentFindDexCards()
 
-  const handleOpenSpecies = (item: (typeof mockRecentFinds)[number]) => {
+  const handleOpenSpecies = (species: DexCardSpecies) => {
     router.push({
       pathname: '/species/[id]',
       params: {
-        id: item.id,
-        name: item.name,
-        number: item.number,
-        kingdom: item.kingdom,
+        id: species.id,
+        name: species.name,
+        number: species.number,
+        kingdom: species.kingdom,
       },
     })
   }
@@ -214,19 +214,12 @@ function RecentFinds() {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.recentScroll}>
-        {recentFinds.map((item) => (
+        {recentFinds.map((species) => (
           <DexCard
-            key={item.id}
+            key={species.id}
             width={CARD_WIDTH}
-            species={{
-              id: item.id,
-              number: item.number,
-              name: item.name,
-              date: item.date,
-              gradient: item.gradient,
-              kingdom: item.kingdom,
-            }}
-            onPress={() => handleOpenSpecies(item)}
+            species={species}
+            onPress={() => handleOpenSpecies(species)}
           />
         ))}
       </ScrollView>
