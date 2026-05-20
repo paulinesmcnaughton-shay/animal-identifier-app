@@ -12,6 +12,7 @@ import {
   type FetchDomesticSpeciesOptions,
 } from '@/features/species/fetch-domestic-species'
 import { isDomesticDexNumber, resolveGlobalDexNumber } from '@/features/species/dex-number-registry'
+import { resolveLatinName } from '@/features/species/species-latin-names'
 import { kingdomKeyFromTaxonomy } from '@/features/species/kingdom-from-taxonomy'
 import type {
   LatinNameSource,
@@ -174,11 +175,16 @@ function wildDetailShell(
   latinName: string,
   kingdom: KingdomKey,
 ): SpeciesDetail {
+  const resolvedLatin =
+    latinName.trim() && latinName !== 'Species unknown'
+      ? latinName
+      : resolveLatinName({ speciesId: lookupId, commonName }) ?? 'Species unknown'
+
   return {
     id: lookupId,
     dexNumber: '#???',
     commonName,
-    latinName,
+    latinName: resolvedLatin,
     kingdom,
     rarity: 'Common',
     conservation: 'Unknown',

@@ -20,7 +20,7 @@ import {
 } from '@/data/dex-collection'
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
-import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { speciesDetailRouteParamsFromId } from '@/features/species/species-latin-names'
 
 const H_PAD = screenLayout.padH
 const GAP = space[8]
@@ -116,12 +116,12 @@ export function CollectionScreen() {
                   onPress={() =>
                     router.push({
                       pathname: '/species/[id]',
-                      params: {
+                      params: speciesDetailRouteParamsFromId({
                         id: species.id,
                         name: species.name,
                         number: species.number,
                         kingdom: species.kingdom,
-                      },
+                      }),
                     })
                   }
                 />

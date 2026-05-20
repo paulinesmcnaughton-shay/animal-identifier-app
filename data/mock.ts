@@ -2,6 +2,7 @@ import type { DexCardSpecies } from '@/components/DexCard'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import type { SpeciesDto } from '@/data/schemas'
 import { getDexNumberForSpeciesId } from '@/features/species/dex-number-registry'
+import { getLatinNameForSpeciesId, speciesDetailRouteParamsFromId } from '@/features/species/species-latin-names'
 
 export const RECENT_FINDS_LIMIT = 10
 /** @deprecated Use RECENT_FINDS_LIMIT */
@@ -11,6 +12,7 @@ export interface RecentFindItem {
   id: string
   number: string
   name: string
+  latinName: string
   date: string
   kingdom: KingdomKey
   gradient: readonly [string, string]
@@ -18,9 +20,13 @@ export interface RecentFindItem {
   spottedAt: string
 }
 
+function latinName(id: string): string {
+  return getLatinNameForSpeciesId(id) ?? 'Species unknown'
+}
+
 export const mockSpecies: SpeciesDto[] = [
   { id: '1', commonName: 'Red Fox', scientificName: 'Vulpes vulpes' },
-  { id: '2', commonName: 'Robin', scientificName: 'Erithacus rubecula' },
+  { id: '2', commonName: 'American Robin', scientificName: 'Turdus migratorius' },
 ]
 
 /** Gamification stats only — for display name / username use `@/features/settings/account-profile`. */
@@ -94,17 +100,17 @@ export const mockHomeNotifications: HomeNotification[] = [
 
 /** Full recent-finds list (newest first when read via getHomeRecentFinds). */
 export const mockRecentFinds: RecentFindItem[] = [
-  { id: 'gecko', number: dexNum('gecko'), name: 'Crested Gecko', date: '1w ago', kingdom: 'reptile', gradient: ['#A4DE3A', '#6BAE1A'], spottedAt: '2026-05-13T14:00:00.000Z' },
-  { id: 'frog', number: dexNum('frog'), name: 'Treefrog', date: '3d ago', kingdom: 'amphibian', gradient: ['#52b788', '#1a3d2b'], spottedAt: '2026-05-17T09:30:00.000Z' },
-  { id: 'cardinal', number: dexNum('cardinal'), name: 'Cardinal', date: '2d ago', kingdom: 'bird', gradient: ['#FF6B5B', '#A83232'], spottedAt: '2026-05-18T16:45:00.000Z' },
-  { id: 'monarch', number: dexNum('monarch'), name: 'Monarch', date: 'Yesterday', kingdom: 'insect', gradient: ['#FFC93C', '#E8A020'], spottedAt: '2026-05-19T11:20:00.000Z' },
-  { id: 'fox', number: dexNum('fox'), name: 'Red Fox', date: 'Today', kingdom: 'mammal', gradient: ['#FF6B5B', '#E04A39'], spottedAt: '2026-05-20T08:15:00.000Z' },
-  { id: 'owl', number: dexNum('owl'), name: 'Barn Owl', date: 'Today', kingdom: 'bird', gradient: ['#D4C4F5', '#9B7ED9'], spottedAt: '2026-05-20T07:00:00.000Z' },
-  { id: 'bumblebee', number: dexNum('bumblebee'), name: 'Bumblebee', date: 'Today', kingdom: 'insect', gradient: ['#FFC93C', '#7C3AED'], spottedAt: '2026-05-20T06:30:00.000Z' },
-  { id: 'turtle', number: dexNum('turtle'), name: 'Box Turtle', date: 'Yesterday', kingdom: 'reptile', gradient: ['#52b788', '#0E8F65'], spottedAt: '2026-05-19T18:00:00.000Z' },
-  { id: 'deer', number: dexNum('deer'), name: 'White-tailed Deer', date: '2d ago', kingdom: 'mammal', gradient: ['#C28A52', '#92633A'], spottedAt: '2026-05-18T12:00:00.000Z' },
-  { id: 'snail', number: dexNum('snail'), name: 'Garden Snail', date: '3d ago', kingdom: 'mollusc', gradient: ['#FCE7C7', '#B45309'], spottedAt: '2026-05-17T20:00:00.000Z' },
-  { id: 'spider', number: dexNum('spider'), name: 'Orb Weaver', date: '4d ago', kingdom: 'arachnid', gradient: ['#E0E1F8', '#4338CA'], spottedAt: '2026-05-16T10:00:00.000Z' },
+  { id: 'gecko', number: dexNum('gecko'), name: 'Crested Gecko', latinName: latinName('gecko'), date: '1w ago', kingdom: 'reptile', gradient: ['#A4DE3A', '#6BAE1A'], spottedAt: '2026-05-13T14:00:00.000Z' },
+  { id: 'frog', number: dexNum('frog'), name: 'American Green Tree Frog', latinName: latinName('frog'), date: '3d ago', kingdom: 'amphibian', gradient: ['#52b788', '#1a3d2b'], spottedAt: '2026-05-17T09:30:00.000Z' },
+  { id: 'cardinal', number: dexNum('cardinal'), name: 'Northern Cardinal', latinName: latinName('cardinal'), date: '2d ago', kingdom: 'bird', gradient: ['#FF6B5B', '#A83232'], spottedAt: '2026-05-18T16:45:00.000Z' },
+  { id: 'monarch', number: dexNum('monarch'), name: 'Monarch Butterfly', latinName: latinName('monarch'), date: 'Yesterday', kingdom: 'insect', gradient: ['#FFC93C', '#E8A020'], spottedAt: '2026-05-19T11:20:00.000Z' },
+  { id: 'fox', number: dexNum('fox'), name: 'Red Fox', latinName: latinName('fox'), date: 'Today', kingdom: 'mammal', gradient: ['#FF6B5B', '#E04A39'], spottedAt: '2026-05-20T08:15:00.000Z' },
+  { id: 'owl', number: dexNum('owl'), name: 'Barn Owl', latinName: latinName('owl'), date: 'Today', kingdom: 'bird', gradient: ['#D4C4F5', '#9B7ED9'], spottedAt: '2026-05-20T07:00:00.000Z' },
+  { id: 'bumblebee', number: dexNum('bumblebee'), name: 'Common Eastern Bumble Bee', latinName: latinName('bumblebee'), date: 'Today', kingdom: 'insect', gradient: ['#FFC93C', '#7C3AED'], spottedAt: '2026-05-20T06:30:00.000Z' },
+  { id: 'turtle', number: dexNum('turtle'), name: 'Eastern Box Turtle', latinName: latinName('turtle'), date: 'Yesterday', kingdom: 'reptile', gradient: ['#52b788', '#0E8F65'], spottedAt: '2026-05-19T18:00:00.000Z' },
+  { id: 'deer', number: dexNum('deer'), name: 'White-tailed Deer', latinName: latinName('deer'), date: '2d ago', kingdom: 'mammal', gradient: ['#C28A52', '#92633A'], spottedAt: '2026-05-18T12:00:00.000Z' },
+  { id: 'snail', number: dexNum('snail'), name: 'Garden Snail', latinName: latinName('snail'), date: '3d ago', kingdom: 'mollusc', gradient: ['#FCE7C7', '#B45309'], spottedAt: '2026-05-17T20:00:00.000Z' },
+  { id: 'spider', number: dexNum('spider'), name: 'Spotted Orbweaver', latinName: latinName('spider'), date: '4d ago', kingdom: 'arachnid', gradient: ['#E0E1F8', '#4338CA'], spottedAt: '2026-05-16T10:00:00.000Z' },
 ]
 
 export function recentFindsNewestFirst(items: RecentFindItem[]): RecentFindItem[] {
@@ -132,6 +138,15 @@ export function recentFindToDexCard(item: RecentFindItem): DexCardSpecies {
     kingdom: item.kingdom,
     gradient: item.gradient,
   }
+}
+
+export function recentFindRouteParams(item: RecentFindItem): Record<string, string> {
+  return speciesDetailRouteParamsFromId({
+    id: item.id,
+    name: item.name,
+    number: item.number,
+    kingdom: item.kingdom,
+  })
 }
 
 export function getRecentFindDexCards(): DexCardSpecies[] {

@@ -1,6 +1,7 @@
 import { slugifySpeciesName } from '@/data/species-catalog'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import type { IdentResult } from '@/features/identify/types'
+import { getLatinNameForSpeciesId, resolveLatinName } from '@/features/species/species-latin-names'
 
 export type DexCatalog = 'wild' | 'domestic' | 'farm' | 'plant'
 
@@ -70,9 +71,9 @@ const CURATED_ASSIGNMENTS = [
   {
     dexNumber: '#031',
     speciesIds: ['bumblebee'],
-    commonNames: ['bumblebee', 'buff-tailed bumblebee'],
-    latinNames: ['bombus terrestris'],
-    inatTaxonIds: [52763],
+    commonNames: ['bumblebee', 'common eastern bumble bee', 'buff-tailed bumblebee'],
+    latinNames: ['bombus impatiens', 'bombus terrestris'],
+    inatTaxonIds: [129424],
   },
   {
     dexNumber: '#047',
@@ -112,29 +113,29 @@ const CURATED_ASSIGNMENTS = [
   {
     dexNumber: '#072',
     speciesIds: ['spider', 'orb-weaver'],
-    commonNames: ['orb weaver', 'garden spider'],
-    latinNames: [],
-    inatTaxonIds: [47922],
+    commonNames: ['orb weaver', 'garden spider', 'spotted orbweaver'],
+    latinNames: ['neoscona crucifera', 'araneus diadematus'],
+    inatTaxonIds: [52538],
   },
   {
     dexNumber: '#088',
     speciesIds: ['frog', 'treefrog'],
     commonNames: ['treefrog', 'tree frog', 'american green tree frog'],
-    latinNames: [],
-    inatTaxonIds: [],
+    latinNames: ['hyla cinerea'],
+    inatTaxonIds: [68384],
   },
   {
     dexNumber: '#089',
     speciesIds: ['robin'],
-    commonNames: ['robin', 'european robin'],
-    latinNames: ['erithacus rubecula'],
-    inatTaxonIds: [127870],
+    commonNames: ['robin', 'american robin'],
+    latinNames: ['turdus migratorius', 'erithacus rubecula'],
+    inatTaxonIds: [12716],
   },
   {
     dexNumber: '#099',
     speciesIds: ['snail', 'garden-snail'],
     commonNames: ['garden snail'],
-    latinNames: ['helix aspersa', 'cornu aspersum'],
+    latinNames: ['cornu aspersum', 'helix aspersa'],
     inatTaxonIds: [52778],
   },
   {
@@ -302,6 +303,10 @@ for (const entry of CURATED_ASSIGNMENTS) {
     const slug = slugifySpeciesName(id)
     SPECIES_ID_TO_DEX[slug] = entry.dexNumber
     SPECIES_ID_TO_DEX[id] = entry.dexNumber
+    const primaryLatin = getLatinNameForSpeciesId(id)
+    if (primaryLatin) {
+      LATIN_NAME_TO_DEX[normalizeLatinKey(primaryLatin)] = entry.dexNumber
+    }
   }
   for (const name of entry.commonNames) {
     COMMON_NAME_TO_DEX[normalizeCommonKey(name)] = entry.dexNumber
@@ -497,13 +502,21 @@ export function enrichIdentResult(
   result: IdentResult,
   options?: { inatTaxonId?: number },
 ): IdentResult {
-  if (result.dexNumber && !isPlaceholderDexNumber(result.dexNumber)) {
-    return result
-  }
-
   const inatTaxonId = options?.inatTaxonId
   const lookupId =
     inatTaxonId != null ? inatLookupId(inatTaxonId) : result.lookupId
+
+  const latinName =
+    result.latinName?.trim() ||
+    resolveLatinName({ speciesId: result.lookupId, commonName: result.commonName })
+
+  if (result.dexNumber && !isPlaceholderDexNumber(result.dexNumber)) {
+    return {
+      ...result,
+      latinName,
+      lookupId: lookupId ?? result.lookupId,
+    }
+  }
 
   const dexNumber = resolveGlobalDexNumber({
     speciesId: result.lookupId,
@@ -519,6 +532,7 @@ export function enrichIdentResult(
   return {
     ...result,
     dexNumber,
+    latinName,
     lookupId: lookupId ?? result.lookupId,
   }
 }

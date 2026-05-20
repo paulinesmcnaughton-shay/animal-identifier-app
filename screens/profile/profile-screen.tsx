@@ -5,7 +5,7 @@ import { Dimensions, ScrollView, StyleSheet, Text, Pressable, View } from 'react
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { DexCard } from '@/components/DexCard'
-import { getRecentFindDexCards } from '@/data/mock'
+import { getRecentFindDexCards, getRecentFinds, recentFindRouteParams } from '@/data/mock'
 import { ProfileAvatar } from '@/components/profile/ProfileAvatar'
 import { dexCardHairline } from '@/design/dex-card-shell'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
@@ -182,17 +182,20 @@ export function ProfileScreen() {
                 key={species.id}
                 species={species}
                 width={colWidth}
-                onPress={() =>
+                onPress={() => {
+                  const item = getRecentFinds().find((find) => find.id === species.id)
                   router.push({
                     pathname: '/species/[id]',
-                    params: {
-                      id: species.id,
-                      name: species.name,
-                      number: species.number,
-                      kingdom: species.kingdom,
-                    },
+                    params: item
+                      ? recentFindRouteParams(item)
+                      : {
+                          id: species.id,
+                          name: species.name,
+                          number: species.number,
+                          kingdom: species.kingdom,
+                        },
                   })
-                }
+                }}
               />
             ))}
           </ScrollView>

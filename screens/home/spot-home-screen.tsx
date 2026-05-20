@@ -11,7 +11,11 @@ import { DexCard, type DexCardSpecies } from '@/components/DexCard'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
 import {
+import {
   getRecentFindDexCards,
+  getRecentFinds,
+  recentFindRouteParams,
+} from '@/data/mock'
   mockCreatureOfDay,
   mockHomeNotifications,
   mockUser,
@@ -184,9 +188,10 @@ function RecentFinds() {
   const recentFinds = getRecentFindDexCards()
 
   const handleOpenSpecies = (species: DexCardSpecies) => {
+    const item = getRecentFinds().find((find) => find.id === species.id)
     router.push({
       pathname: '/species/[id]',
-      params: {
+      params: item ? recentFindRouteParams(item) : {
         id: species.id,
         name: species.name,
         number: species.number,
