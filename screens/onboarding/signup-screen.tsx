@@ -1,45 +1,108 @@
 import {
-    BricolageGrotesque_800ExtraBold,
-    useFonts as useBricolageFonts,
+  BricolageGrotesque_800ExtraBold,
+  useFonts as useBricolageFonts,
 } from '@expo-google-fonts/bricolage-grotesque'
 import { Nunito_400Regular, Nunito_700Bold, useFonts as useNunitoFonts } from '@expo-google-fonts/nunito'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import { assignNewUserAvatar } from '@/features/settings/profile-avatar'
 import { setTesterAccount } from '@/features/settings/tester-account'
-import { storage } from '@/util/storage'
+import { useAuth } from '@/lib/auth/auth-context'
 
 export function SignupScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { signUp, signInWithApple, signInWithGoogle } = useAuth()
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const [bricolageLoaded] = useBricolageFonts({ BricolageGrotesque_800ExtraBold })
   const [nunitoLoaded] = useNunitoFonts({ Nunito_400Regular, Nunito_700Bold })
   const fontsReady = bricolageLoaded && nunitoLoaded
 
-  const handleCreate = async () => {
-    await storage.set('isLoggedIn', 'true')
+  const finishSignup = async () => {
     await setTesterAccount(false)
     await assignNewUserAvatar()
-    router.replace('/home')
+    router.replace('/personalize')
+  }
+
+  const handleEmailSignup = async () => {
+    if (loading) return
+
+    setLoading(true)
+    setError(null)
+
+    const result = await signUp({ email, password, username })
+    setLoading(false)
+
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+
+    if (result.needsEmailConfirmation) {
+      setError('Check your email to confirm your account, then log in.')
+      router.replace('/login')
+      return
+    }
+
+    await finishSignup()
+  }
+
+  const handleAppleSignIn = async () => {
+    if (loading) return
+
+    setLoading(true)
+    setError(null)
+
+    const result = await signInWithApple()
+    setLoading(false)
+
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+
+    if (result.canceled) return
+
+    await finishSignup()
+  }
+
+  const handleGoogleSignIn = async () => {
+    if (loading) return
+
+    setLoading(true)
+    setError(null)
+
+    const result = await signInWithGoogle()
+    setLoading(false)
+
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+
+    if (result.canceled) return
+
+    await finishSignup()
   }
 
   if (!fontsReady) {
@@ -69,6 +132,12 @@ export function SignupScreen() {
 
         <Text style={[styles.heading, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>Create account</Text>
         <Text style={[styles.sub, { fontFamily: 'Nunito_400Regular' }]}>Start building your field guide</Text>
+
+        {error && (
+          <View style={styles.errorBox}>
+            <Text style={[styles.errorText, { fontFamily: 'Nunito_400Regular' }]}>{error}</Text>
+          </View>
+        )}
 
         <View style={styles.fields}>
           <View style={styles.fieldGroup}>
@@ -115,9 +184,13 @@ export function SignupScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Create account"
-            onPress={handleCreate}
-            style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
-            <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>Create Account</Text>
+            onPress={handleEmailSignup}
+            disabled={loading}
+            style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed, loading && styles.ctaDisabled]}>
+            {loading
+              ? <ActivityIndicator color={colors.card} />
+              : <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>Create Account</Text>
+            }
           </Pressable>
         </View>
 
@@ -131,16 +204,18 @@ export function SignupScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Continue with Apple"
-            onPress={() => {}}
-            style={({ pressed }) => [styles.socialBtn, pressed && { opacity: 0.7 }]}>
+            onPress={handleAppleSignIn}
+            disabled={loading}
+            style={({ pressed }) => [styles.socialBtn, pressed && { opacity: 0.7 }, loading && styles.ctaDisabled]}>
             <Ionicons name="logo-apple" size={20} color={colors.ink} />
             <Text style={[styles.socialText, { fontFamily: 'Nunito_700Bold' }]}>Apple</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Continue with Google"
-            onPress={() => {}}
-            style={({ pressed }) => [styles.socialBtn, pressed && { opacity: 0.7 }]}>
+            onPress={handleGoogleSignIn}
+            disabled={loading}
+            style={({ pressed }) => [styles.socialBtn, pressed && { opacity: 0.7 }, loading && styles.ctaDisabled]}>
             <Ionicons name="logo-google" size={20} color={colors.ink} />
             <Text style={[styles.socialText, { fontFamily: 'Nunito_700Bold' }]}>Google</Text>
           </Pressable>
@@ -161,46 +236,22 @@ export function SignupScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.bg,
+  root: { flex: 1, backgroundColor: colors.bg },
+  loader: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  scroll: { paddingHorizontal: space[24] },
+  backBtn: { alignSelf: 'flex-start', padding: space[4] },
+  heading: { fontSize: typeTokens.size.displayLG, color: colors.ink, marginBottom: space[8] },
+  sub: { fontSize: typeTokens.size.bodyLG, color: colors.dim, marginBottom: space[24] },
+  errorBox: {
+    backgroundColor: '#fee2e2',
+    borderRadius: radius.md,
+    padding: space[16],
+    marginBottom: space[16],
   },
-  loader: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.bg,
-  },
-  scroll: {
-    paddingHorizontal: space[24],
-  },
-  backBtn: {
-    alignSelf: 'flex-start',
-    padding: space[4],
-  },
-  heading: {
-    fontSize: typeTokens.size.displayLG,
-    color: colors.ink,
-    marginBottom: space[8],
-  },
-  sub: {
-    fontSize: typeTokens.size.bodyLG,
-    color: colors.dim,
-    marginBottom: space[24],
-  },
-  fields: {
-    gap: space[16],
-    marginBottom: space[24],
-  },
-  fieldGroup: {
-    gap: space[8],
-  },
-  label: {
-    fontSize: typeTokens.size.label,
-    color: colors.ink2,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
+  errorText: { fontSize: typeTokens.size.bodySM, color: '#dc2626' },
+  fields: { gap: space[16], marginBottom: space[24] },
+  fieldGroup: { gap: space[8] },
+  label: { fontSize: typeTokens.size.label, color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.5 },
   input: {
     backgroundColor: colors.card,
     borderWidth: 1.5,
@@ -211,74 +262,22 @@ const styles = StyleSheet.create({
     fontSize: typeTokens.size.bodyLG,
     color: colors.ink,
   },
-  ctaWrap: {
-    backgroundColor: colors.greenDeep,
-    borderRadius: radius.lg,
-    paddingBottom: 4,
-    marginBottom: space[24],
-  },
-  cta: {
-    backgroundColor: colors.green,
-    borderRadius: radius.lg,
-    paddingVertical: space[16],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ctaPressed: {
-    transform: [{ translateY: 2 }],
-  },
-  ctaText: {
-    color: colors.card,
-    fontSize: typeTokens.size.displaySM,
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[16],
-    marginBottom: space[16],
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.hairline,
-  },
-  dividerText: {
-    fontSize: typeTokens.size.bodySM,
-    color: colors.dim,
-  },
-  socialRow: {
-    flexDirection: 'row',
-    gap: space[16],
-    marginBottom: space[24],
-  },
+  ctaWrap: { backgroundColor: colors.greenDeep, borderRadius: radius.lg, paddingBottom: 4, marginBottom: space[24] },
+  cta: { backgroundColor: colors.green, borderRadius: radius.lg, paddingVertical: space[16], alignItems: 'center', justifyContent: 'center' },
+  ctaPressed: { transform: [{ translateY: 2 }] },
+  ctaDisabled: { opacity: 0.6 },
+  ctaText: { color: colors.card, fontSize: typeTokens.size.displaySM, letterSpacing: 0.3, textTransform: 'uppercase' },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: space[16], marginBottom: space[16] },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.hairline },
+  dividerText: { fontSize: typeTokens.size.bodySM, color: colors.dim },
+  socialRow: { flexDirection: 'row', gap: space[16], marginBottom: space[24] },
   socialBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[8],
-    backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: colors.hairline,
-    borderRadius: radius.lg,
-    paddingVertical: space[16],
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: space[8], backgroundColor: colors.card, borderWidth: 1.5,
+    borderColor: colors.hairline, borderRadius: radius.lg, paddingVertical: space[16],
   },
-  socialText: {
-    fontSize: typeTokens.size.body,
-    color: colors.ink,
-  },
-  switchBtn: {
-    alignItems: 'center',
-    paddingVertical: space[8],
-  },
-  switchText: {
-    fontSize: typeTokens.size.body,
-    color: colors.dim,
-  },
-  switchTextBold: {
-    color: colors.green,
-    fontWeight: typeTokens.body.weights.bold,
-  },
+  socialText: { fontSize: typeTokens.size.body, color: colors.ink },
+  switchBtn: { alignItems: 'center', paddingVertical: space[8] },
+  switchText: { fontSize: typeTokens.size.body, color: colors.dim },
+  switchTextBold: { color: colors.green, fontWeight: typeTokens.body.weights.bold },
 })

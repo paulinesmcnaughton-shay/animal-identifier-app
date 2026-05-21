@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import {
     ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -20,24 +21,32 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
-import { assignTesterAvatar } from '@/features/settings/profile-avatar'
-import { setTesterAccount } from '@/features/settings/tester-account'
-import { storage } from '@/util/storage'
+import { useAuth } from '@/lib/auth/auth-context'
 
 export function LoginScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [bricolageLoaded] = useBricolageFonts({ BricolageGrotesque_800ExtraBold })
   const [nunitoLoaded] = useNunitoFonts({ Nunito_400Regular, Nunito_700Bold })
   const fontsReady = bricolageLoaded && nunitoLoaded
 
   const handleLogin = async () => {
-    await storage.set('isLoggedIn', 'true')
-    await setTesterAccount(true)
-    await assignTesterAvatar()
+    if (isSubmitting) return
+
+    setIsSubmitting(true)
+    const { error } = await signIn({ email, password })
+    setIsSubmitting(false)
+
+    if (error) {
+      Alert.alert('Could not log in', error)
+      return
+    }
+
     router.replace('/home')
   }
 
@@ -109,8 +118,11 @@ export function LoginScreen() {
             accessibilityRole="button"
             accessibilityLabel="Log in"
             onPress={handleLogin}
-            style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
-            <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>Log In</Text>
+            disabled={isSubmitting}
+            style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed, isSubmitting && styles.ctaDisabled]}>
+            <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
+              {isSubmitting ? 'Logging in…' : 'Log In'}
+            </Text>
           </Pressable>
         </View>
 
@@ -227,6 +239,9 @@ const styles = StyleSheet.create({
   },
   ctaPressed: {
     transform: [{ translateY: 2 }],
+  },
+  ctaDisabled: {
+    opacity: 0.6,
   },
   ctaText: {
     color: colors.card,

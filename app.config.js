@@ -6,23 +6,24 @@ function envString(name) {
 }
 
 module.exports = {
-  name: 'Wildr',
-  slug: 'wildr',
+  name: 'Fauna',
+  slug: 'fauna',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
-  scheme: 'wildr',
+  scheme: 'fauna',
   userInterfaceStyle: 'automatic',
   newArchEnabled: false,
   ios: {
     supportsTablet: true,
-    bundleIdentifier: 'com.pauline.wildr',
+    bundleIdentifier: 'com.pauline.fauna',
+    usesAppleSignIn: true,
     infoPlist: {
-      NSCameraUsageDescription: 'Wildr uses your camera to identify animals and insects in the wild.',
-      NSPhotoLibraryUsageDescription: 'Allow Wildr to identify creatures from photos in your library.',
-      NSPhotoLibraryAddUsageDescription: 'Save Wildr photos to your library.',
-      NSLocationWhenInUseUsageDescription: 'Wildr tags your sightings with where you saw them and shows nearby species.',
-      NSMicrophoneUsageDescription: 'Wildr records nearby animal calls to help identification.',
+      NSCameraUsageDescription: 'Fauna uses your camera to identify animals and plants in the wild.',
+      NSPhotoLibraryUsageDescription: 'Allow Fauna to identify creatures from photos in your library.',
+      NSPhotoLibraryAddUsageDescription: 'Save Fauna photos to your library.',
+      NSLocationWhenInUseUsageDescription: 'Fauna tags your sightings with where you saw them and shows nearby species.',
+      NSMicrophoneUsageDescription: 'Fauna records nearby animal calls to help identification.',
       MBXAccessToken: process.env.MAPBOX_ACCESS_TOKEN ?? '',
     },
   },
@@ -44,10 +45,12 @@ module.exports = {
     'expo-dev-client',
     'expo-secure-store',
     'expo-router',
+    'expo-apple-authentication',
+    'expo-web-browser',
     [
       'expo-camera',
       {
-        cameraPermission: 'Wildr uses your camera to identify animals and insects in the wild.',
+        cameraPermission: 'Fauna uses your camera to identify animals and plants in the wild.',
         microphonePermission: false,
         recordAudioAndroid: false,
       },
@@ -55,15 +58,15 @@ module.exports = {
     [
       'expo-media-library',
       {
-        photosPermission: 'Allow Wildr to identify creatures from photos in your library.',
-        savePhotosPermission: 'Save Wildr photos to your library.',
+        photosPermission: 'Allow Fauna to identify creatures from photos in your library.',
+        savePhotosPermission: 'Save Fauna photos to your library.',
       },
     ],
     [
       'expo-location',
       {
         locationWhenInUsePermission:
-          'Wildr tags your sightings with where you saw them and shows nearby species.',
+          'Fauna tags your sightings with where you saw them and shows nearby species.',
       },
     ],
     [
@@ -83,12 +86,8 @@ module.exports = {
   },
   extra: {
     mapboxToken: process.env.MAPBOX_ACCESS_TOKEN ?? '',
-    inaturalistToken: process.env.INATURALIST_API_TOKEN ?? '',
-    inaturalistOAuthToken: process.env.INATURALIST_OAUTH_TOKEN ?? '',
-    inaturalistClientId: process.env.INATURALIST_CLIENT_ID ?? '',
-    inaturalistClientSecret: process.env.INATURALIST_CLIENT_SECRET ?? '',
     anthropicApiKey: envString('ANTHROPIC_API_KEY'),
-    googleVisionApiKey: envString('GOOGLE_VISION_API_KEY'),
+    plantnetApiKey: envString('PLANTNET_API_KEY'),
     SUPABASE_URL: envString('SUPABASE_URL') || 'https://wiysesftlprovkpouvqu.supabase.co',
     SUPABASE_PUBLISHABLE_KEY:
       envString('SUPABASE_PUBLISHABLE_KEY') ||
@@ -97,5 +96,6 @@ module.exports = {
     supabasePublishableKey:
       envString('SUPABASE_PUBLISHABLE_KEY') ||
       'sb_publishable_QLe0faP1klanHt3V_HFy1w_K8EDJmUD',
+    googleClientId: envString('GOOGLE_CLIENT_ID'),
   },
 }

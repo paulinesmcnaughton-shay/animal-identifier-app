@@ -33,7 +33,7 @@ import {
   type SettingsRowSubtitles,
 } from '@/features/settings/preferences'
 import { mockUser } from '@/data/mock'
-import { storage } from '@/util/storage'
+import { useAuth } from '@/lib/auth/auth-context'
 
 type RowAction =
   | { type: 'chevron'; onPress?: () => void }
@@ -225,8 +225,10 @@ export function SettingsScreenContent() {
     )
   }
 
+  const { signOut } = useAuth()
+
   const handleLogout = async () => {
-    await storage.delete('isLoggedIn')
+    await signOut()
     router.replace('/welcome')
   }
 

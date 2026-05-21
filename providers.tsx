@@ -5,8 +5,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 
 import { colors } from '@/design/tokens'
 import { useColorScheme } from '@/hooks/use-color-scheme'
+import { AuthProvider } from '@/lib/auth/auth-context'
 
-const WildrLightTheme: Theme = {
+const FaunaLightTheme: Theme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
@@ -24,9 +25,11 @@ export function AppProviders({ children }: AppProvidersProps) {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : WildrLightTheme}>
-        {children}
-        <StatusBar style="dark" />
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : FaunaLightTheme}>
+        <AuthProvider>
+          {children}
+          <StatusBar style="dark" />
+        </AuthProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   )

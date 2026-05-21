@@ -6,34 +6,33 @@ import { View } from 'react-native'
 import { colors } from '@/design/tokens'
 import { cacheAllShufflePresets } from '@/features/settings/avatar-preset-cache'
 import { ensureUserAvatar } from '@/features/settings/profile-avatar'
-import { storage } from '@/util/storage'
+import { useAuth } from '@/lib/auth/auth-context'
 
 export default function RootIndex() {
   const rootNavigationState = useRootNavigationState()
-  const [ready, setReady] = useState(false)
-  const [hasOnboarded, setHasOnboarded] = useState(false)
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const [bootReady, setBootReady] = useState(false)
 
   useEffect(() => {
+    if (authLoading) return
+
     void (async () => {
-      const val = await storage.getString('isLoggedIn')
-      const loggedIn = val === 'true'
-      if (loggedIn) {
+      if (isAuthenticated) {
         await ensureUserAvatar()
         void cacheAllShufflePresets()
       }
-      setHasOnboarded(loggedIn)
-      setReady(true)
+      setBootReady(true)
     })()
-  }, [])
+  }, [authLoading, isAuthenticated])
 
   useEffect(() => {
-    if (!ready || !rootNavigationState?.key) return
+    if (!bootReady || authLoading || !rootNavigationState?.key) return
     void SplashScreen.hideAsync()
-  }, [ready, rootNavigationState?.key])
+  }, [authLoading, bootReady, rootNavigationState?.key])
 
-  if (!ready || !rootNavigationState?.key) {
+  if (authLoading || !bootReady || !rootNavigationState?.key) {
     return <View style={{ flex: 1, backgroundColor: colors.bg }} />
   }
 
-  return <Redirect href={hasOnboarded ? '/(tabs)/home' : '/(onboarding)/welcome'} />
+  return <Redirect href={isAuthenticated ? '/(tabs)/home' : '/(onboarding)/welcome'} />
 }

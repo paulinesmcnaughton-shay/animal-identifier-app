@@ -11,6 +11,8 @@ import type { EdgeInsets } from 'react-native-safe-area-context'
 
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 
+const collectStageImage = require('@/assets/images/badge-and-cards-2.png')
+
 interface CollectSlideProps {
   insets: EdgeInsets
   onFinish: () => void
@@ -68,7 +70,7 @@ export function CollectSlide({ insets, onFinish, onSkip, displayFont, bodyFont, 
 
       <Animated.View style={[styles.stageImage, { top: insets.top + 280 }, floatStyle]}>
         <Image
-          source={require('@/assets/images/badge-and-cards.png')}
+          source={collectStageImage}
           style={{ width: '100%', height: '100%' }}
           resizeMode="contain"
         />

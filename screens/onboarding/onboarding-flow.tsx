@@ -106,6 +106,7 @@ export function OnboardingFlow() {
             onLogin={goLogin}
             displayFont={FONT_DISPLAY}
             bodyFont={FONT_BODY_SEMI}
+            subtitleFont={FONT_BODY}
             slideHeight={height}
           />
         ) : null}
@@ -164,7 +165,7 @@ export function OnboardingFlow() {
         style={{ flex: 1 }}
       />
       <View style={[styles.dotsOverlay, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]} pointerEvents="none">
-        <PaginationDots activeIndex={activeIndex} variant={activeIndex === 0 ? 'light' : 'dark'} />
+        <PaginationDots activeIndex={activeIndex} variant="dark" />
       </View>
     </View>
   )

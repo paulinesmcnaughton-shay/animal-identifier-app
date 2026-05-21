@@ -83,6 +83,34 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['domestic_species']['Insert']>
         Relationships: []
       }
+      profiles: {
+        Row: {
+          id: string
+          username: string | null
+          location_text: string | null
+          latitude: number | null
+          longitude: number | null
+          interests: string[]
+          age_group: string | null
+          onboarding_complete: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          username?: string | null
+          location_text?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          interests?: string[]
+          age_group?: string | null
+          onboarding_complete?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['profiles']['Insert']>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
