@@ -1,10 +1,12 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
 import type { EdgeInsets } from 'react-native-safe-area-context'
 
-import { FaunaLogo } from '@/components/FaunaLogo'
+import { WildKindLogo } from '@/components/WildKindLogo'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 
-const welcomeCardsImage = require('@/assets/images/fauna-onboarding-image.png')
+const welcomeCardsImage = require('@/assets/images/wildkind-onboarding-image.png')
+
+const HERO_COPY_MAX_WIDTH = 300
 
 interface WelcomeSlideProps {
   insets: EdgeInsets
@@ -23,11 +25,15 @@ export function WelcomeSlide({ insets, onStart, onLogin, displayFont, bodyFont, 
     <View style={[styles.flex, { minHeight: slideHeight, backgroundColor: colors.canvas }]}>
       <View style={[styles.content, { paddingTop: insets.top + space[80] }]}>
         <View style={styles.hero}>
-          <FaunaLogo width={220} color={colors.green} />
-          <Text style={[styles.tagline, { fontFamily: bodyFont }]}>Your Pocket Field Guide</Text>
-          <Text style={[styles.subtitle, { fontFamily: subtitleFont }]}>
-            From your backyard to the zoo, discover it all.
-          </Text>
+          <View style={styles.heroCopy}>
+            <View style={styles.logoSlot}>
+              <WildKindLogo color={colors.green} />
+            </View>
+            <Text style={[styles.tagline, { fontFamily: bodyFont }]}>Your Pocket Field Guide</Text>
+            <Text style={[styles.subtitle, { fontFamily: subtitleFont }]}>
+              From your backyard to the zoo,{'\n'}discover it all.
+            </Text>
+          </View>
         </View>
 
         <Image
@@ -70,7 +76,17 @@ const styles = StyleSheet.create({
   },
   hero: {
     alignItems: 'center',
+  },
+  heroCopy: {
+    width: '100%',
+    maxWidth: HERO_COPY_MAX_WIDTH,
+    paddingHorizontal: space[32],
+    alignItems: 'center',
     gap: space[8],
+  },
+  logoSlot: {
+    width: '100%',
+    aspectRatio: 1122 / 297,
   },
   tagline: {
     fontSize: 16,
@@ -84,8 +100,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: colors.mapUser,
     textAlign: 'center',
-    paddingHorizontal: space[32],
-    maxWidth: 300,
+    width: '100%',
   },
   cardsImage: {
     width: '100%',

@@ -64,7 +64,7 @@ const GENERIC_VISION_LABEL =
   /^(plant|flower|tree|shrub|herb|grass|leaf|foliage|animal|mammal|bird|insect|reptile|organism|living thing|natural|wildlife|fauna|flora|vertebrate|invertebrate|bouquet|floral design|flower bouquet|cut flowers|garden|petal|bloom|flowering plant|houseplant|domestic dog|domestic cat|dog|cat|puppy|kitten|canine|feline)$/i
 
 function pipelineLog(message: string): void {
-  if (__DEV__) console.log(`[Wildr Pipeline] ${message}`)
+  if (__DEV__) console.log(`[WildKind Pipeline] ${message}`)
 }
 
 function needsManualPicker(payload: {

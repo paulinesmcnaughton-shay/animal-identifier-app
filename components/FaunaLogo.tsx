@@ -1,1 +1,1 @@
-export { FaunaLogo } from './components/FaunaLogo'
+export { WildKindLogo } from './components/FaunaLogo'
