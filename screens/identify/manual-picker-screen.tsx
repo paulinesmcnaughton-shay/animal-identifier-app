@@ -77,7 +77,7 @@ export function ManualPickerScreen() {
         const results = await searchPickerSpecies(debouncedQuery, kingdomFilter)
         if (!cancelled) setItems(results)
       } catch (error) {
-        if (__DEV__) console.warn('[Wildr picker] search failed', error)
+        if (__DEV__) console.warn('[WildKind picker] search failed', error)
         if (!cancelled) setItems([])
       } finally {
         if (!cancelled) setIsLoading(false)

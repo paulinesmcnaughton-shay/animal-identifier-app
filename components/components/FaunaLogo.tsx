@@ -1,11 +1,11 @@
 import Svg, { Path } from 'react-native-svg'
 
-interface FaunaLogoProps {
+interface WildKindLogoProps {
   width?: number
   color?: string
 }
 
-export function FaunaLogo({ width = 220, color = '#1A3D2B' }: FaunaLogoProps) {
+export function WildKindLogo({ width = 220, color = '#1A3D2B' }: WildKindLogoProps) {
   const height = width * (233 / 707)
 
   return (

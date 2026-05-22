@@ -7,7 +7,7 @@ import { colors } from '@/design/tokens'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { AuthProvider } from '@/lib/auth/auth-context'
 
-const FaunaLightTheme: Theme = {
+const WildKindLightTheme: Theme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
@@ -25,7 +25,7 @@ export function AppProviders({ children }: AppProvidersProps) {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : FaunaLightTheme}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : WildKindLightTheme}>
         <AuthProvider>
           {children}
           <StatusBar style="dark" />

@@ -4,7 +4,7 @@ import { colors } from '@/design/tokens'
 
 type ToggleSwitchProps = Omit<SwitchProps, 'ios_backgroundColor' | 'thumbColor' | 'trackColor'>
 
-/** Wildr toggle — off: `colors.switchOff`, on: `colors.greenLight`. */
+/** WildKind toggle — off: `colors.switchOff`, on: `colors.greenLight`. */
 export function ToggleSwitch(props: ToggleSwitchProps) {
   return (
     <Switch

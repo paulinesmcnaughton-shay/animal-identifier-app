@@ -286,7 +286,7 @@ export function CameraScreen() {
       startCaptureFlow(photo.uri)
     } catch (error) {
       if (__DEV__) {
-        console.warn('[Wildr Camera] takePictureAsync failed', error)
+        console.warn('[WildKind Camera] takePictureAsync failed', error)
       }
       setCaptureError("Couldn't take a photo. Wait for the camera to load, then try again.")
       setOverlayPhase('idle')
@@ -351,8 +351,8 @@ export function CameraScreen() {
         <Text style={styles.permissionTitle}>Camera access needed</Text>
         <Text style={styles.permissionBody}>
           {canAskAgain
-            ? 'Wildr uses your camera to identify animals and insects in the wild.'
-            : 'Camera was turned off for Wildr. Open Settings → Privacy & Security → Camera and enable Wildr, or tap below.'}
+            ? 'WildKind uses your camera to identify animals and insects in the wild.'
+            : 'Camera was turned off for WildKind. Open Settings → Privacy & Security → Camera and enable WildKind, or tap below.'}
         </Text>
         <Button
           label={canAskAgain ? 'Allow camera' : 'Open Settings'}

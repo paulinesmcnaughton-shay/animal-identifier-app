@@ -1,8 +1,8 @@
-# Wildr — Project Rules
+# WildKind — Project Rules
 
-Wildr is a playful, Pokédex-style animal and insect identifier for iOS. The tone is naturalist meets gamified field guide — think Duolingo crossed with iNaturalist. Every design and engineering decision should feel like it belongs in that world: warm, rewarding, a little wild.
+WildKind is a playful, Pokédex-style animal and insect identifier for iOS. The tone is naturalist meets gamified field guide — think Duolingo crossed with iNaturalist. Every design and engineering decision should feel like it belongs in that world: warm, rewarding, a little wild.
 
-This file is the single source of truth for how Claude behaves on this project. It extends the global rules with everything specific to Wildr.
+This file is the single source of truth for how Claude behaves on this project. It extends the global rules with everything specific to WildKind.
 
 ---
 
@@ -37,7 +37,7 @@ A React Native iOS app where users photograph animals, insects, and other wildli
 ## PROJECT FILE STRUCTURE
 
 ```
-wildr/
+wildkind/
 ├─ app/                        # expo-router screens
 │  ├─ (tabs)/
 │  │  ├─ _layout.tsx           # tab bar with center FAB
@@ -399,11 +399,11 @@ Add to `app.json` → `ios.infoPlist`:
 
 ```json
 {
-  "NSCameraUsageDescription": "Wildr uses your camera to identify animals and insects in the wild.",
-  "NSPhotoLibraryUsageDescription": "Allow Wildr to identify creatures from photos in your library.",
-  "NSLocationWhenInUseUsageDescription": "Wildr tags your sightings with where you saw them and shows nearby species.",
-  "NSMicrophoneUsageDescription": "Wildr records nearby animal calls to help identification.",
-  "NSPhotoLibraryAddUsageDescription": "Save Wildr photos to your library."
+  "NSCameraUsageDescription": "WildKind uses your camera to identify animals and insects in the wild.",
+  "NSPhotoLibraryUsageDescription": "Allow WildKind to identify creatures from photos in your library.",
+  "NSLocationWhenInUseUsageDescription": "WildKind tags your sightings with where you saw them and shows nearby species.",
+  "NSMicrophoneUsageDescription": "WildKind records nearby animal calls to help identification.",
+  "NSPhotoLibraryAddUsageDescription": "Save WildKind photos to your library."
 }
 ```
 
@@ -435,7 +435,7 @@ Shows dex number, species name in display font, kingdom badge, rarity indicator,
 
 ## TONE AND COPY RULES
 
-- App name: **Wildr** — no period, no tagline needed inline
+- App name: **WildKind** — no period, no tagline needed inline
 - Tab labels: Spot, Dex, Map, Me (short, single word)
 - Screen titles use Bricolage Grotesque, title case
 - Body copy is warm and encouraging — never clinical or taxonomically dry
@@ -476,4 +476,4 @@ Follow this order to build end-to-end as quickly as possible:
 
 ---
 
-*This file is the Wildr project source of truth. Update it when new patterns are established, screens change, or token values are updated.*
+*This file is the WildKind project source of truth. Update it when new patterns are established, screens change, or token values are updated.*

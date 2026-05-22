@@ -83,7 +83,7 @@ export function ResultScreen() {
       setResult(outcome.result)
     } catch (error) {
       setErrorMessage(friendlyIdentifyError(error))
-      if (__DEV__) console.warn('[Wildr iNat]', error)
+      if (__DEV__) console.warn('[WildKind iNat]', error)
     } finally {
       pulse.stop()
       pulseAnim.setValue(1)

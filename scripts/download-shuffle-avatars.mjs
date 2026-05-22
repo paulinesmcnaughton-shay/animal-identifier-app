@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const OUT_DIR = join(__dirname, '../assets/images/avatars')
 
-const USER_AGENT = 'Wildr/1.0 (https://github.com/wildr-app; avatar-asset-download)'
+const USER_AGENT = 'WildKind/1.0 (https://github.com/wildkind-app; avatar-asset-download)'
 
 /** id + Commons search query */
 const AVATARS = [

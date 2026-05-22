@@ -148,7 +148,7 @@ export async function identifyWithClaudeVision(
 
     if (!res.ok) {
       const message = json.error?.message ?? `Claude API ${res.status}`
-      if (__DEV__) console.warn(`[Wildr Claude] ${model} failed:`, message)
+      if (__DEV__) console.warn(`[WildKind Claude] ${model} failed:`, message)
       lastError = new IdentifyError(message, 'API')
       continue
     }
@@ -159,7 +159,7 @@ export async function identifyWithClaudeVision(
       continue
     }
 
-    if (__DEV__) console.log(`[Wildr Claude] ${model} raw:`, text)
+    if (__DEV__) console.log(`[WildKind Claude] ${model} raw:`, text)
 
     return parseClaudePayload(text, mode)
   }

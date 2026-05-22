@@ -1,22 +1,22 @@
 {
   "expo": {
-    "name": "Wildr",
-    "slug": "wildr",
+    "name": "WildKind",
+    "slug": "wildkind",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "wildr",
+    "scheme": "wildkind",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.pauline.wildr",
+      "bundleIdentifier": "com.pauline.wildkind",
       "infoPlist": {
-        "NSCameraUsageDescription": "Wildr uses your camera to identify animals and take your profile photo.",
-        "NSPhotoLibraryUsageDescription": "Allow Wildr to choose photos from your library for identifications and your profile.",
-        "NSPhotoLibraryAddUsageDescription": "Save Wildr photos to your library.",
-        "NSLocationWhenInUseUsageDescription": "Wildr tags your sightings with where you saw them and shows nearby species.",
-        "NSMicrophoneUsageDescription": "Wildr records nearby animal calls to help identification."
+        "NSCameraUsageDescription": "WildKind uses your camera to identify animals and take your profile photo.",
+        "NSPhotoLibraryUsageDescription": "Allow WildKind to choose photos from your library for identifications and your profile.",
+        "NSPhotoLibraryAddUsageDescription": "Save WildKind photos to your library.",
+        "NSLocationWhenInUseUsageDescription": "WildKind tags your sightings with where you saw them and shows nearby species.",
+        "NSMicrophoneUsageDescription": "WildKind records nearby animal calls to help identification."
       }
     },
     "android": {
@@ -39,7 +39,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Wildr uses your camera to identify animals and insects in the wild.",
+          "cameraPermission": "WildKind uses your camera to identify animals and insects in the wild.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
@@ -47,15 +47,15 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "Allow Wildr to choose photos from your library for identifications and your profile.",
-          "savePhotosPermission": "Save Wildr photos to your library."
+          "photosPermission": "Allow WildKind to choose photos from your library for identifications and your profile.",
+          "savePhotosPermission": "Save WildKind photos to your library."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Wildr to choose a profile photo from your library.",
-          "cameraPermission": "Allow Wildr to take your profile photo."
+          "photosPermission": "Allow WildKind to choose a profile photo from your library.",
+          "cameraPermission": "Allow WildKind to take your profile photo."
         }
       ],
       [

@@ -8,9 +8,9 @@ import { IdentifyError } from './types'
 WebBrowser.maybeCompleteAuthSession()
 
 const API_TOKEN_URL = 'https://www.inaturalist.org/users/api_token'
-const OAUTH_ACCESS_KEY = 'wildr.inaturalist.oauth_access'
-const JWT_CACHE_KEY = 'wildr.inaturalist.jwt_cache'
-const JWT_EXP_KEY = 'wildr.inaturalist.jwt_exp'
+const OAUTH_ACCESS_KEY = 'wildkind.inaturalist.oauth_access'
+const JWT_CACHE_KEY = 'wildkind.inaturalist.jwt_cache'
+const JWT_EXP_KEY = 'wildkind.inaturalist.jwt_exp'
 
 const discovery: AuthSession.DiscoveryDocument = {
   authorizationEndpoint: 'https://www.inaturalist.org/oauth/authorize',
@@ -37,7 +37,7 @@ function decodeJwtExpiry(jwt: string): number | null {
 
 export function getInaturalistRedirectUri(): string {
   return AuthSession.makeRedirectUri({
-    scheme: 'wildr',
+    scheme: 'wildkind',
     path: 'oauth/inaturalist',
   })
 }

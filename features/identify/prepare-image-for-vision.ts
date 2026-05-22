@@ -20,7 +20,7 @@ export async function prepareImageForVision(uri: string): Promise<string> {
     return result.uri
   } catch (error) {
     if (__DEV__) {
-      console.warn('[Wildr] image resize failed, using original photo', error)
+      console.warn('[WildKind] image resize failed, using original photo', error)
     }
     return normalized
   }

@@ -299,7 +299,7 @@ async function fetchWildSpeciesRowFromSupabase(
     .maybeSingle()
 
   if (error) {
-    if (__DEV__) console.warn('[Wildr Supabase] species fetch', error.message)
+    if (__DEV__) console.warn('[WildKind Supabase] species fetch', error.message)
     throw new Error(error.message)
   }
 
@@ -330,7 +330,7 @@ export async function fetchSpeciesDetailFromSupabase(
       domesticOptions,
     )
     if (__DEV__) {
-      console.log('[Wildr fetchSpeciesDetail] domestic lookup:', {
+      console.log('[WildKind fetchSpeciesDetail] domestic lookup:', {
         lookupId,
         commonNameHint,
         isDomestic: options?.isDomestic,
@@ -344,7 +344,7 @@ export async function fetchSpeciesDetailFromSupabase(
   const wildInat = await fetchWildSpeciesFromInaturalist(lookupId, commonNameHint)
   if (wildInat) {
     if (__DEV__) {
-      console.log('[Wildr fetchSpeciesDetail] wild iNaturalist:', {
+      console.log('[WildKind fetchSpeciesDetail] wild iNaturalist:', {
         lookupId,
         latinName: wildInat.detail.latinName,
         taxonName: wildInat.detail.latinName,

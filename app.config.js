@@ -6,24 +6,24 @@ function envString(name) {
 }
 
 module.exports = {
-  name: 'Fauna',
-  slug: 'fauna',
+  name: 'WildKind',
+  slug: 'wildkind',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
-  scheme: 'fauna',
+  scheme: 'wildkind',
   userInterfaceStyle: 'automatic',
   newArchEnabled: false,
   ios: {
     supportsTablet: true,
-    bundleIdentifier: 'com.pauline.fauna',
+    bundleIdentifier: 'com.pauline.wildkind',
     usesAppleSignIn: true,
     infoPlist: {
-      NSCameraUsageDescription: 'Fauna uses your camera to identify animals and plants in the wild.',
-      NSPhotoLibraryUsageDescription: 'Allow Fauna to identify creatures from photos in your library.',
-      NSPhotoLibraryAddUsageDescription: 'Save Fauna photos to your library.',
-      NSLocationWhenInUseUsageDescription: 'Fauna tags your sightings with where you saw them and shows nearby species.',
-      NSMicrophoneUsageDescription: 'Fauna records nearby animal calls to help identification.',
+      NSCameraUsageDescription: 'WildKind uses your camera to identify animals and plants in the wild.',
+      NSPhotoLibraryUsageDescription: 'Allow WildKind to identify creatures from photos in your library.',
+      NSPhotoLibraryAddUsageDescription: 'Save WildKind photos to your library.',
+      NSLocationWhenInUseUsageDescription: 'WildKind tags your sightings with where you saw them and shows nearby species.',
+      NSMicrophoneUsageDescription: 'WildKind records nearby animal calls to help identification.',
       MBXAccessToken: process.env.MAPBOX_ACCESS_TOKEN ?? '',
     },
   },
@@ -50,7 +50,7 @@ module.exports = {
     [
       'expo-camera',
       {
-        cameraPermission: 'Fauna uses your camera to identify animals and plants in the wild.',
+        cameraPermission: 'WildKind uses your camera to identify animals and plants in the wild.',
         microphonePermission: false,
         recordAudioAndroid: false,
       },
@@ -58,15 +58,15 @@ module.exports = {
     [
       'expo-media-library',
       {
-        photosPermission: 'Allow Fauna to identify creatures from photos in your library.',
-        savePhotosPermission: 'Save Fauna photos to your library.',
+        photosPermission: 'Allow WildKind to identify creatures from photos in your library.',
+        savePhotosPermission: 'Save WildKind photos to your library.',
       },
     ],
     [
       'expo-location',
       {
         locationWhenInUsePermission:
-          'Fauna tags your sightings with where you saw them and shows nearby species.',
+          'WildKind tags your sightings with where you saw them and shows nearby species.',
       },
     ],
     [

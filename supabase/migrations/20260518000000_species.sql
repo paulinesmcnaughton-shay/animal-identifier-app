@@ -1,4 +1,4 @@
--- Wildr species catalog (run in Supabase SQL editor or via CLI)
+-- WildKind species catalog (run in Supabase SQL editor or via CLI)
 create table if not exists public.species (
   id text primary key,
   slug text unique,

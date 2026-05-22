@@ -306,9 +306,9 @@ export function MapScreenContent() {
             defaultSettings={{ centerCoordinate: userCoord, zoomLevel: 13 }}
           />
 
-          <VectorSource id="wildr-greenspace-strokes" url={MAPBOX_STREETS_SOURCE}>
+          <VectorSource id="wildkind-greenspace-strokes" url={MAPBOX_STREETS_SOURCE}>
             <LineLayer
-              id="wildr-greenspace-landcover-stroke"
+              id="wildkind-greenspace-landcover-stroke"
               sourceLayerID="landcover"
               filter={[
                 'match',
@@ -321,7 +321,7 @@ export function MapScreenContent() {
               minZoomLevel={10}
             />
             <LineLayer
-              id="wildr-greenspace-landuse-stroke"
+              id="wildkind-greenspace-landuse-stroke"
               sourceLayerID="landuse"
               filter={[
                 'match',
@@ -334,7 +334,7 @@ export function MapScreenContent() {
               minZoomLevel={10}
             />
             <LineLayer
-              id="wildr-greenspace-park-stroke"
+              id="wildkind-greenspace-park-stroke"
               sourceLayerID="landuse_overlay"
               filter={['==', ['get', 'class'], 'national_park']}
               style={GREENSPACE_STROKE_STYLE}

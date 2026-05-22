@@ -1,10 +1,10 @@
-// Custom Wildr map style — nature-forward, desaturated terrain
+// Custom WildKind map style — nature-forward, desaturated terrain
 // Based on the Mapbox Streets v8 + Terrain v2 vector sources.
 // No transit lines, reduced labels, sage green land, slate blue water, warm gray roads.
 
 export const WILDR_MAP_STYLE = {
   version: 8,
-  name: 'Wildr',
+  name: 'WildKind',
   sprite: 'mapbox://sprites/mapbox/outdoors-v12',
   glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
   sources: {

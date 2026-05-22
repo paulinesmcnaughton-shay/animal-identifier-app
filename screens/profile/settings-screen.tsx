@@ -171,7 +171,7 @@ export function SettingsScreenContent() {
         try {
           await connectInaturalistAccount()
           await refreshInatStatus()
-          Alert.alert('Connected', 'Wildr will refresh your iNaturalist access automatically.')
+          Alert.alert('Connected', 'WildKind will refresh your iNaturalist access automatically.')
         } catch (error) {
           const message =
             error instanceof IdentifyError
@@ -252,9 +252,9 @@ export function SettingsScreenContent() {
           <SettingsRow
             icon="star"
             iconBg={colors.coral}
-            title="Wildr Pro"
+            title="WildKind Pro"
             subtitle="Unlock unlimited IDs & sounds"
-            action={{ type: 'chevron', onPress: () => router.push('/settings-wildr-pro') }}
+            action={{ type: 'chevron', onPress: () => router.push('/settings-wildkind-pro') }}
           />
           <SettingsRow
             icon="notifications"

@@ -23,4 +23,4 @@ export const darkTheme = {
   },
 }
 
-export type WildrTheme = typeof lightTheme
+export type WildKindTheme = typeof lightTheme

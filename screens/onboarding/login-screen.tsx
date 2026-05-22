@@ -76,7 +76,7 @@ export function LoginScreen() {
         </Pressable>
 
         <Text style={[styles.heading, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>Welcome back</Text>
-        <Text style={[styles.sub, { fontFamily: 'Nunito_400Regular' }]}>Log in to your Wildr account</Text>
+        <Text style={[styles.sub, { fontFamily: 'Nunito_400Regular' }]}>Log in to your WildKind account</Text>
 
         <View style={styles.fields}>
           <View style={styles.fieldGroup}>

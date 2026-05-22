@@ -52,7 +52,7 @@ export default function RootLayout() {
           options={{ contentStyle: { backgroundColor: colors.bg } }}
         />
         <Stack.Screen
-          name="settings-wildr-pro"
+          name="settings-wildkind-pro"
           options={{ contentStyle: { backgroundColor: colors.bg } }}
         />
         <Stack.Screen

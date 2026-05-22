@@ -91,7 +91,7 @@ export function useSpeciesDetail({
         setLatinNameSource(null)
         setIsFromSupabase(false)
         setIsDomesticRemote(false)
-        if (__DEV__) console.warn('[Wildr Supabase]', message)
+        if (__DEV__) console.warn('[WildKind Supabase]', message)
       } finally {
         if (!cancelled) setIsLoading(false)
       }
@@ -165,7 +165,7 @@ export function useSpeciesDetail({
 
   useEffect(() => {
     if (!__DEV__) return
-    console.log('[Wildr Species] latinName source:', resolvedLatinSource, {
+    console.log('[WildKind Species] latinName source:', resolvedLatinSource, {
       id,
       commonName: species.commonName,
       latinName: species.latinName,

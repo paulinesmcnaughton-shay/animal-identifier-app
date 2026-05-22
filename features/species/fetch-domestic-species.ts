@@ -26,7 +26,7 @@ function slugToCommonNameGuess(slug: string): string {
 function rowToResult(row: DomesticSpeciesRow): SpeciesDetailFetchResult {
   const referenceUrl = row.reference_image_url?.trim() || null
   if (__DEV__) {
-    console.log('[Wildr domestic_species] row matched:', {
+    console.log('[WildKind domestic_species] row matched:', {
       id: row.id,
       common_name: row.common_name,
       dex_number: row.dex_number,

@@ -13,11 +13,11 @@ const PRO_FEATURES = [
   { icon: 'star' as const, title: 'Pro badges', body: 'Exclusive collector medals' },
 ]
 
-export function WildrProScreenContent() {
+export function WildKindProScreenContent() {
   const router = useRouter()
 
   return (
-    <SettingsDetailShell title="Wildr Pro" onBack={() => router.back()} contentStyle={styles.content}>
+    <SettingsDetailShell title="WildKind Pro" onBack={() => router.back()} contentStyle={styles.content}>
       <View style={styles.hero}>
         <View style={styles.heroIcon}>
           <Ionicons name="star" size={28} color={colors.card} />

@@ -50,7 +50,7 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 function getAuthRedirectUri(): string {
   return makeRedirectUri({
-    scheme: 'fauna',
+    scheme: 'wildkind',
     path: 'auth/callback',
   })
 }

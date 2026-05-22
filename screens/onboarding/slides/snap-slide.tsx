@@ -109,7 +109,7 @@ export function SnapSlide({ insets, onContinue, onSkip, displayFont, bodyFont, b
             Snap any critter.{'\n'}Know it instantly.
           </Text>
           <Text style={[styles.body, { fontFamily: bodyFont }]}>
-            Point your camera at <Text style={{ fontFamily: bodyBoldFont, color: colors.green }}>any animal or insect</Text> and Wildr identifies the species in seconds.
+            Point your camera at <Text style={{ fontFamily: bodyBoldFont, color: colors.green }}>any animal or insect</Text> and WildKind identifies the species in seconds.
           </Text>
         </View>
       </View>
