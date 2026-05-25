@@ -6,24 +6,26 @@ import { View } from 'react-native'
 import { colors } from '@/design/tokens'
 import { cacheAllShufflePresets } from '@/features/settings/avatar-preset-cache'
 import { ensureUserAvatar } from '@/features/settings/profile-avatar'
+import { syncAccountProfileFromAuth } from '@/features/settings/sync-account-profile'
 import { useAuth } from '@/lib/auth/auth-context'
 
 export default function RootIndex() {
   const rootNavigationState = useRootNavigationState()
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth()
   const [bootReady, setBootReady] = useState(false)
 
   useEffect(() => {
     if (authLoading) return
 
     void (async () => {
-      if (isAuthenticated) {
-        await ensureUserAvatar()
+      if (isAuthenticated && user) {
+        await syncAccountProfileFromAuth(user)
+        await ensureUserAvatar(user.email)
         void cacheAllShufflePresets()
       }
       setBootReady(true)
     })()
-  }, [authLoading, isAuthenticated])
+  }, [authLoading, isAuthenticated, user])
 
   useEffect(() => {
     if (!bootReady || authLoading || !rootNavigationState?.key) return

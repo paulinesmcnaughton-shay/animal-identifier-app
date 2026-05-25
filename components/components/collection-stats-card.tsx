@@ -9,9 +9,16 @@ interface CollectionStatsCardProps {
   total: number
   streakDays: number
   trophies: number
+  showStreak?: boolean
 }
 
-export function CollectionStatsCard({ collected, total, streakDays, trophies }: CollectionStatsCardProps) {
+export function CollectionStatsCard({
+  collected,
+  total,
+  streakDays,
+  trophies,
+  showStreak = streakDays > 0,
+}: CollectionStatsCardProps) {
   const progress = total > 0 ? collected / total : 0
 
   return (
@@ -24,10 +31,12 @@ export function CollectionStatsCard({ collected, total, streakDays, trophies }: 
           </Text>
         </View>
         <View style={styles.badges}>
-          <View style={[styles.badge, styles.badgeStreak]}>
-            <Ionicons name="flame" size={14} color={colors.coralDeep} />
-            <Text style={styles.badgeTextStreak}>{streakDays}d</Text>
-          </View>
+          {showStreak ? (
+            <View style={[styles.badge, styles.badgeStreak]}>
+              <Ionicons name="flame" size={14} color={colors.coralDeep} />
+              <Text style={styles.badgeTextStreak}>{streakDays}d</Text>
+            </View>
+          ) : null}
           <View style={[styles.badge, styles.badgeTrophy]}>
             <Ionicons name="trophy" size={14} color="#B8860B" />
             <Text style={styles.badgeTextTrophy}>{trophies}</Text>

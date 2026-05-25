@@ -1,14 +1,8 @@
-import * as SecureStore from 'expo-secure-store'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 import { getSupabasePublishableKey, getSupabaseUrl, isSupabaseConfigured } from '@/lib/supabase/config'
 import type { Database } from '@/lib/supabase/database.types'
-
-const ExpoSecureStoreAdapter = {
-  getItem: (key: string) => SecureStore.getItemAsync(key),
-  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
-  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
-}
 
 let client: SupabaseClient<Database> | null = null
 
@@ -17,9 +11,11 @@ export function getSupabaseClient(): SupabaseClient<Database> | null {
   if (!client) {
     client = createClient<Database>(getSupabaseUrl(), getSupabasePublishableKey(), {
       auth: {
+        storage: AsyncStorage,
         persistSession: true,
         autoRefreshToken: true,
-        storage: ExpoSecureStoreAdapter,
+        detectSessionInUrl: false,
+        flowType: 'pkce',
       },
     })
   }

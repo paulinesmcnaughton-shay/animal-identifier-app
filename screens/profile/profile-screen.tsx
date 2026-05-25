@@ -1,108 +1,77 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useCallback, useMemo } from 'react'
-import { Dimensions, ScrollView, StyleSheet, Text, Pressable, View } from 'react-native'
+import {
+  ActivityIndicator,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  Pressable,
+  View,
+} from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { DexCard } from '@/components/DexCard'
-import { getRecentFindDexCards, getRecentFinds, recentFindRouteParams } from '@/data/mock'
 import { ProfileAvatar } from '@/components/profile/ProfileAvatar'
-import { dexCardHairline } from '@/design/dex-card-shell'
+import { ProfileDisplayName } from '@/components/profile/ProfileDisplayName'
+import { RecentSpotsSection } from '@/components/profile/RecentSpotsSection'
+import { SpottingActivitySection } from '@/components/profile/SpottingActivitySection'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
+import { formatProfileStreakLabel } from '@/features/profile/streak'
+import { buildXpProgress } from '@/features/profile/xp-progress'
 import { useAccountProfile } from '@/features/settings/account-profile'
-
-const XP_CURRENT = 2340
-const XP_NEXT = 3000
-const LEVEL = 14
-
-const STATS = [
-  { value: '47', label: 'Spotted', color: colors.green },
-  { value: '8',  label: 'Rare',    color: colors.sun },
-  { value: '12', label: 'Streak',  color: colors.coral },
-  { value: '23', label: 'Badges',  color: colors.plum },
-]
 
 const H_PAD = screenLayout.padH
 const GRID_GAP = space[8]
 
 const XP_TO_STATS_GAP = space[24]
-/** Green hero tucks under ~half of the stats card (Spotted, Rare, Streak, Badges). */
 const STATS_CARD_HERO_OVERLAP = space[40]
-
-const HEATMAP_MONTHS = 12
-const HEATMAP_DAYS = 7
-
-const HEAT_DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
-const HEAT_MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
-
-const HEAT_CELL = 10
-const HEAT_GAP = 3
-const HEAT_DAY_LABEL_W = 30
-const HEAT_MONTH_ROW_H = 16
-
-interface SpottingHeatmap {
-  monthCount: number
-  monthLabels: string[]
-  levels: (number | null)[]
-}
-
-function mockActivityLevel(year: number, monthIndex: number, dayIndex: number): number {
-  const seed = year * 372 + monthIndex * 31 + dayIndex
-  const rand = (Math.sin(seed) + 1) / 2
-  if (rand < 0.15) return 0
-  if (rand < 0.35) return 1
-  if (rand < 0.60) return 2
-  if (rand < 0.80) return 3
-  return 4
-}
-
-function buildCurrentYearHeatmap(today: Date): SpottingHeatmap {
-  const year = today.getFullYear()
-  const currentMonth = today.getMonth()
-
-  const monthLabels = [...HEAT_MONTH_SHORT]
-
-  const levels: (number | null)[] = []
-  for (let monthIndex = 0; monthIndex < HEATMAP_MONTHS; monthIndex++) {
-    for (let dayIndex = 0; dayIndex < HEATMAP_DAYS; dayIndex++) {
-      levels.push(
-        monthIndex > currentMonth
-          ? null
-          : mockActivityLevel(year, monthIndex, dayIndex),
-      )
-    }
-  }
-
-  return { monthCount: HEATMAP_MONTHS, monthLabels, levels }
-}
-
-const HEAT_THEME = {
-  card: colors.card,
-  label: colors.dim,
-  total: colors.green,
-  future: colors.hairline,
-  levels: ['#E7EDF3', '#A7D4BA', '#6BBF98', '#3DA876', colors.green] as const,
-}
 
 export function ProfileScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { displayName, username } = useAccountProfile()
-  const xpProgress = XP_CURRENT / XP_NEXT
+  const {
+    displayName,
+    username,
+    level,
+    xp,
+    spotsCaptured,
+    rareSpotted,
+    streakDays,
+    badgesCount,
+    isLoading,
+    isReady,
+  } = useAccountProfile()
 
   const colWidth = useMemo(() => {
     const w = Dimensions.get('window').width
     return (w - H_PAD * 2 - GRID_GAP * 2) / 3
   }, [])
 
-  const recentSpots = useMemo(() => getRecentFindDexCards(), [])
+  const xpProgress = useMemo(() => buildXpProgress(level, xp), [level, xp])
 
-  const spottingHeatmap = useMemo(() => buildCurrentYearHeatmap(new Date()), [])
+  const stats = useMemo(
+    () => [
+      { value: String(spotsCaptured), label: 'Spotted', color: colors.green },
+      { value: String(rareSpotted), label: 'Rare', color: colors.sun },
+      { value: String(streakDays), label: 'Streak', color: colors.coral },
+      { value: String(badgesCount), label: 'Badges', color: colors.plum },
+    ],
+    [spotsCaptured, rareSpotted, streakDays, badgesCount],
+  )
 
   const handleSeeAllSpots = useCallback(() => {
     router.push('/(tabs)/dex')
   }, [router])
+
+  if (isLoading || !isReady) {
+    return (
+      <View style={[styles.root, styles.loading]}>
+        <ActivityIndicator size="large" color={colors.green} />
+      </View>
+    )
+  }
 
   return (
     <View style={styles.root}>
@@ -110,7 +79,6 @@ export function ProfileScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 60 + space[24] }}
         showsVerticalScrollIndicator={false}>
 
-        {/* Green hero header */}
         <View style={[styles.hero, { paddingTop: contentTopInset(insets.top) }]}>
           <View style={styles.userRow}>
             <View style={styles.avatarWrap}>
@@ -118,16 +86,18 @@ export function ProfileScreen() {
             </View>
             <View style={styles.userInfo}>
               <View style={styles.nameRow}>
-                <Text style={styles.userName}>{displayName}</Text>
+                <ProfileDisplayName displayName={displayName} style={styles.userName} />
                 <View style={styles.levelBadge}>
-                  <Text style={styles.levelText}>LVL {LEVEL}</Text>
+                  <Text style={styles.levelText}>LVL {level}</Text>
                 </View>
               </View>
               <Text style={styles.handle}>@{username}</Text>
-              <View style={styles.streakRow}>
-                <Text style={styles.streakFlame}>🔥</Text>
-                <Text style={styles.streakText}>12-day streak</Text>
-              </View>
+              {streakDays > 0 ? (
+                <View style={styles.streakRow}>
+                  <Text style={styles.streakFlame}>🔥</Text>
+                  <Text style={styles.streakText}>{formatProfileStreakLabel(streakDays)}</Text>
+                </View>
+              ) : null}
             </View>
             <Pressable
               accessibilityRole="button"
@@ -138,137 +108,39 @@ export function ProfileScreen() {
             </Pressable>
           </View>
 
-          {/* XP bar */}
           <View style={styles.xpCard}>
             <View style={styles.xpLabels}>
-              <Text style={styles.xpCurrent}>{XP_CURRENT.toLocaleString()} / {XP_NEXT.toLocaleString()} XP</Text>
-              <Text style={styles.xpNext}>{(XP_NEXT - XP_CURRENT).toLocaleString()} to Lvl {LEVEL + 1}</Text>
+              <Text style={styles.xpCurrent}>
+                {xpProgress.currentXp.toLocaleString()} / {xpProgress.xpForNextLevel.toLocaleString()} XP
+              </Text>
+              <Text style={styles.xpNext}>
+                {xpProgress.xpRemaining.toLocaleString()} to Lvl {level + 1}
+              </Text>
             </View>
             <View style={styles.xpTrack}>
-              <View style={[styles.xpFill, { width: `${xpProgress * 100}%` }]} />
+              <View style={[styles.xpFill, { width: `${xpProgress.progress * 100}%` }]} />
             </View>
           </View>
         </View>
 
-        {/* Stats card */}
         <View style={styles.statsCard}>
-          {STATS.map((s, i) => (
-            <View key={s.label} style={[styles.statItem, i < STATS.length - 1 && styles.statBorder]}>
+          {stats.map((s, i) => (
+            <View key={s.label} style={[styles.statItem, i < stats.length - 1 && styles.statBorder]}>
               <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
               <Text style={styles.statLabel}>{s.label}</Text>
             </View>
           ))}
         </View>
 
-        {/* Recent spots */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent spots</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="See all spots in Wild Dex"
-              onPress={handleSeeAllSpots}
-              style={({ pressed }) => pressed && { opacity: 0.7 }}>
-              <Text style={styles.seeAll}>See all</Text>
-            </Pressable>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.spotsScroll}
-            style={styles.spotsScrollWrap}>
-            {recentSpots.map((species) => (
-              <DexCard
-                key={species.id}
-                species={species}
-                width={colWidth}
-                onPress={() => {
-                  const item = getRecentFinds().find((find) => find.id === species.id)
-                  router.push({
-                    pathname: '/species/[id]',
-                    params: item
-                      ? recentFindRouteParams(item)
-                      : {
-                          id: species.id,
-                          name: species.name,
-                          number: species.number,
-                          kingdom: species.kingdom,
-                        },
-                  })
-                }}
-              />
-            ))}
-          </ScrollView>
+        <View style={styles.recentSection}>
+          <RecentSpotsSection
+            spotsCaptured={spotsCaptured}
+            cardWidth={colWidth}
+            onSeeAll={handleSeeAllSpots}
+          />
         </View>
 
-        {/* Spotting activity heatmap */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Spotting activity</Text>
-          <View style={styles.heatCard}>
-            <View style={styles.heatHeader}>
-              <Text style={styles.heatPeriod}>Current year</Text>
-              <Text style={styles.heatTotal}>247 spots</Text>
-            </View>
-
-            <View style={styles.heatChart}>
-              <View style={styles.heatChartBody}>
-                <View style={styles.heatDayLabelsCol}>
-                  <View style={{ height: HEAT_MONTH_ROW_H }} />
-                  {HEAT_DAY_LABELS.map((dayLabel) => (
-                    <View key={dayLabel} style={styles.heatDayLabelCell}>
-                      <Text style={[styles.heatAxisLabel, styles.heatDayLabel]}>{dayLabel}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                <View style={styles.heatGrid}>
-                  <View style={styles.heatMonthRow}>
-                    {spottingHeatmap.monthLabels.map((label, monthIndex) => (
-                      <Text
-                        key={`month-${monthIndex}`}
-                        style={[styles.heatAxisLabel, styles.heatMonthLabel]}
-                        numberOfLines={1}>
-                        {label}
-                      </Text>
-                    ))}
-                  </View>
-
-                  {HEAT_DAY_LABELS.map((dayLabel, dayIndex) => (
-                    <View key={dayLabel} style={styles.heatGridRow}>
-                      {Array.from({ length: spottingHeatmap.monthCount }, (_, monthIndex) => {
-                        const level =
-                          spottingHeatmap.levels[monthIndex * HEATMAP_DAYS + dayIndex]
-                        const month = spottingHeatmap.monthLabels[monthIndex]
-                        const fill =
-                          level === null
-                            ? HEAT_THEME.future
-                            : HEAT_THEME.levels[level]
-                        return (
-                          <View
-                            key={monthIndex}
-                            accessibilityLabel={`${dayLabel}, ${month}, ${level === null ? 'no activity yet' : `level ${level}`}`}
-                            style={[styles.heatCell, { backgroundColor: fill }]}
-                          />
-                        )
-                      })}
-                    </View>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.heatLegendRow}>
-                <View style={{ flex: 1 }} />
-                <View style={styles.heatLegend}>
-                  <Text style={styles.heatLegendText}>Less</Text>
-                  {HEAT_THEME.levels.map((fill, i) => (
-                    <View key={i} style={[styles.heatLegendCell, { backgroundColor: fill }]} />
-                  ))}
-                  <Text style={styles.heatLegendText}>More</Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        </View>
+        <SpottingActivitySection spotsCaptured={spotsCaptured} />
 
       </ScrollView>
     </View>
@@ -279,6 +151,10 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  loading: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   hero: {
     backgroundColor: colors.green,
@@ -314,14 +190,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[8],
-    flexWrap: 'wrap',
+    minWidth: 0,
   },
   userName: {
+    flex: 1,
     fontSize: typeTokens.size.displaySM,
     fontWeight: typeTokens.body.weights.bold,
     color: colors.card,
   },
   levelBadge: {
+    flexShrink: 0,
     backgroundColor: colors.sun,
     borderRadius: radius.pill,
     paddingHorizontal: space[8],
@@ -408,121 +286,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  section: {
-    paddingHorizontal: space[16],
+  recentSection: {
     marginTop: space[24],
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: space[16],
-  },
-  sectionTitle: {
-    fontSize: typeTokens.size.displaySM,
-    fontWeight: typeTokens.body.weights.black,
-    color: colors.ink,
-  },
-  seeAll: {
-    fontSize: typeTokens.size.body,
-    fontWeight: typeTokens.body.weights.bold,
-    color: colors.green,
-  },
-  spotsScrollWrap: {
-    marginHorizontal: -space[16],
-  },
-  spotsScroll: {
-    paddingHorizontal: space[16],
-    gap: GRID_GAP,
-  },
-  heatCard: {
-    backgroundColor: HEAT_THEME.card,
-    borderRadius: radius.lg,
-    padding: space[16],
-    marginTop: space[16],
-    ...dexCardHairline,
-    ...shadow.card,
-  },
-  heatHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: space[8],
-  },
-  heatPeriod: {
-    fontSize: typeTokens.size.bodySM,
-    fontWeight: typeTokens.body.weights.bold,
-    color: HEAT_THEME.label,
-  },
-  heatTotal: {
-    fontSize: typeTokens.size.bodySM,
-    fontWeight: typeTokens.body.weights.bold,
-    color: HEAT_THEME.total,
-  },
-  heatChart: {
-    gap: space[8],
-  },
-  heatChartBody: {
-    flexDirection: 'row',
-  },
-  heatDayLabelsCol: {
-    width: HEAT_DAY_LABEL_W,
-  },
-  heatDayLabelCell: {
-    flex: 1,
-    marginBottom: HEAT_GAP,
-    justifyContent: 'center',
-  },
-  heatDayLabel: {
-    textAlign: 'right',
-    paddingRight: space[8],
-  },
-  heatGrid: {
-    flex: 1,
-  },
-  heatMonthRow: {
-    flexDirection: 'row',
-    height: HEAT_MONTH_ROW_H,
-    marginBottom: space[4],
-    gap: HEAT_GAP,
-  },
-  heatMonthLabel: {
-    flex: 1,
-    textAlign: 'center',
-  },
-  heatGridRow: {
-    flexDirection: 'row',
-    gap: HEAT_GAP,
-    marginBottom: HEAT_GAP,
-  },
-  heatAxisLabel: {
-    fontSize: 9,
-    fontWeight: typeTokens.body.weights.medium,
-    color: HEAT_THEME.label,
-    textAlign: 'center',
-  },
-  heatCell: {
-    flex: 1,
-    aspectRatio: 1,
-    borderRadius: 2,
-  },
-  heatLegendRow: {
-    flexDirection: 'row',
-    marginTop: space[8],
-  },
-  heatLegend: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  heatLegendText: {
-    fontSize: 9,
-    fontWeight: typeTokens.body.weights.medium,
-    color: HEAT_THEME.label,
-  },
-  heatLegendCell: {
-    width: HEAT_CELL,
-    height: HEAT_CELL,
-    borderRadius: 2,
   },
 })

@@ -1,3 +1,4 @@
+import { normalizeUsername } from '@/features/settings/username'
 import { storage } from '@/util/storage'
 
 export type CameraQuality = 'high' | 'medium' | 'low'
@@ -114,7 +115,7 @@ export function formatAccountSubtitle(username: string): string {
 /** First token of display name — used for “Hey, Alex” on Spot home. */
 export function firstNameFromDisplayName(displayName: string): string {
   const trimmed = displayName.trim()
-  if (!trimmed) return firstNameFromDisplayName(SETTINGS_DEFAULTS.displayName)
+  if (!trimmed) return ''
   return trimmed.split(/\s+/)[0] ?? trimmed
 }
 
@@ -228,8 +229,7 @@ export async function saveDisplayName(displayName: string): Promise<void> {
 }
 
 export async function saveUsername(username: string): Promise<void> {
-  const normalized = username.trim().replace(/^@/, '')
-  await storage.set(KEYS.username, normalized)
+  await storage.set(KEYS.username, normalizeUsername(username))
 }
 
 export async function saveEmail(email: string): Promise<void> {

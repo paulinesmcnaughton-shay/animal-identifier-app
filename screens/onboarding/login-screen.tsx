@@ -26,7 +26,7 @@ import { useAuth } from '@/lib/auth/auth-context'
 export function LoginScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { signIn } = useAuth()
+  const { signIn, signInAsDemoUser, signInWithApple, signInWithGoogle } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -39,6 +39,18 @@ export function LoginScreen() {
     if (isSubmitting) return
 
     setIsSubmitting(true)
+
+    if (__DEV__) {
+      const { error } = await signInAsDemoUser()
+      setIsSubmitting(false)
+      if (error) {
+        Alert.alert('Could not log in', error)
+        return
+      }
+      router.replace('/home')
+      return
+    }
+
     const { error } = await signIn({ email, password })
     setIsSubmitting(false)
 
@@ -46,6 +58,40 @@ export function LoginScreen() {
       Alert.alert('Could not log in', error)
       return
     }
+
+    router.replace('/home')
+  }
+
+  const handleAppleSignIn = async () => {
+    if (isSubmitting) return
+
+    setIsSubmitting(true)
+    const result = await signInWithApple()
+    setIsSubmitting(false)
+
+    if (result.error) {
+      Alert.alert('Apple Sign In failed', result.error)
+      return
+    }
+
+    if (result.canceled) return
+
+    router.replace('/home')
+  }
+
+  const handleGoogleSignIn = async () => {
+    if (isSubmitting) return
+
+    setIsSubmitting(true)
+    const result = await signInWithGoogle()
+    setIsSubmitting(false)
+
+    if (result.error) {
+      Alert.alert('Google Sign In failed', result.error)
+      return
+    }
+
+    if (result.canceled) return
 
     router.replace('/home')
   }
@@ -136,16 +182,18 @@ export function LoginScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Continue with Apple"
-            onPress={() => {}}
-            style={({ pressed }) => [styles.socialBtn, pressed && { opacity: 0.7 }]}>
+            onPress={() => void handleAppleSignIn()}
+            disabled={isSubmitting}
+            style={({ pressed }) => [styles.socialBtn, pressed && { opacity: 0.7 }, isSubmitting && styles.ctaDisabled]}>
             <Ionicons name="logo-apple" size={20} color={colors.ink} />
             <Text style={[styles.socialText, { fontFamily: 'Nunito_700Bold' }]}>Apple</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Continue with Google"
-            onPress={() => {}}
-            style={({ pressed }) => [styles.socialBtn, pressed && { opacity: 0.7 }]}>
+            onPress={() => void handleGoogleSignIn()}
+            disabled={isSubmitting}
+            style={({ pressed }) => [styles.socialBtn, pressed && { opacity: 0.7 }, isSubmitting && styles.ctaDisabled]}>
             <Ionicons name="logo-google" size={20} color={colors.ink} />
             <Text style={[styles.socialText, { fontFamily: 'Nunito_700Bold' }]}>Google</Text>
           </Pressable>

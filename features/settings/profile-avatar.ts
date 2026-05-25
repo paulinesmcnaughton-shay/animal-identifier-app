@@ -20,17 +20,21 @@ import {
   TESTER_AVATAR_PRESET_ID,
 } from '@/features/settings/avatar-presets'
 import { resolveAvatarPresetImage } from '@/features/settings/resolve-avatar-preset-image'
-import { isTesterAccount } from '@/features/settings/tester-account'
+import { isTesterAccount, syncTesterAccountFromEmail } from '@/features/settings/tester-account'
 import { storage } from '@/util/storage'
 
 const PROFILE_PHOTO_PATH_KEY = 'settings.profilePhotoPath'
 const AVATAR_KIND_KEY = 'settings.avatarKind'
 const AVATAR_PRESET_ID_KEY = 'settings.avatarPresetId'
+const AVATAR_INITIALIZED_KEY = 'settings.avatarInitialized'
 
 export type ProfileAvatarSource = { uri: string } | number
 export type ProfilePhotoSource = 'camera' | 'library' | 'random'
 
 type AvatarKind = 'photo' | 'preset'
+
+/** Tester-only preview for this app session — never persisted. */
+let testerSessionAvatar: ProfileAvatarSource | null = null
 
 function profilePhotoFilePath(): string {
   if (!documentDirectory) {
@@ -43,6 +47,30 @@ async function readAvatarKind(): Promise<AvatarKind | null> {
   const raw = await storage.getString(AVATAR_KIND_KEY)
   if (raw === 'photo' || raw === 'preset') return raw
   return null
+}
+
+async function isAvatarInitialized(): Promise<boolean> {
+  return (await storage.getString(AVATAR_INITIALIZED_KEY)) === 'true'
+}
+
+async function markAvatarInitialized(): Promise<void> {
+  await storage.set(AVATAR_INITIALIZED_KEY, 'true')
+}
+
+export function clearTesterSessionAvatar(): void {
+  testerSessionAvatar = null
+}
+
+async function resolveAlexAvatarSource(): Promise<ProfileAvatarSource> {
+  const preset = getAvatarPreset(TESTER_AVATAR_PRESET_ID)
+  if (!preset) throw new Error('Alex Riley avatar preset is missing.')
+  return resolveAvatarPresetImage(preset)
+}
+
+async function applyTesterSessionAvatar(source: ProfileAvatarSource): Promise<ProfileAvatarSource> {
+  testerSessionAvatar = source
+  notifyAccountProfileChanged()
+  return source
 }
 
 export async function loadProfilePhotoUri(): Promise<string | null> {
@@ -60,14 +88,7 @@ export async function loadProfilePhotoUri(): Promise<string | null> {
   }
 }
 
-async function assignInitialAvatar(): Promise<ProfileAvatarSource> {
-  if (await isTesterAccount()) {
-    return assignPresetAvatar(TESTER_AVATAR_PRESET_ID)
-  }
-  return assignRandomPresetAvatar()
-}
-
-export async function resolveProfileAvatarSource(): Promise<ProfileAvatarSource> {
+async function loadSavedAvatarSource(): Promise<ProfileAvatarSource | null> {
   const kind = await readAvatarKind()
 
   if (kind === 'photo') {
@@ -84,27 +105,66 @@ export async function resolveProfileAvatarSource(): Promise<ProfileAvatarSource>
   const legacyPhoto = await loadProfilePhotoUri()
   if (legacyPhoto) {
     await storage.set(AVATAR_KIND_KEY, 'photo')
+    await markAvatarInitialized()
     return { uri: legacyPhoto }
   }
 
-  return assignInitialAvatar()
+  return null
 }
 
-/** Assign avatar when missing — Alex for tester login, random animal otherwise. */
-export async function ensureUserAvatar(): Promise<ProfileAvatarSource> {
-  const kind = await readAvatarKind()
-  if (kind === 'photo') {
-    const uri = await loadProfilePhotoUri()
-    if (uri) return { uri }
+async function recoverStoredPresetAvatar(): Promise<ProfileAvatarSource> {
+  const presetId = await storage.getString(AVATAR_PRESET_ID_KEY)
+  if (presetId && getAvatarPreset(presetId)) {
+    return assignPresetAvatar(presetId as AvatarPresetId)
   }
-  if (kind === 'preset') {
-    const preset = getAvatarPreset(await storage.getString(AVATAR_PRESET_ID_KEY))
-    if (preset) return await resolveAvatarPresetImage(preset)
-  }
-  return assignInitialAvatar()
+  return assignPresetAvatar(SHUFFLE_AVATAR_PRESETS[0].id)
 }
 
-/** New signup — always a random animal avatar (never Alex). */
+async function resolveTesterAvatarSource(): Promise<ProfileAvatarSource> {
+  if (testerSessionAvatar) return testerSessionAvatar
+  return resolveAlexAvatarSource()
+}
+
+/** App launch — tester always resets to Alex; real users keep their saved avatar. */
+export async function ensureUserAvatar(userEmail?: string | null): Promise<ProfileAvatarSource> {
+  await syncTesterAccountFromEmail(userEmail)
+
+  if (await isTesterAccount()) {
+    clearTesterSessionAvatar()
+    return assignTesterAvatar()
+  }
+
+  const saved = await loadSavedAvatarSource()
+  if (saved) return saved
+
+  if (await isAvatarInitialized()) {
+    return recoverStoredPresetAvatar()
+  }
+
+  const assigned = await assignRandomPresetAvatar()
+  await markAvatarInitialized()
+  return assigned
+}
+
+/** Profile UI — real users keep saved avatar; tester uses session preview or Alex. */
+export async function resolveProfileAvatarSource(): Promise<ProfileAvatarSource> {
+  if (await isTesterAccount()) {
+    return resolveTesterAvatarSource()
+  }
+
+  const saved = await loadSavedAvatarSource()
+  if (saved) return saved
+
+  if (await isAvatarInitialized()) {
+    return recoverStoredPresetAvatar()
+  }
+
+  const assigned = await assignRandomPresetAvatar()
+  await markAvatarInitialized()
+  return assigned
+}
+
+/** New signup — one random animal avatar, then frozen until the user changes it. */
 export async function assignNewUserAvatar(): Promise<ProfileAvatarSource> {
   const offlineIds = await getOfflineShufflePresetIds()
   const allCount = SHUFFLE_AVATAR_PRESETS.length
@@ -117,7 +177,22 @@ export async function assignNewUserAvatar(): Promise<ProfileAvatarSource> {
 }
 
 export async function assignTesterAvatar(): Promise<ProfileAvatarSource> {
-  return assignPresetAvatar(TESTER_AVATAR_PRESET_ID)
+  const preset = getAvatarPreset(TESTER_AVATAR_PRESET_ID)
+  if (!preset) throw new Error('Alex Riley avatar preset is missing.')
+
+  await storage.set(AVATAR_KIND_KEY, 'preset')
+  await storage.set(AVATAR_PRESET_ID_KEY, TESTER_AVATAR_PRESET_ID)
+  await storage.delete(PROFILE_PHOTO_PATH_KEY)
+  await markAvatarInitialized()
+  notifyAccountProfileChanged()
+  return resolveAvatarPresetImage(preset)
+}
+
+/** Tester logout — next session starts on Alex Riley again. */
+export async function resetTesterAvatarForNextSession(): Promise<void> {
+  if (!(await isTesterAccount())) return
+  clearTesterSessionAvatar()
+  await assignTesterAvatar()
 }
 
 export async function assignPresetAvatar(presetId: AvatarPresetId): Promise<ProfileAvatarSource> {
@@ -127,6 +202,7 @@ export async function assignPresetAvatar(presetId: AvatarPresetId): Promise<Prof
   await storage.set(AVATAR_KIND_KEY, 'preset')
   await storage.set(AVATAR_PRESET_ID_KEY, presetId)
   await storage.delete(PROFILE_PHOTO_PATH_KEY)
+  await markAvatarInitialized()
   notifyAccountProfileChanged()
   return await resolveAvatarPresetImage(preset)
 }
@@ -146,6 +222,12 @@ export async function assignRandomPresetAvatar(
   return assignPresetAvatar(SHUFFLE_AVATAR_PRESETS[0].id)
 }
 
+async function assignTesterSessionRandomAvatar(): Promise<ProfileAvatarSource> {
+  const presetId = pickRandomAvatarPresetId()
+  const preset = getAvatarPreset(presetId) ?? SHUFFLE_AVATAR_PRESETS[0]
+  return applyTesterSessionAvatar(await resolveAvatarPresetImage(preset))
+}
+
 export async function getProfileAvatarSource(): Promise<ProfileAvatarSource> {
   return resolveProfileAvatarSource()
 }
@@ -155,6 +237,7 @@ export async function saveProfilePhotoFromPickerUri(sourceUri: string): Promise<
   await copyAsync({ from: sourceUri, to: destination })
   await storage.set(PROFILE_PHOTO_PATH_KEY, destination)
   await storage.set(AVATAR_KIND_KEY, 'photo')
+  await markAvatarInitialized()
   return destination
 }
 
@@ -196,6 +279,7 @@ async function launchCamera(): Promise<string | null> {
     allowsEditing: true,
     aspect: [1, 1],
     quality: 0.85,
+    cameraType: ImagePicker.CameraType.front,
   })
   if (result.canceled || !result.assets[0]?.uri) return null
   return result.assets[0].uri
@@ -219,6 +303,19 @@ export async function saveProfilePhotoFromSource(
   source: ProfilePhotoSource,
 ): Promise<ProfileAvatarSource | null> {
   try {
+    if (await isTesterAccount()) {
+      if (source === 'random') {
+        return assignTesterSessionRandomAvatar()
+      }
+
+      const pickedUri = source === 'camera' ? await launchCamera() : await launchLibrary()
+      if (!pickedUri) return null
+
+      const destination = profilePhotoFilePath()
+      await copyAsync({ from: pickedUri, to: destination })
+      return applyTesterSessionAvatar({ uri: destination })
+    }
+
     if (source === 'random') {
       return assignRandomPresetAvatar({ excludeCurrent: true })
     }

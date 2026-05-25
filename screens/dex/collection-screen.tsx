@@ -2,16 +2,18 @@ import { Ionicons } from '@expo/vector-icons'
 import { Link, router } from 'expo-router'
 import { useMemo, useState } from 'react'
 import {
-    Dimensions,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { CollectionStatsCard } from '@/components/collection-stats-card'
+import { DexCollectionEmpty } from '@/components/dex/DexCollectionEmpty'
 import { DexCard, type DexCardSpecies } from '@/components/DexCard'
 import {
   DEX_COLLECTION_SIZE,
@@ -21,6 +23,7 @@ import {
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { useAccountProfile } from '@/features/settings/account-profile'
 import { speciesDetailRouteParamsFromId } from '@/features/species/species-latin-names'
 
 const H_PAD = screenLayout.padH
@@ -36,6 +39,7 @@ const FILTERS: { key: string; label: string; kind: KingdomKey | null }[] = [
 export function CollectionScreen() {
   const insets = useSafeAreaInsets()
   const [activeFilter, setActiveFilter] = useState('all')
+  const { spotsCaptured, streakDays, badgesCount, isLoading, isReady } = useAccountProfile()
 
   const colWidth = useMemo(() => {
     const w = Dimensions.get('window').width
@@ -43,6 +47,8 @@ export function CollectionScreen() {
   }, [])
 
   const rows = useMemo(() => {
+    if (spotsCaptured === 0) return []
+
     const filtered =
       activeFilter === 'all'
         ? getDexCollectionSorted()
@@ -53,7 +59,15 @@ export function CollectionScreen() {
       result.push(filtered.slice(i, i + 3))
     }
     return result
-  }, [activeFilter])
+  }, [activeFilter, spotsCaptured])
+
+  if (isLoading || !isReady) {
+    return (
+      <View style={[styles.screen, styles.loading, { paddingTop: contentTopInset(insets.top) }]}>
+        <ActivityIndicator size="large" color={colors.green} />
+      </View>
+    )
+  }
 
   return (
     <View style={[styles.screen, { paddingTop: contentTopInset(insets.top) }]}>
@@ -75,7 +89,12 @@ export function CollectionScreen() {
           </Link>
         </View>
 
-        <CollectionStatsCard collected={DEX_COLLECTION_SIZE} total={DEX_COLLECTION_SIZE} streakDays={12} trophies={8} />
+        <CollectionStatsCard
+          collected={spotsCaptured}
+          total={DEX_COLLECTION_SIZE}
+          streakDays={streakDays}
+          trophies={badgesCount}
+        />
 
         <ScrollView
           horizontal
@@ -106,30 +125,34 @@ export function CollectionScreen() {
           })}
         </ScrollView>
 
-        <View style={styles.grid}>
-          {rows.map((row, ri) => (
-            <View key={`row-${ri}`} style={styles.gridRow}>
-              {row.map((species) => (
-                <DexCard
-                  key={species.id}
-                  species={species}
-                  width={colWidth}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/species/[id]',
-                      params: speciesDetailRouteParamsFromId({
-                        id: species.id,
-                        name: species.name,
-                        number: species.number,
-                        kingdom: species.kingdom,
-                      }),
-                    })
-                  }
-                />
-              ))}
-            </View>
-          ))}
-        </View>
+        {spotsCaptured === 0 ? (
+          <DexCollectionEmpty />
+        ) : (
+          <View style={styles.grid}>
+            {rows.map((row, ri) => (
+              <View key={`row-${ri}`} style={styles.gridRow}>
+                {row.map((species) => (
+                  <DexCard
+                    key={species.id}
+                    species={species}
+                    width={colWidth}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/species/[id]',
+                        params: speciesDetailRouteParamsFromId({
+                          id: species.id,
+                          name: species.name,
+                          number: species.number,
+                          kingdom: species.kingdom,
+                        }),
+                      })
+                    }
+                  />
+                ))}
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </View>
   )
@@ -139,6 +162,10 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  loading: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scroll: {
     paddingHorizontal: H_PAD,

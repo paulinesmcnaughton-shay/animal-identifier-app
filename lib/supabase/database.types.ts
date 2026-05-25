@@ -83,28 +83,80 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['domestic_species']['Insert']>
         Relationships: []
       }
+      community_sightings: {
+        Row: {
+          id: string
+          species_name: string
+          species_id: string | null
+          kingdom: string
+          latitude: number
+          longitude: number
+          spotted_at: string
+          report_count: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          species_name: string
+          species_id?: string | null
+          kingdom: string
+          latitude: number
+          longitude: number
+          spotted_at?: string
+          report_count?: number
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['community_sightings']['Insert']>
+        Relationships: []
+      }
       profiles: {
         Row: {
           id: string
           username: string | null
+          timezone: string | null
           location_text: string | null
           latitude: number | null
           longitude: number | null
           interests: string[]
           age_group: string | null
           onboarding_complete: boolean
+          level: number
+          xp: number
+          streak_days: number
+          last_spotted_at: string | null
+          spots_captured: number
+          rare_spotted: number
+          badges_count: number
+          weekly_quest_title: string
+          weekly_quest_current: number
+          weekly_quest_total: number
+          weekly_quest_xp_reward: number
+          weekly_quest_started_at: string
           created_at: string
           updated_at: string
         }
         Insert: {
           id: string
           username?: string | null
+          timezone?: string | null
           location_text?: string | null
           latitude?: number | null
           longitude?: number | null
           interests?: string[]
           age_group?: string | null
           onboarding_complete?: boolean
+          level?: number
+          xp?: number
+          streak_days?: number
+          last_spotted_at?: string | null
+          spots_captured?: number
+          rare_spotted?: number
+          badges_count?: number
+          weekly_quest_title?: string
+          weekly_quest_current?: number
+          weekly_quest_total?: number
+          weekly_quest_xp_reward?: number
+          weekly_quest_started_at?: string
           created_at?: string
           updated_at?: string
         }

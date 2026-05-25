@@ -10,13 +10,16 @@
  * Do not use `mockUser` or hardcoded names for identity. New screens that show the user import from here.
  */
 
-import { mockUser } from '@/data/mock'
+import type { User } from '@supabase/supabase-js'
 
+import { mockUser } from '@/data/mock'
 import { notifyAccountProfileChanged } from './account-profile-events'
 import {
-  SETTINGS_DEFAULTS,
+  buildUserProfileFromAuth,
+  shouldUseDemoProfile,
+} from './fetch-user-profile'
+import {
   firstNameFromDisplayName,
-  formatAccountSubtitle,
   loadSettingsPreferences,
   saveDisplayName,
   saveEmail,
@@ -45,7 +48,14 @@ export interface UpdateAccountProfileInput {
   phone: string
 }
 
-export async function loadAccountProfile(level = mockUser.level): Promise<AccountProfile> {
+export async function loadAccountProfile(
+  level = mockUser.level,
+  user: User | null = null,
+): Promise<AccountProfile> {
+  if (user && !(await shouldUseDemoProfile(user))) {
+    return buildUserProfileFromAuth(user)
+  }
+
   const prefs = await loadSettingsPreferences(level)
   return {
     displayName: prefs.displayName,

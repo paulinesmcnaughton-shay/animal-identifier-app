@@ -1,5 +1,22 @@
 require('dotenv').config()
 
+const { withXcodeProject } = require('@expo/config-plugins')
+
+function withDisableUserScriptSandboxing(config) {
+  return withXcodeProject(config, (config) => {
+    const configurations = config.modResults.pbxXCBuildConfigurationSection()
+
+    for (const key of Object.keys(configurations)) {
+      const entry = configurations[key]
+      if (typeof entry === 'object' && entry.buildSettings) {
+        entry.buildSettings.ENABLE_USER_SCRIPT_SANDBOXING = 'NO'
+      }
+    }
+
+    return config
+  })
+}
+
 function envString(name) {
   const raw = process.env[name] ?? ''
   return raw.replace(/^['"]|['"]$/g, '').trim()
@@ -10,10 +27,10 @@ module.exports = {
   slug: 'wildkind',
   version: '1.0.0',
   orientation: 'portrait',
-  icon: './assets/images/icon.png',
+  icon: './assets/images/WildKind-app-icon.png',
   scheme: 'wildkind',
   userInterfaceStyle: 'automatic',
-  newArchEnabled: false,
+  newArchEnabled: true,
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.pauline.wildkind',
@@ -24,15 +41,19 @@ module.exports = {
       NSPhotoLibraryAddUsageDescription: 'Save WildKind photos to your library.',
       NSLocationWhenInUseUsageDescription: 'WildKind tags your sightings with where you saw them and shows nearby species.',
       NSMicrophoneUsageDescription: 'WildKind records nearby animal calls to help identification.',
+      NSLocalNetworkUsageDescription:
+        'WildKind connects to the development server on your local network while you are building the app.',
+      NSBonjourServices: ['_expo._tcp'],
       MBXAccessToken: process.env.MAPBOX_ACCESS_TOKEN ?? '',
     },
   },
   android: {
+    package: 'com.pauline.wildkind',
     adaptiveIcon: {
       backgroundColor: '#1a3d2b',
-      foregroundImage: './assets/images/android-icon-foreground.png',
+      foregroundImage: './assets/images/WildKind-app-icon.png',
       backgroundImage: './assets/images/android-icon-background.png',
-      monochromeImage: './assets/images/android-icon-monochrome.png',
+      monochromeImage: './assets/images/WildKind-app-icon.png',
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
@@ -42,6 +63,7 @@ module.exports = {
     favicon: './assets/images/favicon.png',
   },
   plugins: [
+    withDisableUserScriptSandboxing,
     'expo-dev-client',
     'expo-secure-store',
     'expo-router',
@@ -72,7 +94,7 @@ module.exports = {
     [
       'expo-splash-screen',
       {
-        image: './assets/images/splash-icon.png',
+        image: './assets/images/WildKind-splash-icon.png',
         imageWidth: 200,
         resizeMode: 'contain',
         backgroundColor: '#1a3d2b',

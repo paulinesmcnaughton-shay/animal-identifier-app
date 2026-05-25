@@ -6,6 +6,11 @@ import { ProfileAvatar } from '@/components/profile/ProfileAvatar'
 import { ProfilePhotoPickerSheet } from '@/components/profile/ProfilePhotoPickerSheet'
 import { SettingsDetailShell } from '@/components/settings/SettingsDetailShell'
 import { mockUser } from '@/data/mock'
+import {
+  getUsernameValidationError,
+  normalizeUsername,
+  sanitizeUsernameInput,
+} from '@/features/settings/username'
 import { Button } from '@/design/atoms/Button'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import {
@@ -59,11 +64,16 @@ export function AccountSettingsScreenContent() {
 
   const handleSave = async () => {
     const trimmedName = displayName.trim()
-    const trimmedUser = username.trim().replace(/^@/, '')
+    const trimmedUser = normalizeUsername(username)
     const trimmedEmail = email.trim()
     const trimmedPhone = phone.trim()
     if (!trimmedName || !trimmedUser) {
       Alert.alert('Missing info', 'Add a display name and username.')
+      return
+    }
+    const usernameError = getUsernameValidationError(trimmedUser)
+    if (usernameError) {
+      Alert.alert('Check username', usernameError)
       return
     }
     if (trimmedEmail && !trimmedEmail.includes('@')) {
@@ -133,7 +143,7 @@ export function AccountSettingsScreenContent() {
           <Text style={styles.atSign}>@</Text>
           <TextInput
             value={username}
-            onChangeText={setUsername}
+            onChangeText={(text) => setUsername(sanitizeUsernameInput(text))}
             placeholder="handle"
             placeholderTextColor={colors.dim}
             style={[styles.input, styles.usernameInput]}

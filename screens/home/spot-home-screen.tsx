@@ -3,38 +3,43 @@ import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { CollectorTierBadge } from '@/components/CollectorTierBadge'
-import { DexCard, type DexCardSpecies } from '@/components/DexCard'
+import { RecentSpotsSection } from '@/components/profile/RecentSpotsSection'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
-import {
-  getRecentFindDexCards,
-  getRecentFinds,
-  mockCreatureOfDay,
-  mockHomeNotifications,
-  mockUser,
-  mockWeeklyQuest,
-  recentFindRouteParams,
-} from '@/data/mock'
+import { mockCreatureOfDay } from '@/data/mock'
+import type { WeeklyQuestProgress } from '@/features/profile/home-stats'
 import { dexCardHairline } from '@/design/dex-card-shell'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
+import type { DayPeriodGreeting } from '@/features/profile/time-greeting'
+import { useSpotGreeting } from '@/features/profile/use-spot-greeting'
 import { useAccountProfile } from '@/features/settings/account-profile'
 
 interface HeaderProps {
+  greeting: DayPeriodGreeting
   firstName: string
+  level: number
+  streakDays: number
+  spotsCaptured: number
   onBadgePress: () => void
   onBellPress: () => void
   hasUnreadNotifications: boolean
 }
 
-function Header({ firstName, onBadgePress, onBellPress, hasUnreadNotifications }: HeaderProps) {
-  const timeHour = new Date().getHours()
-  const greeting = timeHour < 12 ? 'Good morning' : timeHour < 18 ? 'Good afternoon' : 'Good evening'
-
+function Header({
+  greeting,
+  firstName,
+  level,
+  streakDays,
+  spotsCaptured,
+  onBadgePress,
+  onBellPress,
+  hasUnreadNotifications,
+}: HeaderProps) {
   return (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
@@ -42,14 +47,16 @@ function Header({ firstName, onBadgePress, onBellPress, hasUnreadNotifications }
           onPress={onBadgePress}
           accessibilityRole="button"
           accessibilityLabel="View badges">
-          <CollectorTierBadge captureCount={mockUser.spotsCaptured} size={52} />
+          <CollectorTierBadge captureCount={spotsCaptured} size={52} />
         </Pressable>
         <View style={styles.headerTextCol}>
           <Text style={styles.greeting}>{greeting}</Text>
           <View style={styles.nameRow}>
-            <Text style={styles.name}>Hey, {firstName} 👋</Text>
+            <Text style={styles.name}>
+              {firstName.trim() ? `Hey, ${firstName} 👋` : 'Hey there 👋'}
+            </Text>
             <View style={styles.levelBadge}>
-              <Text style={styles.levelText}>LVL {mockUser.level}</Text>
+              <Text style={styles.levelText}>LVL {level}</Text>
             </View>
           </View>
         </View>
@@ -57,7 +64,7 @@ function Header({ firstName, onBadgePress, onBellPress, hasUnreadNotifications }
       <View style={styles.headerRight}>
         <View style={styles.streakPill}>
           <Ionicons name="flame" size={14} color={colors.coral} />
-          <Text style={styles.streakText}>{mockUser.streakDays}</Text>
+          <Text style={styles.streakText}>{streakDays}</Text>
         </View>
         <TouchableOpacity
           style={styles.bellBtn}
@@ -66,20 +73,20 @@ function Header({ firstName, onBadgePress, onBellPress, hasUnreadNotifications }
           accessibilityRole="button"
           accessibilityLabel="Notifications">
           <Ionicons name="notifications-outline" size={20} color={colors.ink} />
-          {hasUnreadNotifications ? (
-            <View style={styles.bellBadge}>
-              <Text style={styles.bellBadgeText}>{mockHomeNotifications.length}</Text>
-            </View>
-          ) : null}
+          {hasUnreadNotifications ? <View style={styles.bellDot} /> : null}
         </TouchableOpacity>
       </View>
     </View>
   )
 }
 
-function WeeklyQuestCard() {
-  const { title, daysLeft, current, total, xpReward, progressEmoji } = mockWeeklyQuest
-  const pct = current / total
+interface WeeklyQuestCardProps {
+  quest: WeeklyQuestProgress
+}
+
+function WeeklyQuestCard({ quest }: WeeklyQuestCardProps) {
+  const { title, daysLeft, current, total, xpReward, progressEmoji } = quest
+  const pct = total > 0 ? current / total : 0
 
   return (
     <LinearGradient
@@ -180,63 +187,23 @@ function CreatureOfDayCard({ onInfoPress }: CreatureOfDayCardProps) {
   )
 }
 
-function RecentFinds() {
-  const router = useRouter()
-  const CARD_WIDTH = 120
-  const recentFinds = getRecentFindDexCards()
-
-  const handleOpenSpecies = (species: DexCardSpecies) => {
-    const item = getRecentFinds().find((find) => find.id === species.id)
-    router.push({
-      pathname: '/species/[id]',
-      params: item ? recentFindRouteParams(item) : {
-        id: species.id,
-        name: species.name,
-        number: species.number,
-        kingdom: species.kingdom,
-      },
-    })
-  }
-
-  return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <View>
-          <Text style={styles.sectionTitle}>Recent finds</Text>
-          <Text style={styles.sectionSub}>47 spotted · 200 left to discover</Text>
-        </View>
-        <TouchableOpacity
-          activeOpacity={0.7}
-          accessibilityRole="link"
-          accessibilityLabel="View all recent finds in Dex"
-          onPress={() => router.navigate('/dex')}>
-          <Text style={styles.seeAll}>View all</Text>
-        </TouchableOpacity>
-      </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.recentScroll}>
-        {recentFinds.map((species) => (
-          <DexCard
-            key={species.id}
-            width={CARD_WIDTH}
-            species={species}
-            onPress={() => handleOpenSpecies(species)}
-          />
-        ))}
-      </ScrollView>
-    </View>
-  )
-}
-
 export function SpotHomeScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { firstName } = useAccountProfile()
+  const { firstName, timeZone, level, streakDays, spotsCaptured, weeklyQuest, isReady, isLoading } =
+    useAccountProfile()
+  const greeting = useSpotGreeting(timeZone)
   const [creatureInfoOpen, setCreatureInfoOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true)
+
+  if (isLoading || !isReady) {
+    return (
+      <View style={[styles.screen, styles.loadingScreen, { paddingTop: contentTopInset(insets.top) }]}>
+        <ActivityIndicator size="large" color={colors.green} />
+      </View>
+    )
+  }
 
   const handleOpenNotifications = () => {
     setNotificationsOpen(true)
@@ -262,12 +229,16 @@ export function SpotHomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}>
         <Header
+          greeting={greeting}
           firstName={firstName}
+          level={level}
+          streakDays={streakDays}
+          spotsCaptured={spotsCaptured}
           onBadgePress={handleOpenBadges}
           onBellPress={handleOpenNotifications}
           hasUnreadNotifications={hasUnreadNotifications}
         />
-        <WeeklyQuestCard />
+        <WeeklyQuestCard quest={weeklyQuest} />
         <View style={styles.sectionGap}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Creature of the day</Text>
@@ -275,7 +246,12 @@ export function SpotHomeScreen() {
           </View>
           <CreatureOfDayCard onInfoPress={() => setCreatureInfoOpen(true)} />
         </View>
-        <RecentFinds />
+        <RecentSpotsSection
+          title="Recent finds"
+          spotsCaptured={spotsCaptured}
+          cardWidth={120}
+          horizontalPadding={screenLayout.padH}
+        />
       </ScrollView>
 
       <CreatureInfoOverlay
@@ -297,6 +273,10 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  loadingScreen: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   root: {
     flex: 1,
@@ -383,24 +363,16 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  bellBadge: {
+  bellDot: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    minWidth: 16,
-    height: 16,
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
     borderRadius: radius.pill,
     backgroundColor: colors.coral,
     borderWidth: 1.5,
     borderColor: colors.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  bellBadgeText: {
-    fontSize: 9,
-    fontWeight: typeTokens.body.weights.black,
-    color: colors.card,
   },
 
   // Quest card
@@ -657,8 +629,4 @@ const styles = StyleSheet.create({
   },
 
   // Recent finds
-  recentScroll: {
-    gap: space[8],
-    paddingRight: screenLayout.padH,
-  },
 })

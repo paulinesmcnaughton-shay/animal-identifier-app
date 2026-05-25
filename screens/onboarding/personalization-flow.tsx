@@ -18,6 +18,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { notifyAccountProfileChanged } from '@/features/settings/account-profile-events'
+import { syncAccountProfileFromAuth } from '@/features/settings/sync-account-profile'
+import { deviceTimeZone } from '@/features/profile/time-greeting'
+import {
+  getUsernameValidationError,
+  normalizeUsername,
+  sanitizeUsernameInput,
+} from '@/features/settings/username'
 import { useAuth } from '@/lib/auth/auth-context'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
@@ -55,6 +63,7 @@ export function PersonalizationFlow() {
   const [locationText, setLocationText] = useState('')
   const [latitude, setLatitude] = useState<number | null>(null)
   const [longitude, setLongitude] = useState<number | null>(null)
+  const [timezone, setTimezone] = useState<string | null>(null)
   const [detectingLocation, setDetectingLocation] = useState(false)
 
   const [interests, setInterests] = useState<string[]>([])
@@ -73,7 +82,7 @@ export function PersonalizationFlow() {
 
     const metadataUsername = user.user_metadata?.username
     if (typeof metadataUsername === 'string' && metadataUsername.trim()) {
-      setUsername((current) => current || metadataUsername.trim())
+      setUsername((current) => current || sanitizeUsernameInput(metadataUsername))
     }
   }, [authLoading, router, user])
 
@@ -96,6 +105,7 @@ export function PersonalizationFlow() {
 
       setLatitude(loc.coords.latitude)
       setLongitude(loc.coords.longitude)
+      setTimezone(deviceTimeZone())
       setLocationText(
         [place?.city, place?.region, place?.country].filter(Boolean).join(', '),
       )
@@ -118,6 +128,12 @@ export function PersonalizationFlow() {
       return
     }
 
+    const usernameError = getUsernameValidationError(username)
+    if (usernameError) {
+      setError(usernameError)
+      return
+    }
+
     setLoading(true)
     setError(null)
 
@@ -130,14 +146,14 @@ export function PersonalizationFlow() {
 
     const { error: saveError } = await supabase.from('profiles').upsert({
       id: user.id,
-      username: username.trim(),
+      username: normalizeUsername(username),
       location_text: locationText.trim() || null,
       latitude,
       longitude,
+      timezone: timezone ?? deviceTimeZone(),
       interests,
       age_group: ageGroup,
       onboarding_complete: true,
-      updated_at: new Date().toISOString(),
     })
 
     setLoading(false)
@@ -147,6 +163,7 @@ export function PersonalizationFlow() {
       return
     }
 
+    await syncAccountProfileFromAuth(user)
     router.replace('/home')
   }
 
@@ -182,7 +199,7 @@ export function PersonalizationFlow() {
           </Text>
 
           <View style={styles.fieldGroup}>
-            <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Display name</Text>
+            <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Username</Text>
             <TextInput
               style={[styles.input, { fontFamily: 'Nunito_400Regular' }]}
               placeholder="e.g. naturelover42"
@@ -190,7 +207,7 @@ export function PersonalizationFlow() {
               autoCapitalize="none"
               autoCorrect={false}
               value={username}
-              onChangeText={setUsername}
+              onChangeText={(text) => setUsername(sanitizeUsernameInput(text))}
             />
           </View>
 
@@ -223,8 +240,9 @@ export function PersonalizationFlow() {
               accessibilityRole="button"
               accessibilityLabel="Continue to interests"
               onPress={() => {
-                if (!username.trim()) {
-                  setError('Please enter a display name')
+                const usernameError = getUsernameValidationError(username)
+                if (usernameError) {
+                  setError(usernameError)
                   return
                 }
                 setError(null)

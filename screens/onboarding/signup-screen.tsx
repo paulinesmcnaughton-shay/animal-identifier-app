@@ -22,12 +22,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import { assignNewUserAvatar } from '@/features/settings/profile-avatar'
 import { setTesterAccount } from '@/features/settings/tester-account'
+import { getUsernameValidationError, sanitizeUsernameInput } from '@/features/settings/username'
 import { useAuth } from '@/lib/auth/auth-context'
 
 export function SignupScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { signUp, signInWithApple, signInWithGoogle } = useAuth()
+  const { signUp, signInAsDemoUser, signInWithApple, signInWithGoogle } = useAuth()
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -49,6 +50,24 @@ export function SignupScreen() {
 
     setLoading(true)
     setError(null)
+
+    if (__DEV__) {
+      const result = await signInAsDemoUser()
+      setLoading(false)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      router.replace('/home')
+      return
+    }
+
+    const usernameError = getUsernameValidationError(username)
+    if (usernameError) {
+      setLoading(false)
+      setError(usernameError)
+      return
+    }
 
     const result = await signUp({ email, password, username })
     setLoading(false)
@@ -149,7 +168,7 @@ export function SignupScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               value={username}
-              onChangeText={setUsername}
+              onChangeText={(text) => setUsername(sanitizeUsernameInput(text))}
             />
           </View>
 

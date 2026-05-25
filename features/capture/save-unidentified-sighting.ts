@@ -2,7 +2,7 @@ import * as Location from 'expo-location'
 
 import { storage } from '@/util/storage'
 
-const STORAGE_KEY = 'wildr_unidentified_sightings'
+const STORAGE_KEY = 'wildkind_unidentified_sightings'
 
 async function getJson<T>(key: string): Promise<T | null> {
   const raw = await storage.getString(key)

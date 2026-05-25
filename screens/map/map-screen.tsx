@@ -37,54 +37,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { KingdomMapPin } from '@/components/map/KingdomMapPin'
 import { NearbyRadarRings } from '@/components/map/NearbyRadarRings'
 import { UserHeadingBeam } from '@/components/map/UserHeadingBeam'
-import { KINGDOM, KingdomBadge, type KingdomKey } from '@/design/atoms/KingdomBadge'
+import { KINGDOM, KingdomBadge } from '@/design/atoms/KingdomBadge'
 import { slideUpSheetHandle, slideUpSheetShell } from '@/design/slide-up-sheet'
 import { contentTopInset } from '@/design/screen-layout'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
 import { useDeviceHeading } from '@/features/map/use-device-heading'
 import { getKingdomPinZoomStyle } from '@/features/map/kingdom-pin-zoom'
+import { formatDistanceM } from '@/features/map/geo'
+import type { CommunityNearbySighting, MapSighting } from '@/features/map/map-sighting'
+import { MOCK_MY_SIGHTINGS } from '@/features/map/mock-map-data'
+import { useNearbyCommunitySightings } from '@/features/map/use-nearby-community'
 import { shiftSightingsNearUser, useUserLocation } from '@/features/map/use-user-location'
+import { useAccountProfile } from '@/features/settings/account-profile'
 import { PAN_ACTIVE_OFFSET_Y, PAN_FAIL_OFFSET_X } from '@/lib/draggable-sheet'
 
 const MAPBOX_TOKEN = (Constants.expoConfig?.extra?.mapboxToken as string) ?? ''
 Mapbox.setAccessToken(MAPBOX_TOKEN)
 
-// ─── Mock data ───────────────────────────────────────────────────────────────
-
-interface Sighting {
-  id: string
-  name: string
-  kingdom: KingdomKey
-  lat: number
-  lng: number
-  date: string
-  count: number
-  isNew?: boolean
-}
-
-const MOCK_SIGHTINGS: Sighting[] = [
-  { id: '1',  name: 'Red Fox',      kingdom: 'mammal',    lat: 51.5076, lng: -0.0962, date: 'Today',     count: 3 },
-  { id: '2',  name: 'Robin',        kingdom: 'bird',      lat: 51.5084, lng: -0.0850, date: 'Yesterday', count: 5 },
-  { id: '3',  name: 'Monarch',      kingdom: 'insect',    lat: 51.5043, lng: -0.0813, date: '3d ago',    count: 1, isNew: true },
-  { id: '4',  name: 'Badger',       kingdom: 'mammal',    lat: 51.5019, lng: -0.0948, date: '1w ago',    count: 2 },
-  { id: '5',  name: 'Blue Jay',     kingdom: 'bird',      lat: 51.5028, lng: -0.0854, date: '2w ago',    count: 4 },
-  { id: '6',  name: 'Hare',         kingdom: 'mammal',    lat: 51.5091, lng: -0.0905, date: 'Today',     count: 1 },
-  { id: '7',  name: 'Palmate Newt', kingdom: 'amphibian', lat: 51.5058, lng: -0.0985, date: '4d ago',    count: 2, isNew: true },
-  { id: '8',  name: 'Tawny Owl',    kingdom: 'bird',      lat: 51.5034, lng: -0.0973, date: '1w ago',    count: 3 },
-  { id: '9',  name: 'Common Frog',  kingdom: 'amphibian', lat: 51.5011, lng: -0.0880, date: '2d ago',    count: 6 },
-  { id: '10', name: 'Stag Beetle',  kingdom: 'insect',    lat: 51.5064, lng: -0.0833, date: '5d ago',    count: 2, isNew: true },
-]
-
-const NEARBY_DISTANCES_M = [120, 280, 350, 490, 620, 850, 1100, 1400] as const
-const NEARBY_SIGHTING_INDEX = [0, 6, 1, 9, 3, 7, 4, 2] as const
-
-function formatDist(m: number): string {
-  return m < 1000 ? `${m}m away` : `${(m / 1000).toFixed(1)}km away`
-}
-
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-const WILDR_MAP_STYLE = 'mapbox://styles/test4backend/cmpd0l12s006v01rv1tgt72g0'
+const WILDKIND_MAP_STYLE = 'mapbox://styles/test4backend/cmpd0l12s006v01rv1tgt72g0'
 const TERRAIN_MAP_STYLE = 'mapbox://styles/mapbox/outdoors-v12'
 const MAPBOX_STREETS_SOURCE = 'mapbox://mapbox.mapbox-streets-v8'
 const GREENSPACE_STROKE = colors.green
@@ -119,27 +91,29 @@ export function MapScreenContent() {
   const mapRef = useRef<MapView>(null)
   const mapNativeGestureRef = useRef<NativeViewGestureHandler>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('sightings')
-  const [selectedSighting, setSelectedSighting] = useState<Sighting | null>(null)
+  const [selectedSighting, setSelectedSighting] = useState<MapSighting | null>(null)
   const [mapStyle, setMapStyle] = useState<'light' | 'terrain'>('light')
   const [zoom, setZoom] = useState(13)
   const [mapBearing, setMapBearing] = useState(0)
   const { heading: deviceHeading, isAvailable: hasHeading } = useDeviceHeading()
   const { coordinate: userCoord, isLive: hasLiveLocation } = useUserLocation()
+  const { spotsCaptured } = useAccountProfile()
   const hasCenteredOnUser = useRef(false)
 
-  const sightingsOnMap = useMemo(
-    () => (hasLiveLocation ? shiftSightingsNearUser(MOCK_SIGHTINGS, userCoord) : MOCK_SIGHTINGS),
-    [hasLiveLocation, userCoord],
-  )
+  const mySightingsOnMap = useMemo(() => {
+    if (spotsCaptured === 0) return []
+    return hasLiveLocation
+      ? shiftSightingsNearUser(MOCK_MY_SIGHTINGS, userCoord)
+      : MOCK_MY_SIGHTINGS
+  }, [hasLiveLocation, userCoord, spotsCaptured])
 
-  const nearbyList = useMemo(
-    () =>
-      NEARBY_SIGHTING_INDEX.map((index, i) => ({
-        ...sightingsOnMap[index],
-        distanceM: NEARBY_DISTANCES_M[i],
-      })),
-    [sightingsOnMap],
-  )
+  const {
+    items: nearbyCommunity,
+    isLoading: nearbyLoading,
+    error: nearbyError,
+  } = useNearbyCommunitySightings(userCoord, true)
+
+  const pinsOnMap = viewMode === 'nearby' ? nearbyCommunity : mySightingsOnMap
 
   const pinZoomStyle = useMemo(() => getKingdomPinZoomStyle(zoom), [zoom])
 
@@ -207,7 +181,7 @@ export function MapScreenContent() {
     transform: [{ translateY: translateY.value }],
   }))
 
-  const handleMarkerPress = (sighting: Sighting) => {
+  const handleMarkerPress = (sighting: MapSighting) => {
     pinJustTappedRef.current = true
     setSelectedSighting(sighting)
     translateY.value = withSpring(snapExpandedPin, SPRING)
@@ -250,8 +224,8 @@ export function MapScreenContent() {
 
   const handleToggleView = (mode: ViewMode) => {
     setViewMode(mode)
+    setSelectedSighting(null)
     if (mode === 'sightings') {
-      setSelectedSighting(null)
       translateY.value = withSpring(snapCollapsed, SPRING)
     }
   }
@@ -280,7 +254,7 @@ export function MapScreenContent() {
         <MapView
           ref={mapRef}
           style={StyleSheet.absoluteFill}
-          styleURL={mapStyle === 'light' ? WILDR_MAP_STYLE : TERRAIN_MAP_STYLE}
+          styleURL={mapStyle === 'light' ? WILDKIND_MAP_STYLE : TERRAIN_MAP_STYLE}
           scrollEnabled
           zoomEnabled
           pitchEnabled={false}
@@ -357,7 +331,7 @@ export function MapScreenContent() {
           </MarkerView>
 
           {pinZoomStyle.size > 0 &&
-            sightingsOnMap.map((s) => (
+            pinsOnMap.map((s) => (
               <MarkerView
                 key={s.id}
                 coordinate={[s.lng, s.lat]}
@@ -446,9 +420,18 @@ export function MapScreenContent() {
                   selectedSighting={selectedSighting}
                   onViewInDex={handleViewInDex}
                   areaLabel={hasLiveLocation ? 'Around you' : 'Hyde Park Area'}
+                  spotsCaptured={spotsCaptured}
                 />
               )
-            : <NearbySheet items={nearbyList} />
+            : (
+                <NearbySheet
+                  items={nearbyCommunity}
+                  isLoading={nearbyLoading}
+                  error={nearbyError}
+                  selectedSighting={selectedSighting}
+                  onViewInDex={handleViewInDex}
+                />
+              )
           }
         </Animated.View>
       </GestureDetector>
@@ -459,46 +442,67 @@ export function MapScreenContent() {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 interface SheetProps {
-  selectedSighting: Sighting | null
+  selectedSighting: MapSighting | null
   onViewInDex: () => void
   areaLabel: string
+  spotsCaptured: number
 }
 
-function SightingsSheet({ selectedSighting, onViewInDex, areaLabel }: SheetProps) {
+function SightingsSheet({ selectedSighting, onViewInDex, areaLabel, spotsCaptured }: SheetProps) {
+  const hasSightings = spotsCaptured > 0
+
   return (
     <View style={styles.sheetInner}>
       <View style={styles.handle} />
       <View style={styles.sheetRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.sheetTitle}>{areaLabel}</Text>
-          <Text style={styles.sheetSub}>47 species · 128 sightings</Text>
+          <Text style={styles.sheetSub}>
+            {hasSightings
+              ? `${spotsCaptured} species spotted`
+              : 'Nothing spotted yet — head outside!'}
+          </Text>
         </View>
-        <View style={styles.statChip}>
-          <Ionicons name="trending-up" size={13} color={colors.green} />
-          <Text style={styles.statChipText}>+3 this week</Text>
-        </View>
+        {hasSightings ? (
+          <View style={styles.statChip}>
+            <Ionicons name="trending-up" size={13} color={colors.green} />
+            <Text style={styles.statChipText}>Keep exploring</Text>
+          </View>
+        ) : null}
       </View>
-      {selectedSighting && <PinDetail sighting={selectedSighting} onViewInDex={onViewInDex} />}
+      {selectedSighting ? (
+        <PinDetail sighting={selectedSighting} onViewInDex={onViewInDex} viewMode="sightings" />
+      ) : null}
     </View>
   )
 }
 
 interface NearbySheetProps {
-  items: (Sighting & { distanceM: number })[]
+  items: CommunityNearbySighting[]
+  isLoading: boolean
+  error: string | null
+  selectedSighting: MapSighting | null
+  onViewInDex: () => void
 }
 
-function NearbySheet({ items }: NearbySheetProps) {
+function NearbySheet({ items, isLoading, error, selectedSighting, onViewInDex }: NearbySheetProps) {
+  const emptyMessage = error
+    ?? (isLoading ? 'Loading nearby spots…' : 'No community spots within 2km yet.')
+
   return (
     <View style={styles.sheetInner}>
       <View style={styles.handle} />
       <Text style={styles.sheetTitle}>Nearby Species</Text>
-      <Text style={[styles.sheetSub, { marginBottom: space[16] }]}>Within 2km of you</Text>
+      <Text style={[styles.sheetSub, { marginBottom: space[16] }]}>
+        Spotted by other explorers within 2km
+      </Text>
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
         scrollEnabled
         style={styles.nearbyList}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={<Text style={styles.sheetSub}>{emptyMessage}</Text>}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         renderItem={({ item }) => (
           <View style={styles.nearbyRow}>
@@ -511,26 +515,49 @@ function NearbySheet({ items }: NearbySheetProps) {
                   </View>
                 )}
               </View>
-              <Text style={styles.nearbyDist}>{formatDist(item.distanceM)}</Text>
+              <Text style={styles.nearbyDist}>
+                {formatDistanceM(item.distanceM)} · {item.explorerCount}{' '}
+                {item.explorerCount === 1 ? 'explorer' : 'explorers'}
+              </Text>
             </View>
             <KingdomBadge kind={item.kingdom} />
           </View>
         )}
       />
+      {selectedSighting ? (
+        <PinDetail sighting={selectedSighting} onViewInDex={onViewInDex} viewMode="nearby" />
+      ) : null}
     </View>
   )
 }
 
-function PinDetail({ sighting, onViewInDex }: { sighting: Sighting; onViewInDex: () => void }) {
+function pinDetailMeta(sighting: MapSighting, viewMode: ViewMode): string {
+  if (viewMode === 'nearby' && 'explorerCount' in sighting) {
+    const community = sighting as CommunityNearbySighting
+    const explorers = community.explorerCount
+    const label = explorers === 1 ? '1 explorer' : `${explorers} explorers`
+    return `Spotted ${sighting.date} · ${label} nearby`
+  }
+
+  return `Spotted ${sighting.date} · ${sighting.count} ${sighting.count === 1 ? 'sighting' : 'sightings'}`
+}
+
+function PinDetail({
+  sighting,
+  onViewInDex,
+  viewMode,
+}: {
+  sighting: MapSighting
+  onViewInDex: () => void
+  viewMode: ViewMode
+}) {
   return (
     <>
       <View style={styles.pinDivider} />
       <View style={styles.pinDetailHeader}>
         <View style={{ flex: 1 }}>
           <Text style={styles.pinDetailName}>{sighting.name}</Text>
-          <Text style={styles.pinDetailMeta}>
-            Spotted {sighting.date} · {sighting.count} {sighting.count === 1 ? 'sighting' : 'sightings'}
-          </Text>
+          <Text style={styles.pinDetailMeta}>{pinDetailMeta(sighting, viewMode)}</Text>
         </View>
         <KingdomBadge kind={sighting.kingdom} />
       </View>
