@@ -9,6 +9,7 @@ const PIN_FULL = 46
 interface KingdomMapPinProps {
   kingdom: KingdomKey
   zoomStyle: KingdomPinZoomStyle
+  isGuideTarget?: boolean
 }
 
 function darkenHex(hex: string, amount = 45): string {
@@ -19,7 +20,7 @@ function darkenHex(hex: string, amount = 45): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
-export function KingdomMapPin({ kingdom, zoomStyle }: KingdomMapPinProps) {
+export function KingdomMapPin({ kingdom, zoomStyle, isGuideTarget = false }: KingdomMapPinProps) {
   const { size, emojiOpacity, ringWidth, haloOpacity, shadowOpacity } = zoomStyle
   if (size <= 0) return null
 
@@ -31,6 +32,18 @@ export function KingdomMapPin({ kingdom, zoomStyle }: KingdomMapPinProps) {
 
   return (
     <View style={[styles.wrap, { width: haloSize, height: haloSize }]}>
+      {isGuideTarget ? (
+        <View
+          style={[
+            styles.guideRing,
+            {
+              width: haloSize + 14,
+              height: haloSize + 14,
+              borderRadius: (haloSize + 14) / 2,
+            },
+          ]}
+        />
+      ) : null}
       {haloOpacity > 0.04 ? (
         <View
           style={[
@@ -79,6 +92,12 @@ const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  guideRing: {
+    position: 'absolute',
+    borderWidth: 3,
+    borderColor: colors.greenLight,
+    backgroundColor: 'transparent',
   },
   halo: {
     position: 'absolute',

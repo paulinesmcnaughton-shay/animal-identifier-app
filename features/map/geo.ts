@@ -33,8 +33,12 @@ export function boundingBox(
   }
 }
 
+/** @deprecated Use formatDistance from @/features/settings/distance-unit */
 export function formatDistanceM(m: number): string {
-  return m < 1000 ? `${Math.round(m)}m away` : `${(m / 1000).toFixed(1)}km away`
+  const miles = m / 1609.344
+  if (miles < 0.1) return `${Math.round(m / 0.3048)} ft away`
+  if (miles < 10) return `${miles.toFixed(1)} mi away`
+  return `${Math.round(miles)} mi away`
 }
 
 export function formatSpottedAgo(iso: string): string {

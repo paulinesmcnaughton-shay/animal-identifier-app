@@ -29,6 +29,13 @@ export function SpeciesDexDetailSections({
         </View>
       ) : null}
 
+      {species.description ? (
+        <View style={styles.aboutCard}>
+          <Text style={styles.sectionTitle}>WHAT IT IS</Text>
+          <Text style={styles.aboutText}>{species.description}</Text>
+        </View>
+      ) : null}
+
       <Text style={styles.sectionTitle}>VITALS</Text>
       <View style={styles.vitalsRows}>
         {chunkPairs(species.vitals).map((row, rowIndex) => (
@@ -174,6 +181,16 @@ const styles = StyleSheet.create({
   gameStatFill: {
     height: '100%',
     borderRadius: radius.pill,
+  },
+  aboutCard: {
+    gap: space[8],
+  },
+  aboutText: {
+    fontFamily: typeTokens.body.family,
+    fontSize: typeTokens.size.body,
+    fontWeight: typeTokens.body.weights.medium,
+    color: colors.ink2,
+    lineHeight: 22,
   },
   sectionTitle: {
     fontFamily: typeTokens.display.family,

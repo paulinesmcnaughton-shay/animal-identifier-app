@@ -76,6 +76,10 @@ export default function RootLayout() {
           options={{ contentStyle: { backgroundColor: colors.bg } }}
         />
         <Stack.Screen
+          name="settings-distance-unit"
+          options={{ contentStyle: { backgroundColor: colors.bg } }}
+        />
+        <Stack.Screen
           name="notifications"
           options={{ contentStyle: { backgroundColor: colors.bg } }}
         />

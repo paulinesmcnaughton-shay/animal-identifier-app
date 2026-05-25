@@ -26,6 +26,7 @@ interface CaptureResultSheetProps {
   errorMessage: string | null
   manualHint?: string
   bottomInset: number
+  isSavingCollection?: boolean
   onAddToCollection: () => void
   onChooseSpecies: () => void
   onRetake: () => void
@@ -38,6 +39,7 @@ export function CaptureResultSheet({
   errorMessage,
   manualHint,
   bottomInset,
+  isSavingCollection = false,
   onAddToCollection,
   onChooseSpecies,
   onRetake,
@@ -155,7 +157,11 @@ export function CaptureResultSheet({
               </Text>
             ) : null}
 
-            <PopButton label="Add to collection" onPress={onAddToCollection} />
+            <PopButton
+              label={isSavingCollection ? 'Saving…' : 'Add to collection'}
+              onPress={onAddToCollection}
+              disabled={isSavingCollection}
+            />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Not the right species"
@@ -173,15 +179,21 @@ export function CaptureResultSheet({
 interface PopButtonProps {
   label: string
   onPress: () => void
+  disabled?: boolean
 }
 
-function PopButton({ label, onPress }: PopButtonProps) {
+function PopButton({ label, onPress, disabled }: PopButtonProps) {
   return (
     <View style={[styles.popWrap, styles.fullWidth]}>
       <Pressable
         accessibilityRole="button"
+        disabled={disabled}
         onPress={onPress}
-        style={({ pressed }) => [styles.popButton, pressed && styles.popPressed]}>
+        style={({ pressed }) => [
+          styles.popButton,
+          pressed && !disabled && styles.popPressed,
+          disabled && styles.popDisabled,
+        ]}>
         <Text style={styles.popLabel}>{label}</Text>
       </Pressable>
     </View>
@@ -301,6 +313,9 @@ const styles = StyleSheet.create({
   },
   popPressed: {
     transform: [{ translateY: 2 }],
+  },
+  popDisabled: {
+    opacity: 0.6,
   },
   popLabel: {
     color: colors.card,

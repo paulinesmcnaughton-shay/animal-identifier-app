@@ -1,10 +1,17 @@
+import { normalizeSightingsVisibility } from '@/features/map/map-privacy-from-settings'
+import {
+  type DistanceUnit,
+  distanceUnitLabel,
+  ensureDistanceUnitInitialized,
+} from '@/features/settings/distance-unit'
+import { sightingsVisibilitySummary } from '@/features/settings/sightings-sharing-prefs'
 import { normalizeUsername } from '@/features/settings/username'
 import { storage } from '@/util/storage'
 
 export type CameraQuality = 'high' | 'medium' | 'low'
 export type AppearanceMode = 'light' | 'dark' | 'system'
 export type DexLayoutMode = 'grid-2' | 'grid-3' | 'list'
-export type SightingsVisibility = 'public' | 'friends' | 'private'
+export type SightingsVisibility = 'public' | 'anonymous' | 'private'
 export type StreakReminderTime = '07:00' | '12:00' | '19:00' | '20:00'
 
 const KEYS = {
@@ -25,6 +32,7 @@ const KEYS = {
   notifyNewSpecies: 'settings.notifications.newSpecies',
   notifyBadgeUnlocked: 'settings.notifications.badgeUnlocked',
   notifyWeeklyQuest: 'settings.notifications.weeklyQuest',
+  distanceUnit: 'settings.distanceUnit',
 } as const
 
 export const SETTINGS_DEFAULTS = {
@@ -45,6 +53,7 @@ export const SETTINGS_DEFAULTS = {
   notifyNewSpecies: true,
   notifyBadgeUnlocked: true,
   notifyWeeklyQuest: true,
+  distanceUnit: 'miles' as DistanceUnit,
 } as const
 
 export const STREAK_REMINDER_TIME_OPTIONS: {
@@ -81,9 +90,9 @@ export const SIGHTINGS_VISIBILITY_OPTIONS: {
   label: string
   subtitle: string
 }[] = [
-  { value: 'public', label: 'Public', subtitle: 'Anyone can see your spots' },
-  { value: 'friends', label: 'Friends only', subtitle: 'Followers you approve' },
-  { value: 'private', label: 'Private', subtitle: 'Only you' },
+  { value: 'public', label: 'Public', subtitle: 'Shows on the map with your username' },
+  { value: 'anonymous', label: 'Anonymous', subtitle: 'Shows on the map, no name' },
+  { value: 'private', label: 'Private', subtitle: 'Only you — not on the map' },
 ]
 
 const CAMERA_MP: Record<CameraQuality, string> = {
@@ -105,7 +114,7 @@ function dexLayoutLabel(value: DexLayoutMode): string {
 }
 
 function sightingsVisibilityLabel(value: SightingsVisibility): string {
-  return SIGHTINGS_VISIBILITY_OPTIONS.find((o) => o.value === value)?.label ?? 'Public'
+  return sightingsVisibilitySummary(value)
 }
 
 export function formatAccountSubtitle(username: string): string {
@@ -150,6 +159,7 @@ export interface SettingsPreferences {
   notifyNewSpecies: boolean
   notifyBadgeUnlocked: boolean
   notifyWeeklyQuest: boolean
+  distanceUnit: DistanceUnit
 }
 
 export interface SettingsRowSubtitles {
@@ -159,6 +169,7 @@ export interface SettingsRowSubtitles {
   appearance: string
   dexLayout: string
   sightingsVisibility: string
+  distanceUnit: string
 }
 
 async function readString(key: string, fallback: string): Promise<string> {
@@ -173,6 +184,8 @@ async function readBool(key: string, fallback: boolean): Promise<boolean> {
 }
 
 export async function loadSettingsPreferences(level = 14): Promise<SettingsPreferences> {
+  const distanceUnit = await ensureDistanceUnitInitialized()
+
   return {
     displayName: await readString(KEYS.displayName, SETTINGS_DEFAULTS.displayName),
     username: await readString(KEYS.username, SETTINGS_DEFAULTS.username),
@@ -184,10 +197,9 @@ export async function loadSettingsPreferences(level = 14): Promise<SettingsPrefe
     )) as CameraQuality,
     appearance: (await readString(KEYS.appearance, SETTINGS_DEFAULTS.appearance)) as AppearanceMode,
     dexLayout: (await readString(KEYS.dexLayout, SETTINGS_DEFAULTS.dexLayout)) as DexLayoutMode,
-    sightingsVisibility: (await readString(
-      KEYS.sightingsVisibility,
-      SETTINGS_DEFAULTS.sightingsVisibility,
-    )) as SightingsVisibility,
+    sightingsVisibility: normalizeSightingsVisibility(
+      await readString(KEYS.sightingsVisibility, SETTINGS_DEFAULTS.sightingsVisibility),
+    ),
     autoRecordSounds: await readBool(KEYS.autoRecordSounds, SETTINGS_DEFAULTS.autoRecordSounds),
     autoTagLocation: await readBool(KEYS.autoTagLocation, SETTINGS_DEFAULTS.autoTagLocation),
     vibrateOnIdentify: await readBool(KEYS.vibrateOnIdentify, SETTINGS_DEFAULTS.vibrateOnIdentify),
@@ -206,6 +218,7 @@ export async function loadSettingsPreferences(level = 14): Promise<SettingsPrefe
       SETTINGS_DEFAULTS.notifyBadgeUnlocked,
     ),
     notifyWeeklyQuest: await readBool(KEYS.notifyWeeklyQuest, SETTINGS_DEFAULTS.notifyWeeklyQuest),
+    distanceUnit,
   }
 }
 
@@ -220,6 +233,7 @@ export function settingsRowSubtitles(
     appearance: appearanceLabel(prefs.appearance),
     dexLayout: dexLayoutLabel(prefs.dexLayout),
     sightingsVisibility: sightingsVisibilityLabel(prefs.sightingsVisibility),
+    distanceUnit: distanceUnitLabel(prefs.distanceUnit),
   }
 }
 

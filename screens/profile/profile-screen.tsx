@@ -21,6 +21,7 @@ import { colors, radius, shadow, space, type as typeTokens } from '@/design/toke
 import { formatProfileStreakLabel } from '@/features/profile/streak'
 import { buildXpProgress } from '@/features/profile/xp-progress'
 import { useAccountProfile } from '@/features/settings/account-profile'
+import { useUserSightingsData } from '@/features/sightings/use-user-sightings-data'
 
 const H_PAD = screenLayout.padH
 const GRID_GAP = space[8]
@@ -43,6 +44,7 @@ export function ProfileScreen() {
     isLoading,
     isReady,
   } = useAccountProfile()
+  const { recentCards } = useUserSightingsData()
 
   const colWidth = useMemo(() => {
     const w = Dimensions.get('window').width
@@ -135,6 +137,7 @@ export function ProfileScreen() {
         <View style={styles.recentSection}>
           <RecentSpotsSection
             spotsCaptured={spotsCaptured}
+            recentCards={recentCards}
             cardWidth={colWidth}
             onSeeAll={handleSeeAllSpots}
           />

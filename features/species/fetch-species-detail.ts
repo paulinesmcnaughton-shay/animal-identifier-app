@@ -49,6 +49,7 @@ interface InatTaxon {
   name?: string
   preferred_common_name?: string
   iconic_taxon_name?: string
+  wikipedia_summary?: string
   default_photo?: { medium_url?: string; square_url?: string }
 }
 
@@ -225,11 +226,76 @@ function mapInatTaxonToWildResult(
     null
 
   return {
-    detail: { ...wildDetailShell(lookupId, commonName, latinName, kingdom), dexNumber },
+    detail: {
+      ...wildDetailShell(lookupId, commonName, latinName, kingdom),
+      dexNumber,
+      ...(taxon.wikipedia_summary?.trim()
+        ? { description: taxon.wikipedia_summary.trim() }
+        : {}),
+    },
     imageUrl,
     isDomestic: false,
     latinNameSource: 'inaturalist.taxon.name',
   }
+}
+
+type WikiPageMap = Record<string, { extract?: string; missing?: string }>
+
+async function fetchWikiExtract(title: string): Promise<string | null> {
+  if (!title.trim()) return null
+  try {
+    const url =
+      `https://en.wikipedia.org/w/api.php?action=query&prop=extracts` +
+      `&exintro=true&explaintext=true&redirects=1` +
+      `&titles=${encodeURIComponent(title.trim())}` +
+      `&format=json&origin=*`
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const json = (await res.json()) as { query?: { pages?: WikiPageMap } }
+    const pages = json.query?.pages ?? {}
+    const page = Object.values(pages)[0]
+    if (!page || 'missing' in page) return null
+    const extract = page.extract?.trim()
+    if (!extract) return null
+    // Take first 2 sentences only
+    const sentences = extract.match(/[^.!?]+[.!?]+/g) ?? []
+    return sentences.slice(0, 2).join(' ').trim() || null
+  } catch {
+    return null
+  }
+}
+
+async function searchWikiTitle(query: string): Promise<string | null> {
+  if (!query.trim()) return null
+  try {
+    const url =
+      `https://en.wikipedia.org/w/api.php?action=query&list=search` +
+      `&srsearch=${encodeURIComponent(query.trim())}&srlimit=1` +
+      `&format=json&origin=*`
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const json = (await res.json()) as { query?: { search?: Array<{ title: string }> } }
+    const title = json.query?.search?.[0]?.title
+    if (!title) return null
+    return fetchWikiExtract(title)
+  } catch {
+    return null
+  }
+}
+
+export async function fetchWikipediaSummary(latinName: string, commonName: string): Promise<string | null> {
+  // Latin name is most specific — try it first
+  if (latinName.trim()) {
+    const result = await fetchWikiExtract(latinName)
+    if (result) return result
+  }
+  // Common name direct lookup
+  if (commonName.trim()) {
+    const result = await fetchWikiExtract(commonName)
+    if (result) return result
+  }
+  // Search fallback handles disambiguation, synonyms, capitalisation differences
+  return searchWikiTitle(commonName || latinName)
 }
 
 async function fetchInatTaxonById(taxonId: number): Promise<InatTaxon | null> {
@@ -252,10 +318,26 @@ async function fetchInatTaxonByName(commonName: string): Promise<InatTaxon | nul
     const res = await fetch(url)
     if (!res.ok) return null
     const json = (await res.json()) as { results?: InatTaxon[] }
-    return json.results?.[0] ?? null
+    const taxon = json.results?.[0] ?? null
+    if (!taxon) return null
+    // Search results often omit wikipedia_summary — fetch full detail to get it
+    if (!taxon.wikipedia_summary?.trim() && taxon.id) {
+      const detail = await fetchInatTaxonById(taxon.id)
+      return detail ?? taxon
+    }
+    return taxon
   } catch {
     return null
   }
+}
+
+async function enrichWithDescription(taxon: InatTaxon): Promise<InatTaxon> {
+  if (taxon.wikipedia_summary?.trim()) return taxon
+  const latinName = taxon.name?.trim() ?? ''
+  const commonName = taxon.preferred_common_name?.trim() || latinName
+  const summary = await fetchWikipediaSummary(latinName, commonName)
+  if (!summary) return taxon
+  return { ...taxon, wikipedia_summary: summary }
 }
 
 async function fetchWildSpeciesFromInaturalist(
@@ -264,15 +346,17 @@ async function fetchWildSpeciesFromInaturalist(
 ): Promise<SpeciesDetailFetchResult | null> {
   const inatId = parseInatTaxonId(lookupId)
   if (inatId !== null) {
-    const taxon = await fetchInatTaxonById(inatId)
-    if (taxon?.name?.trim()) {
+    const raw = await fetchInatTaxonById(inatId)
+    if (raw?.name?.trim()) {
+      const taxon = await enrichWithDescription(raw)
       return mapInatTaxonToWildResult(taxon, lookupId)
     }
   }
 
   if (commonNameHint?.trim()) {
-    const taxon = await fetchInatTaxonByName(commonNameHint)
-    if (taxon?.name?.trim()) {
+    const raw = await fetchInatTaxonByName(commonNameHint)
+    if (raw?.name?.trim()) {
+      const taxon = await enrichWithDescription(raw)
       const resolvedId = lookupId.trim() || slugifySpeciesName(commonNameHint)
       return mapInatTaxonToWildResult(taxon, resolvedId)
     }

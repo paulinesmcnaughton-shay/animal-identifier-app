@@ -60,9 +60,11 @@ export function SpeciesDetailScreen() {
     latin?: string | string[]
     domestic?: string | string[]
     fromCapture?: string | string[]
+    saved?: string | string[]
   }>()
 
   const fromCapture = resolveRouteParam(params.fromCapture) === '1'
+  const savedToCollection = resolveRouteParam(params.saved) === '1'
 
   const id = resolveRouteParam(params.id) ?? 'unknown'
   const paramName = resolveRouteParam(params.name)
@@ -96,7 +98,7 @@ export function SpeciesDetailScreen() {
     [id, paramName, species.commonName],
   )
 
-  const taxaPhotoUrl = useTaxaPhoto(species.commonName || species.latinName, species.kingdom)
+  const { url: taxaPhotoUrl } = useTaxaPhoto(species.commonName || species.latinName, species.kingdom)
   const remotePhotoUrl = heroImageUrl?.trim() || taxaPhotoUrl || null
 
   const [remoteImageFailed, setRemoteImageFailed] = useState(false)
@@ -217,6 +219,12 @@ export function SpeciesDetailScreen() {
           </View>
 
           <View style={styles.profileBody}>
+            {savedToCollection ? (
+              <View style={styles.savedBanner}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.green} />
+                <Text style={styles.savedBannerText}>Added to Wild Dex & My Sightings</Text>
+              </View>
+            ) : null}
             <Text style={styles.commonName}>{species.commonName}</Text>
             <Text style={styles.latinName}>{species.latinName}</Text>
 
@@ -339,6 +347,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.ink2,
+  },
+  savedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[8],
+    marginBottom: space[8],
+    paddingVertical: space[8],
+    paddingHorizontal: space[16],
+    backgroundColor: colors.bg2,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+  },
+  savedBannerText: {
+    fontFamily: typeTokens.body.family,
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.ink2,
   },
   profileBody: {
     position: 'relative',

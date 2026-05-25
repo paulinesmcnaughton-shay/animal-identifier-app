@@ -10,14 +10,17 @@ import Mapbox, {
   VectorSource,
 } from '@rnmapbox/maps'
 import Constants from 'expo-constants'
-import { useRouter } from 'expo-router'
+import * as Location from 'expo-location'
+import { useFocusEffect } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   FlatList,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native'
 import {
@@ -26,6 +29,7 @@ import {
   NativeViewGestureHandler,
 } from 'react-native-gesture-handler'
 import Animated, {
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -35,20 +39,55 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { KingdomMapPin } from '@/components/map/KingdomMapPin'
+import { LocationAccessBanner } from '@/components/map/LocationAccessBanner'
+import { WalkDirectionsNav } from '@/components/map/WalkDirectionsNav'
+import { WalkDirectionsPreview } from '@/components/map/WalkDirectionsPreview'
+import { NearbySpotDetailCard } from '@/components/map/NearbySpotDetailCard'
+import { NearbySpeciesName } from '@/components/map/NearbySpeciesName'
+import { VerifiedIcon } from '@/components/map/VerifiedIcon'
 import { NearbyRadarRings } from '@/components/map/NearbyRadarRings'
 import { UserHeadingBeam } from '@/components/map/UserHeadingBeam'
 import { KINGDOM, KingdomBadge } from '@/design/atoms/KingdomBadge'
-import { slideUpSheetHandle, slideUpSheetShell } from '@/design/slide-up-sheet'
+import { slideUpSheetHandle, slideUpSheetRadius } from '@/design/slide-up-sheet'
 import { contentTopInset } from '@/design/screen-layout'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
 import { useDeviceHeading } from '@/features/map/use-device-heading'
 import { getKingdomPinZoomStyle } from '@/features/map/kingdom-pin-zoom'
-import { formatDistanceM } from '@/features/map/geo'
-import type { CommunityNearbySighting, MapSighting } from '@/features/map/map-sighting'
-import { MOCK_MY_SIGHTINGS } from '@/features/map/mock-map-data'
+import { arrowRotationDegrees, bearingDegrees, liveGuideDistanceM } from '@/features/map/map-guide-math'
+import { haversineDistanceM } from '@/features/map/geo'
+import {
+  createMapGuideTarget,
+  fitMapGuideCamera,
+  fitMapGuideCameraToRoute,
+  type WalkGuideSession,
+} from '@/features/map/map-guide'
+import {
+  applyWalkNavigationCamera,
+  resolveWalkNavHeading,
+  walkNavCameraPadding,
+  walkNavLookAheadCoordinate,
+} from '@/features/map/walk-navigation-camera'
+import { useWalkingGuide } from '@/features/map/use-walking-guide'
+import {
+  type DistanceUnit,
+  formatDistance,
+  nearbySearchEmptyMessage,
+} from '@/features/settings/distance-unit'
+import { useDistanceUnit } from '@/features/settings/use-distance-unit'
+import type { NearbyMapSighting } from '@/features/map/map-sighting'
+import { useUserSightingsData } from '@/features/sightings/use-user-sightings-data'
+import { useAuth } from '@/lib/auth/auth-context'
+import {
+  isWithinNearbyRadius,
+  NEARBY_PRIORITY_MILES,
+} from '@/features/map/nearby-radius'
 import { useNearbyCommunitySightings } from '@/features/map/use-nearby-community'
-import { shiftSightingsNearUser, useUserLocation } from '@/features/map/use-user-location'
+import { useUserLocation, type MapCoordinate } from '@/features/map/use-user-location'
 import { useAccountProfile } from '@/features/settings/account-profile'
+import {
+  MAP_SHEET_HEIGHT_DEFAULT,
+  mapExpandedSheetTopY,
+} from '@/features/map/map-sheet-layout'
 import { PAN_ACTIVE_OFFSET_Y, PAN_FAIL_OFFSET_X } from '@/lib/draggable-sheet'
 
 const MAPBOX_TOKEN = (Constants.expoConfig?.extra?.mapboxToken as string) ?? ''
@@ -66,15 +105,19 @@ const GREENSPACE_STROKE_STYLE = {
   lineOpacity: 0.4,
 } as const
 
-const SHEET_HEIGHT = 380
 const SHEET_HEADER_HEIGHT = 80
+/** Extra collapsed peek so My Sightings copy clears the center camera FAB */
+const SHEET_FAB_CLEARANCE_PEEK = space[16]
 const TAB_BAR_HEIGHT = 60
 const FAB_SIZE = 56
 const GAP_ABOVE_NAV = 0
 const GAP_ABOVE_FAB = space[48]
 const SNAP_EXPANDED = 0
+/** Default walk preview sheet height — shows header, summary, and direction steps above the footer CTAs. */
+const WALK_PREVIEW_DEFAULT_HEIGHT = 520
+const WALK_PREVIEW_ACTION_HEIGHT = 52
 const SPRING = { damping: 42, stiffness: 180 }
-/** Pin detail body: handle → View in Dex (excludes bottom inset above nav). */
+/** Pin detail on My Sightings (legacy sheet height when not using full detail). */
 const PIN_PANEL_BODY_HEIGHT = 232
 
 function sheetBottomInset(bottomSafeArea: number): number {
@@ -85,71 +128,198 @@ function sheetBottomInset(bottomSafeArea: number): number {
 type ViewMode = 'sightings' | 'nearby'
 
 export function MapScreenContent() {
-  const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { height: windowHeight } = useWindowDimensions()
   const cameraRef = useRef<Camera>(null)
   const mapRef = useRef<MapView>(null)
   const mapNativeGestureRef = useRef<NativeViewGestureHandler>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('sightings')
-  const [selectedSighting, setSelectedSighting] = useState<MapSighting | null>(null)
+  const [selectedSighting, setSelectedSighting] = useState<NearbyMapSighting | null>(null)
+  const [walkSession, setWalkSession] = useState<WalkGuideSession | null>(null)
   const [mapStyle, setMapStyle] = useState<'light' | 'terrain'>('light')
   const [zoom, setZoom] = useState(13)
   const [mapBearing, setMapBearing] = useState(0)
   const { heading: deviceHeading, isAvailable: hasHeading } = useDeviceHeading()
-  const { coordinate: userCoord, isLive: hasLiveLocation } = useUserLocation()
+  const {
+    coordinate: userCoord,
+    isLive: hasLiveLocation,
+    isLoading: locationLoading,
+    permissionDenied: locationDenied,
+    refreshLocation,
+  } = useUserLocation()
+  const { isAuthenticated } = useAuth()
   const { spotsCaptured } = useAccountProfile()
-  const hasCenteredOnUser = useRef(false)
-
-  const mySightingsOnMap = useMemo(() => {
-    if (spotsCaptured === 0) return []
-    return hasLiveLocation
-      ? shiftSightingsNearUser(MOCK_MY_SIGHTINGS, userCoord)
-      : MOCK_MY_SIGHTINGS
-  }, [hasLiveLocation, userCoord, spotsCaptured])
+  const { mapPins } = useUserSightingsData()
+  const distanceUnit = useDistanceUnit()
+  const mapCenteredRef = useRef<'none' | 'cached' | 'live'>('none')
 
   const {
     items: nearbyCommunity,
     isLoading: nearbyLoading,
     error: nearbyError,
-  } = useNearbyCommunitySightings(userCoord, true)
+  } = useNearbyCommunitySightings(userCoord, userCoord !== null)
 
-  const pinsOnMap = viewMode === 'nearby' ? nearbyCommunity : mySightingsOnMap
+  useFocusEffect(
+    useCallback(() => {
+      void refreshLocation()
+    }, [refreshLocation]),
+  )
+
+  const mySightingsNearby = useMemo(() => {
+    if (!isAuthenticated || spotsCaptured === 0 || !hasLiveLocation) return []
+    return mapPins.filter((pin) => isWithinNearbyRadius(pin.distanceM))
+  }, [hasLiveLocation, isAuthenticated, mapPins, spotsCaptured])
+
+  const pinsOnMap = viewMode === 'nearby' ? nearbyCommunity : mySightingsNearby
 
   const pinZoomStyle = useMemo(() => getKingdomPinZoomStyle(zoom), [zoom])
 
+  const walkTarget = walkSession?.target ?? null
+  const isWalkPreview = walkSession?.phase === 'preview'
+  const isWalkNavigating = walkSession?.phase === 'navigating'
+  const isWalkActive = walkSession !== null
+
+  const previewCameraPadding = useMemo(
+    (): [number, number, number, number] => [
+      contentTopInset(insets.top) + 100,
+      40,
+      280 + insets.bottom,
+      40,
+    ],
+    [insets.bottom, insets.top],
+  )
+
+  const walkNavPadding = useMemo(
+    () => walkNavCameraPadding(insets.top, insets.bottom),
+    [insets.bottom, insets.top],
+  )
+
+  const [isFollowingWalkNav, setIsFollowingWalkNav] = useState(true)
+  const lastWalkNavCameraRef = useRef({ at: 0, lng: 0, lat: 0 })
+
+  const {
+    isRouteLoading,
+    routeFailed,
+    routeSummary,
+    routeSteps,
+    metrics: walkGuideMetrics,
+  } = useWalkingGuide(
+    walkTarget,
+    userCoord,
+    deviceHeading,
+    MAPBOX_TOKEN,
+  )
+
+  const guideDisplay = useMemo(() => {
+    if (!walkTarget || userCoord === null) return null
+    if (walkGuideMetrics) return walkGuideMetrics
+
+    const dest = walkTarget.sighting
+    const distanceM = liveGuideDistanceM(userCoord, dest)
+    const bearing = bearingDegrees(userCoord, dest)
+    return {
+      distanceM,
+      arrowRotationDeg: arrowRotationDegrees(bearing, deviceHeading),
+      instruction: isRouteLoading ? 'Finding a walking path…' : 'Head toward the pin',
+      maneuverModifier: null,
+      maneuverType: 'depart',
+      durationRemainingSec: Math.round(distanceM / 1.4),
+      lineFeature: {
+        type: 'Feature' as const,
+        properties: {},
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: [userCoord, [dest.lng, dest.lat]],
+        },
+      },
+      isWalkingRoute: false,
+      routeCoordinates: [userCoord, [dest.lng, dest.lat]] as MapCoordinate[],
+    }
+  }, [deviceHeading, isRouteLoading, walkTarget, userCoord, walkGuideMetrics])
+
+  const mapCameraCenter = userCoord ?? [-98, 39]
+  const mapCameraZoom = userCoord ? 13 : 4
+
+  const activeMapStyleUrl = useMemo(() => {
+    if (walkTarget?.venueStyleUrl) return walkTarget.venueStyleUrl
+    return mapStyle === 'light' ? WILDKIND_MAP_STYLE : TERRAIN_MAP_STYLE
+  }, [walkTarget, mapStyle])
+
   useEffect(() => {
-    if (!hasLiveLocation || hasCenteredOnUser.current) return
-    hasCenteredOnUser.current = true
+    if (userCoord === null) return
+    const tier = hasLiveLocation ? 'live' : 'cached'
+    if (mapCenteredRef.current === 'live') return
+    if (mapCenteredRef.current === 'cached' && tier === 'cached') return
+    mapCenteredRef.current = tier
     cameraRef.current?.setCamera({
       centerCoordinate: userCoord,
       zoomLevel: 15,
-      animationDuration: 800,
+      animationDuration: tier === 'live' ? 800 : 0,
     })
   }, [hasLiveLocation, userCoord])
 
   // Prevents the MapView onPress from firing immediately after a pin tap
   const pinJustTappedRef = useRef(false)
 
+  const mapSheetTopY = mapExpandedSheetTopY(insets.top)
+
+  const sheetUsesExpandedTopAnchor =
+    isWalkPreview || selectedSighting !== null
+
+  const sheetHeight = useMemo(() => {
+    if (sheetUsesExpandedTopAnchor) {
+      return Math.max(
+        MAP_SHEET_HEIGHT_DEFAULT,
+        windowHeight - mapSheetTopY,
+      )
+    }
+    return MAP_SHEET_HEIGHT_DEFAULT
+  }, [mapSheetTopY, sheetUsesExpandedTopAnchor, windowHeight])
+
   const tabBarClearance = insets.bottom + TAB_BAR_HEIGHT + space[16]
-  const snapCollapsed = SHEET_HEIGHT - (tabBarClearance + GAP_ABOVE_NAV + SHEET_HEADER_HEIGHT)
+  const walkPreviewFooterInset =
+    space[16] + WALK_PREVIEW_ACTION_HEIGHT + tabBarClearance + FAB_SIZE / 2
+  const snapCollapsed =
+    sheetHeight - (tabBarClearance + GAP_ABOVE_NAV + SHEET_HEADER_HEIGHT + SHEET_FAB_CLEARANCE_PEEK)
+  const snapWalkPreview = Math.max(SNAP_EXPANDED, sheetHeight - WALK_PREVIEW_DEFAULT_HEIGHT)
   const fabClearance = sheetBottomInset(insets.bottom)
   const snapExpandedPin = Math.max(
     SNAP_EXPANDED,
-    SHEET_HEIGHT - PIN_PANEL_BODY_HEIGHT - fabClearance,
+    sheetHeight - PIN_PANEL_BODY_HEIGHT - fabClearance,
   )
-  const snapExpandedY = viewMode === 'nearby' ? SNAP_EXPANDED : snapExpandedPin
+  const snapExpandedY =
+    isWalkPreview || viewMode === 'nearby' || selectedSighting !== null
+      ? SNAP_EXPANDED
+      : snapCollapsed
 
   const translateY = useSharedValue(snapCollapsed)
   const context = useSharedValue(0)
+  const selectedSightingRef = useRef(selectedSighting)
+  selectedSightingRef.current = selectedSighting
 
-  /** My Sightings is header-only until a pin is tapped; Nearby list can always expand. */
-  const sheetExpandable = viewMode === 'nearby' || selectedSighting !== null
+  const dismissSheetDetail = useCallback(() => {
+    setSelectedSighting(null)
+    setWalkSession(null)
+  }, [])
+
+  /** Nearby list expands freely; My Sightings is a header peek until a pin is opened. */
+  const sheetExpandable =
+    isWalkPreview || (!isWalkNavigating && (viewMode === 'nearby' || selectedSighting !== null))
+
+  const walkSessionRef = useRef(walkSession)
+  walkSessionRef.current = walkSession
+
+  const sheetSnapY = useMemo((): number => {
+    if (isWalkPreview) return snapWalkPreview
+    if (isWalkNavigating) return snapCollapsed
+    if (viewMode === 'nearby') return SNAP_EXPANDED
+    if (selectedSighting !== null) return SNAP_EXPANDED
+    return snapCollapsed
+  }, [isWalkNavigating, isWalkPreview, selectedSighting, snapCollapsed, snapWalkPreview, viewMode])
 
   useEffect(() => {
-    if (!sheetExpandable) {
-      translateY.value = withSpring(snapCollapsed, SPRING)
-    }
-  }, [sheetExpandable, snapCollapsed, translateY])
+    translateY.value = withSpring(sheetSnapY, SPRING)
+  }, [sheetSnapY, translateY])
 
   const panGesture = useMemo(
     () =>
@@ -170,32 +340,183 @@ export function MapScreenContent() {
           const mid = (snapCollapsed + snapExpandedY) / 2
           if (e.velocityY < -500 || translateY.value < mid) {
             translateY.value = withSpring(snapExpandedY, SPRING)
-          } else {
-            translateY.value = withSpring(snapCollapsed, SPRING)
+            return
           }
+          if (walkSessionRef.current?.phase === 'preview') {
+            translateY.value = withSpring(snapWalkPreview, SPRING)
+            return
+          }
+          if (selectedSightingRef.current !== null) {
+            runOnJS(dismissSheetDetail)()
+            return
+          }
+          translateY.value = withSpring(snapCollapsed, SPRING)
         }),
-    [context, sheetExpandable, snapCollapsed, snapExpandedY, translateY],
+    [context, dismissSheetDetail, sheetExpandable, snapCollapsed, snapExpandedY, snapWalkPreview, translateY],
   )
+
+  const handleClearSheetSelection = useCallback(() => {
+    setSelectedSighting(null)
+  }, [])
 
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }))
 
-  const handleMarkerPress = (sighting: MapSighting) => {
+  const handleSelectMapSighting = useCallback((sighting: NearbyMapSighting) => {
     pinJustTappedRef.current = true
+    setWalkSession(null)
     setSelectedSighting(sighting)
-    translateY.value = withSpring(snapExpandedPin, SPRING)
+    cameraRef.current?.setCamera({
+      centerCoordinate: [sighting.lng, sighting.lat],
+      zoomLevel: 15,
+      animationDuration: 600,
+    })
+  }, [])
+
+  const handleMarkerPress = (sighting: NearbyMapSighting) => {
+    handleSelectMapSighting(sighting)
   }
 
+  const handleEndWalkGuide = useCallback(() => {
+    setWalkSession(null)
+    setIsFollowingWalkNav(true)
+    if (userCoord !== null) {
+      cameraRef.current?.setCamera({
+        centerCoordinate: userCoord,
+        zoomLevel: 15,
+        heading: 0,
+        animationDuration: 500,
+      })
+    }
+  }, [userCoord])
+
+  const focusWalkNavigationCamera = useCallback(
+    (animationDurationMs = 350) => {
+      if (userCoord === null) return
+
+      const routeCoords = walkGuideMetrics?.routeCoordinates ?? []
+      const lookAhead =
+        routeCoords.length > 0
+          ? walkNavLookAheadCoordinate(userCoord, routeCoords)
+          : walkTarget
+            ? ([walkTarget.sighting.lng, walkTarget.sighting.lat] as MapCoordinate)
+            : null
+
+      const heading = resolveWalkNavHeading(deviceHeading, userCoord, lookAhead)
+
+      applyWalkNavigationCamera({
+        cameraRef,
+        user: userCoord,
+        padding: walkNavPadding,
+        heading,
+        animationDurationMs,
+      })
+      lastWalkNavCameraRef.current = {
+        at: Date.now(),
+        lng: userCoord[0],
+        lat: userCoord[1],
+      }
+    },
+    [deviceHeading, userCoord, walkGuideMetrics, walkNavPadding, walkTarget],
+  )
+
+  const focusWalkNavigationCameraRef = useRef(focusWalkNavigationCamera)
+  focusWalkNavigationCameraRef.current = focusWalkNavigationCamera
+
+  const handleRefitWalkRoute = useCallback(() => {
+    if (!walkTarget || userCoord === null) return
+    if (isWalkNavigating) {
+      setIsFollowingWalkNav(true)
+      focusWalkNavigationCamera(500)
+      return
+    }
+    const padding = previewCameraPadding
+    if (walkGuideMetrics?.routeCoordinates.length) {
+      fitMapGuideCameraToRoute({
+        cameraRef,
+        coordinates: walkGuideMetrics.routeCoordinates,
+        padding,
+      })
+      return
+    }
+    fitMapGuideCamera({
+      cameraRef,
+      user: userCoord,
+      destination: walkTarget.sighting,
+      hasLiveUser: hasLiveLocation,
+      padding,
+    })
+  }, [
+    focusWalkNavigationCamera,
+    hasLiveLocation,
+    isWalkNavigating,
+    previewCameraPadding,
+    userCoord,
+    walkGuideMetrics,
+    walkTarget,
+  ])
+
+  useEffect(() => {
+    if (!isWalkPreview || !walkGuideMetrics?.routeCoordinates.length) return
+    fitMapGuideCameraToRoute({
+      cameraRef,
+      coordinates: walkGuideMetrics.routeCoordinates,
+      padding: previewCameraPadding,
+    })
+  }, [isWalkPreview, previewCameraPadding, walkGuideMetrics?.routeCoordinates])
+
+  const handleOpenWalkPreview = useCallback(
+    (sighting: NearbyMapSighting) => {
+      if (userCoord === null) return
+      if (!isWithinNearbyRadius(sighting.distanceM)) return
+      setWalkSession({ target: createMapGuideTarget(sighting), phase: 'preview' })
+      setSelectedSighting(null)
+    },
+    [userCoord],
+  )
+
+  const handleStartWalkNavigation = useCallback(() => {
+    setIsFollowingWalkNav(true)
+    setWalkSession((prev) => {
+      if (!prev) return null
+      return { ...prev, phase: 'navigating' }
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!isWalkNavigating) return
+    lastWalkNavCameraRef.current = { at: 0, lng: 0, lat: 0 }
+    focusWalkNavigationCameraRef.current(600)
+  }, [isWalkNavigating])
+
+  useEffect(() => {
+    if (!isWalkNavigating || userCoord === null || !isFollowingWalkNav) return
+
+    const [lng, lat] = userCoord
+    const prev = lastWalkNavCameraRef.current
+    const movedM = haversineDistanceM([prev.lng, prev.lat], { lat, lng })
+    const elapsedMs = Date.now() - prev.at
+    if (elapsedMs < 350 && movedM < 6) return
+
+    focusWalkNavigationCamera(elapsedMs < 800 ? 400 : 250)
+  }, [
+    deviceHeading,
+    focusWalkNavigationCamera,
+    isFollowingWalkNav,
+    isWalkNavigating,
+    userCoord,
+    walkGuideMetrics?.routeCoordinates,
+  ])
+
   const handleMapPress = () => {
-    // A pin tap always co-fires a map tap — consume the flag and do nothing.
-    // Only a bare map tap (no pin) reaches the clear logic.
     if (pinJustTappedRef.current) {
       pinJustTappedRef.current = false
       return
     }
+    if (isWalkNavigating) return
+    if (isWalkPreview) return
     setSelectedSighting(null)
-    translateY.value = withSpring(snapCollapsed, SPRING)
   }
 
   const handleZoomIn = async () => {
@@ -211,12 +532,27 @@ export function MapScreenContent() {
   }
 
   const handleLocateMe = () => {
+    if (userCoord === null) return
+    if (isWalkNavigating) {
+      setIsFollowingWalkNav(true)
+      focusWalkNavigationCamera(600)
+      return
+    }
     cameraRef.current?.setCamera({
       centerCoordinate: userCoord,
       zoomLevel: 15,
       animationDuration: 600,
     })
   }
+
+  const handleEnableLocation = useCallback(async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync()
+    if (status === 'granted') {
+      await refreshLocation()
+      return
+    }
+    void Linking.openSettings()
+  }, [refreshLocation])
 
   const handleToggleStyle = () => {
     setMapStyle((s) => s === 'light' ? 'terrain' : 'light')
@@ -225,36 +561,37 @@ export function MapScreenContent() {
   const handleToggleView = (mode: ViewMode) => {
     setViewMode(mode)
     setSelectedSighting(null)
-    if (mode === 'sightings') {
-      translateY.value = withSpring(snapCollapsed, SPRING)
-    }
-  }
-
-  const handleViewInDex = () => {
-    router.push('/(tabs)/dex' as never)
+    setWalkSession(null)
   }
 
   const handleMapRegionUpdate = useCallback(
-    (feature: { properties: { zoomLevel: number; heading?: number } }) => {
+    (feature: {
+      properties: {
+        zoomLevel: number
+        heading?: number
+        isGestureActive?: boolean
+      }
+    }) => {
       setZoom(feature.properties.zoomLevel)
       const heading = feature.properties.heading
       if (typeof heading === 'number' && Number.isFinite(heading)) {
         setMapBearing(heading)
       }
+      if (isWalkNavigating && feature.properties.isGestureActive) {
+        setIsFollowingWalkNav(false)
+      }
     },
-    [],
+    [isWalkNavigating],
   )
 
   return (
     <View style={styles.root}>
-      <NativeViewGestureHandler
-        ref={mapNativeGestureRef}
-        style={StyleSheet.absoluteFill}
-        disallowInterruption>
+      <NativeViewGestureHandler ref={mapNativeGestureRef} disallowInterruption>
+        <View style={StyleSheet.absoluteFill}>
         <MapView
           ref={mapRef}
           style={StyleSheet.absoluteFill}
-          styleURL={mapStyle === 'light' ? WILDKIND_MAP_STYLE : TERRAIN_MAP_STYLE}
+          styleURL={activeMapStyleUrl}
           scrollEnabled
           zoomEnabled
           pitchEnabled={false}
@@ -277,7 +614,7 @@ export function MapScreenContent() {
 
           <Camera
             ref={cameraRef}
-            defaultSettings={{ centerCoordinate: userCoord, zoomLevel: 13 }}
+            defaultSettings={{ centerCoordinate: mapCameraCenter, zoomLevel: mapCameraZoom }}
           />
 
           <VectorSource id="wildkind-greenspace-strokes" url={MAPBOX_STREETS_SOURCE}>
@@ -316,19 +653,45 @@ export function MapScreenContent() {
             />
           </VectorSource>
 
-          {viewMode === 'nearby' && (
+          {guideDisplay ? (
+            <ShapeSource id="map-guide-route" shape={guideDisplay.lineFeature}>
+              <LineLayer
+                id="map-guide-route-casing"
+                style={{
+                  lineColor: colors.card,
+                  lineWidth: 9,
+                  lineCap: 'round',
+                  lineJoin: 'round',
+                }}
+              />
+              <LineLayer
+                id="map-guide-route-walk"
+                style={{
+                  lineColor: colors.greenLight,
+                  lineWidth: isWalkNavigating ? 7 : 5,
+                  lineDasharray: isWalkNavigating ? [0, 1.4] : [0.25, 1.75],
+                  lineCap: 'round',
+                  lineJoin: 'round',
+                }}
+              />
+            </ShapeSource>
+          ) : null}
+
+          {userCoord !== null && (viewMode === 'nearby' || isWalkPreview) ? (
             <MarkerView coordinate={userCoord} anchor={{ x: 0.5, y: 0.5 }} allowOverlap>
               <NearbyRadarRings />
             </MarkerView>
-          )}
+          ) : null}
 
-          <MarkerView coordinate={userCoord} anchor={{ x: 0.5, y: 0.5 }} allowOverlap isSelected>
-            <UserLocationMarker
-              deviceHeading={deviceHeading}
-              mapBearing={mapBearing}
-              showHeadingBeam={hasHeading}
-            />
-          </MarkerView>
+          {userCoord !== null ? (
+            <MarkerView coordinate={userCoord} anchor={{ x: 0.5, y: 0.5 }} allowOverlap isSelected>
+              <UserLocationMarker
+                deviceHeading={deviceHeading}
+                mapBearing={mapBearing}
+                showHeadingBeam={hasHeading && (isWalkNavigating || viewMode === 'nearby')}
+              />
+            </MarkerView>
+          ) : null}
 
           {pinZoomStyle.size > 0 &&
             pinsOnMap.map((s) => (
@@ -341,15 +704,21 @@ export function MapScreenContent() {
                   onPress={() => handleMarkerPress(s)}
                   accessibilityRole="button"
                   accessibilityLabel={s.name}>
-                  <KingdomMapPin kingdom={s.kingdom} zoomStyle={pinZoomStyle} />
+                  <KingdomMapPin
+                    kingdom={s.kingdom}
+                    zoomStyle={pinZoomStyle}
+                    isGuideTarget={walkTarget?.sighting.id === s.id}
+                  />
                 </Pressable>
               </MarkerView>
             ))}
 
         </MapView>
+        </View>
       </NativeViewGestureHandler>
 
-      {/* ── Top overlay ── */}
+      {/* ── Top overlay (hidden during directions preview / navigation) ── */}
+      {!isWalkNavigating && !isWalkPreview ? (
       <View style={[styles.topOverlay, { paddingTop: contentTopInset(insets.top) }]}>
         <View style={styles.searchBar}>
           <Ionicons name="search" size={16} color={colors.dim} />
@@ -377,6 +746,32 @@ export function MapScreenContent() {
           </Pressable>
         </View>
       </View>
+      ) : null}
+
+      {userCoord === null && (locationDenied || !locationLoading) && !isWalkActive ? (
+        <View
+          style={[styles.locationBannerWrap, { top: contentTopInset(insets.top) + 108 }]}
+          pointerEvents="box-none">
+          <LocationAccessBanner
+            mode={locationDenied ? 'denied' : 'locating'}
+            onEnableLocation={() => void handleEnableLocation()}
+          />
+        </View>
+      ) : null}
+
+      {isWalkNavigating && walkTarget && guideDisplay ? (
+        <WalkDirectionsNav
+          speciesName={walkTarget.sighting.name}
+          instruction={guideDisplay.instruction}
+          distanceRemainingM={guideDisplay.distanceM}
+          durationRemainingSec={guideDisplay.durationRemainingSec}
+          distanceUnit={distanceUnit}
+          maneuverModifier={guideDisplay.maneuverModifier}
+          maneuverType={guideDisplay.maneuverType}
+          onExit={handleEndWalkGuide}
+          onRecenter={handleRefitWalkRoute}
+        />
+      ) : null}
 
       {/* ── Side buttons ── */}
       <View style={[styles.sideButtons, { top: insets.top + 148 }]}>
@@ -411,45 +806,146 @@ export function MapScreenContent() {
       </View>
 
       {/* ── Bottom sheet ── */}
+      {!isWalkNavigating ? (
+      <>
       <GestureDetector gesture={panGesture}>
         <Animated.View
-          style={[styles.bottomSheet, { paddingBottom: tabBarClearance }, sheetStyle]}>
-          {viewMode === 'sightings'
-            ? (
-                <SightingsSheet
-                  selectedSighting={selectedSighting}
-                  onViewInDex={handleViewInDex}
-                  areaLabel={hasLiveLocation ? 'Around you' : 'Hyde Park Area'}
-                  spotsCaptured={spotsCaptured}
+          style={[
+            styles.bottomSheet,
+            sheetUsesExpandedTopAnchor
+              ? { top: mapSheetTopY, bottom: 0 }
+              : { height: sheetHeight, bottom: 0 },
+            sheetStyle,
+          ]}>
+          <View style={[styles.sheetSurface, { paddingBottom: tabBarClearance }]}>
+            {isWalkPreview && walkTarget ? (
+              <View style={[styles.sheetInner, styles.sheetInnerDetail]}>
+                <View style={styles.handle} />
+                <WalkDirectionsPreview
+                  speciesName={walkTarget.sighting.name}
+                  routeSummary={routeSummary}
+                  routeSteps={routeSteps}
+                  isRouteLoading={isRouteLoading}
+                  routeFailed={routeFailed}
+                  distanceUnit={distanceUnit}
+                  scrollBottomInset={walkPreviewFooterInset}
+                  onExit={handleEndWalkGuide}
                 />
-              )
-            : (
-                <NearbySheet
-                  items={nearbyCommunity}
-                  isLoading={nearbyLoading}
-                  error={nearbyError}
-                  selectedSighting={selectedSighting}
-                  onViewInDex={handleViewInDex}
-                />
-              )
-          }
+              </View>
+            ) : viewMode === 'sightings' ? (
+              <SightingsSheet
+                selectedSighting={viewMode === 'sightings' ? selectedSighting : null}
+                distanceUnit={distanceUnit}
+                hasLiveLocation={hasLiveLocation}
+                onClearSelection={handleClearSheetSelection}
+                onTakeMeThere={handleOpenWalkPreview}
+                areaLabel={
+                  hasLiveLocation
+                    ? 'Around you'
+                    : locationDenied
+                      ? 'Location off'
+                      : 'Locating…'
+                }
+                spotsCaptured={spotsCaptured}
+              />
+            ) : (
+              <NearbySheet
+                items={nearbyCommunity}
+                isLoading={nearbyLoading}
+                error={nearbyError}
+                distanceUnit={distanceUnit}
+                priorityMiles={NEARBY_PRIORITY_MILES}
+
+                hasLiveLocation={hasLiveLocation}
+                selectedSighting={selectedSighting}
+                onSelectSighting={handleSelectMapSighting}
+                onClearSelection={handleClearSheetSelection}
+                onTakeMeThere={handleOpenWalkPreview}
+              />
+            )}
+          </View>
         </Animated.View>
       </GestureDetector>
+
+      {/* Walk preview: solid footer hides sheet content behind Exit + Start */}
+      {isWalkPreview && walkTarget ? (
+        <View
+          style={[
+            styles.walkPreviewFooter,
+            { paddingBottom: tabBarClearance + FAB_SIZE / 2 },
+          ]}>
+          <View style={styles.walkPreviewActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Exit directions"
+              onPress={handleEndWalkGuide}
+              style={({ pressed }) => [styles.walkExitBtn, pressed && styles.walkBtnPressed]}>
+              <Text style={styles.walkExitLabel}>Exit</Text>
+            </Pressable>
+            <View style={styles.walkStartShadow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Start walking directions"
+                disabled={isRouteLoading}
+                onPress={handleStartWalkNavigation}
+                style={({ pressed }) => [
+                  styles.walkStartBtn,
+                  isRouteLoading && styles.walkStartDisabled,
+                  pressed && !isRouteLoading && styles.walkStartPressed,
+                ]}>
+                <Ionicons name="navigate" size={20} color={colors.card} />
+                <Text style={styles.walkStartLabel}>Start</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      ) : null}
+      </>
+      ) : null}
     </View>
   )
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-interface SheetProps {
-  selectedSighting: MapSighting | null
-  onViewInDex: () => void
+interface SightingsSheetProps {
+  selectedSighting: NearbyMapSighting | null
+  distanceUnit: DistanceUnit
+  hasLiveLocation: boolean
+  onClearSelection: () => void
+  onTakeMeThere: (sighting: NearbyMapSighting) => void
   areaLabel: string
   spotsCaptured: number
 }
 
-function SightingsSheet({ selectedSighting, onViewInDex, areaLabel, spotsCaptured }: SheetProps) {
+function SightingsSheet({
+  selectedSighting,
+  distanceUnit,
+  hasLiveLocation,
+  onClearSelection,
+  onTakeMeThere,
+  areaLabel,
+  spotsCaptured,
+}: SightingsSheetProps) {
   const hasSightings = spotsCaptured > 0
+
+  if (selectedSighting) {
+    const canGuide =
+      hasLiveLocation && isWithinNearbyRadius(selectedSighting.distanceM)
+    return (
+      <View style={[styles.sheetInner, styles.sheetInnerDetail]}>
+        <View style={styles.handle} />
+        <NearbySpotDetailCard
+          sighting={selectedSighting}
+          distanceUnit={distanceUnit}
+          listLabel="My Sightings"
+          canTakeMeThere={canGuide}
+          onBack={onClearSelection}
+          onTakeMeThere={() => onTakeMeThere(selectedSighting)}
+        />
+      </View>
+    )
+  }
 
   return (
     <View style={styles.sheetInner}>
@@ -470,31 +966,108 @@ function SightingsSheet({ selectedSighting, onViewInDex, areaLabel, spotsCapture
           </View>
         ) : null}
       </View>
-      {selectedSighting ? (
-        <PinDetail sighting={selectedSighting} onViewInDex={onViewInDex} viewMode="sightings" />
-      ) : null}
     </View>
   )
 }
 
 interface NearbySheetProps {
-  items: CommunityNearbySighting[]
+  items: NearbyMapSighting[]
   isLoading: boolean
   error: string | null
-  selectedSighting: MapSighting | null
-  onViewInDex: () => void
+  distanceUnit: DistanceUnit
+  priorityMiles: number
+  hasLiveLocation: boolean
+  selectedSighting: NearbyMapSighting | null
+  onSelectSighting: (sighting: NearbyMapSighting) => void
+  onClearSelection: () => void
+  onTakeMeThere: (sighting: NearbyMapSighting) => void
 }
 
-function NearbySheet({ items, isLoading, error, selectedSighting, onViewInDex }: NearbySheetProps) {
+function nearbyListSubtitle(item: NearbyMapSighting, distanceUnit: DistanceUnit): string {
+  if (item.source === 'ai') return 'Commonly seen in this area'
+  const distance = formatDistance(item.distanceM, distanceUnit)
+  if (item.source === 'user') return `${distance} · Your sighting`
+  if (item.spottedByUsername) return `${distance} · @${item.spottedByUsername}`
+  if (item.explorerCount > 1) return `${distance} · ${item.explorerCount} explorers`
+  return `${distance} · WildKind explorer`
+}
+
+function NearbyDistLine({
+  item,
+  distanceUnit,
+}: {
+  item: NearbyMapSighting
+  distanceUnit: DistanceUnit
+}) {
+  const distance = formatDistance(item.distanceM, distanceUnit)
+
+  if (item.source === 'gbif') {
+    return (
+      <View style={styles.nearbyDistRow}>
+        <Text style={styles.nearbyDist}>{distance} ·</Text>
+        <VerifiedIcon />
+        <Text style={styles.nearbyDist}>Verified record</Text>
+      </View>
+    )
+  }
+
+  if (item.source === 'ai') {
+    return <Text style={styles.nearbyDist}>Commonly seen in this area</Text>
+  }
+
+  return (
+    <View style={styles.nearbyDistRow}>
+      <Text style={styles.nearbyDist}>{nearbyListSubtitle(item, distanceUnit)}</Text>
+    </View>
+  )
+}
+
+function NearbySheet({
+  items,
+  isLoading,
+  error,
+  distanceUnit,
+  priorityMiles,
+  hasLiveLocation,
+  selectedSighting,
+  onSelectSighting,
+  onClearSelection,
+  onTakeMeThere,
+}: NearbySheetProps) {
   const emptyMessage = error
-    ?? (isLoading ? 'Loading nearby spots…' : 'No community spots within 2km yet.')
+    ?? (isLoading
+      ? 'Loading nearby species…'
+      : !hasLiveLocation
+        ? `Turn on location to see species within ${priorityMiles} miles of you.`
+        : nearbySearchEmptyMessage(distanceUnit))
+
+  const canGuideToSighting = (sighting: NearbyMapSighting) =>
+    hasLiveLocation && isWithinNearbyRadius(sighting.distanceM)
+
+  if (selectedSighting) {
+    return (
+      <View style={[styles.sheetInner, styles.sheetInnerDetail]}>
+        <View style={styles.handle} />
+        <NearbySpotDetailCard
+          sighting={selectedSighting}
+          distanceUnit={distanceUnit}
+          listLabel="Nearby"
+          canTakeMeThere={canGuideToSighting(selectedSighting)}
+          onBack={onClearSelection}
+          onTakeMeThere={() => onTakeMeThere(selectedSighting)}
+        />
+      </View>
+    )
+  }
 
   return (
     <View style={styles.sheetInner}>
       <View style={styles.handle} />
       <Text style={styles.sheetTitle}>Nearby Species</Text>
       <Text style={[styles.sheetSub, { marginBottom: space[16] }]}>
-        Spotted by other explorers within 2km
+        {hasLiveLocation
+          ? "Let's explore what is near you and start collecting."
+          : 'Waiting for GPS…'}
       </Text>
       <FlatList
         data={items}
@@ -505,72 +1078,29 @@ function NearbySheet({ items, isLoading, error, selectedSighting, onViewInDex }:
         ListEmptyComponent={<Text style={styles.sheetSub}>{emptyMessage}</Text>}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         renderItem={({ item }) => (
-          <View style={styles.nearbyRow}>
-            <View style={styles.nearbyMeta}>
-              <View style={styles.nearbyNameRow}>
-                <Text style={styles.nearbyName}>{item.name}</Text>
-                {item.isNew && (
-                  <View style={styles.newTag}>
-                    <Text style={styles.newTagText}>NEW</Text>
-                  </View>
-                )}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`View ${item.name} field guide`}
+            onPress={() => onSelectSighting(item)}
+            style={({ pressed }) => [styles.nearbyRowPressable, pressed && styles.nearbyRowPressed]}>
+            <View style={styles.nearbyRow}>
+              <View style={styles.nearbyMeta}>
+                <View style={styles.nearbyNameRow}>
+                  <NearbySpeciesName name={item.name} style={styles.nearbyName} />
+                  {item.isNew && (
+                    <View style={styles.newTag}>
+                      <Text style={styles.newTagText}>NEW</Text>
+                    </View>
+                  )}
+                </View>
+                <NearbyDistLine item={item} distanceUnit={distanceUnit} />
               </View>
-              <Text style={styles.nearbyDist}>
-                {formatDistanceM(item.distanceM)} · {item.explorerCount}{' '}
-                {item.explorerCount === 1 ? 'explorer' : 'explorers'}
-              </Text>
+              <KingdomBadge kind={item.kingdom} />
             </View>
-            <KingdomBadge kind={item.kingdom} />
-          </View>
+          </Pressable>
         )}
       />
-      {selectedSighting ? (
-        <PinDetail sighting={selectedSighting} onViewInDex={onViewInDex} viewMode="nearby" />
-      ) : null}
     </View>
-  )
-}
-
-function pinDetailMeta(sighting: MapSighting, viewMode: ViewMode): string {
-  if (viewMode === 'nearby' && 'explorerCount' in sighting) {
-    const community = sighting as CommunityNearbySighting
-    const explorers = community.explorerCount
-    const label = explorers === 1 ? '1 explorer' : `${explorers} explorers`
-    return `Spotted ${sighting.date} · ${label} nearby`
-  }
-
-  return `Spotted ${sighting.date} · ${sighting.count} ${sighting.count === 1 ? 'sighting' : 'sightings'}`
-}
-
-function PinDetail({
-  sighting,
-  onViewInDex,
-  viewMode,
-}: {
-  sighting: MapSighting
-  onViewInDex: () => void
-  viewMode: ViewMode
-}) {
-  return (
-    <>
-      <View style={styles.pinDivider} />
-      <View style={styles.pinDetailHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.pinDetailName}>{sighting.name}</Text>
-          <Text style={styles.pinDetailMeta}>{pinDetailMeta(sighting, viewMode)}</Text>
-        </View>
-        <KingdomBadge kind={sighting.kingdom} />
-      </View>
-      <View style={styles.btnShadow}>
-        <Pressable
-          onPress={onViewInDex}
-          accessibilityRole="button"
-          accessibilityLabel="View in Dex"
-          style={({ pressed }) => [styles.btnInner, pressed && styles.btnPressed]}>
-          <Text style={styles.btnText}>View in Dex</Text>
-        </Pressable>
-      </View>
-    </>
   )
 }
 
@@ -676,6 +1206,19 @@ const styles = StyleSheet.create({
   },
 
   // Top overlay
+  guideBannerWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 12,
+  },
+  locationBannerWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 12,
+    paddingHorizontal: space[16],
+  },
   topOverlay: {
     position: 'absolute',
     top: 0,
@@ -745,19 +1288,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.green,
   },
 
-  // Bottom sheet
+  // Bottom sheet — shadow on outer wrapper (overflow:hidden on inner clips shadow otherwise)
   bottomSheet: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: SHEET_HEIGHT,
-    ...slideUpSheetShell(),
+    ...slideUpSheetRadius,
+    ...shadow.sheetUp,
+  },
+  sheetSurface: {
+    flex: 1,
+    backgroundColor: colors.card,
+    ...slideUpSheetRadius,
+    overflow: 'hidden',
   },
   sheetInner: {
     flex: 1,
     paddingHorizontal: space[16],
     paddingTop: space[16],
+  },
+  sheetInnerDetail: {
+    paddingTop: space[8],
+  },
+  nearbyRowPressable: {
+    borderRadius: radius.md,
+  },
+  nearbyRowPressed: {
+    backgroundColor: colors.bg2,
   },
   handle: {
     ...slideUpSheetHandle,
@@ -794,53 +1352,6 @@ const styles = StyleSheet.create({
     color: colors.green,
   },
 
-  // Pin detail content (appended below area header)
-  pinDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.hairline,
-    marginVertical: space[16],
-  },
-  pinDetailHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[16],
-    marginBottom: space[16],
-  },
-  pinDetailName: {
-    fontSize: typeTokens.size.displaySM,
-    fontWeight: typeTokens.body.weights.extra,
-    color: colors.ink,
-    marginBottom: space[4],
-  },
-  pinDetailMeta: {
-    fontSize: typeTokens.size.bodySM,
-    fontWeight: typeTokens.body.weights.medium,
-    color: colors.dim,
-  },
-
-  // Duolingo bottom-shadow CTA
-  btnShadow: {
-    backgroundColor: colors.greenDeep,
-    borderRadius: radius.sm,
-    paddingBottom: 4,
-  },
-  btnInner: {
-    backgroundColor: colors.green,
-    borderRadius: radius.sm,
-    paddingVertical: space[16],
-    alignItems: 'center',
-    transform: [{ translateY: 0 }],
-  },
-  btnPressed: {
-    transform: [{ translateY: 2 }],
-  },
-  btnText: {
-    fontSize: typeTokens.size.label,
-    fontWeight: typeTokens.body.weights.black,
-    color: colors.card,
-    letterSpacing: 0.3,
-  },
-
   // Nearby list
   nearbyList: {
     flex: 1,
@@ -855,6 +1366,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space[8],
   },
+  nearbyDistRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[4],
+    marginTop: space[4],
+    flexWrap: 'wrap',
+  },
   nearbyMeta: {
     flex: 1,
   },
@@ -864,15 +1382,12 @@ const styles = StyleSheet.create({
     gap: space[8],
   },
   nearbyName: {
-    fontSize: typeTokens.size.bodySM,
-    fontWeight: typeTokens.body.weights.bold,
     color: colors.ink,
   },
   nearbyDist: {
     fontSize: typeTokens.size.caption,
     fontWeight: typeTokens.body.weights.medium,
     color: colors.dim,
-    marginTop: space[4],
   },
   newTag: {
     backgroundColor: `${colors.sun}30`,
@@ -885,5 +1400,69 @@ const styles = StyleSheet.create({
     fontWeight: typeTokens.body.weights.black,
     color: colors.earth,
     letterSpacing: 0.5,
+  },
+  walkPreviewFooter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.card,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.hairline,
+    paddingTop: space[16],
+    paddingHorizontal: space[16],
+    zIndex: 15,
+  },
+  walkPreviewActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space[16],
+  },
+  walkExitBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 52,
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.hairline,
+  },
+  walkBtnPressed: {
+    opacity: 0.7,
+  },
+  walkExitLabel: {
+    fontFamily: typeTokens.body.family,
+    fontSize: typeTokens.size.title,
+    fontWeight: typeTokens.body.weights.extra,
+    color: colors.ink,
+  },
+  walkStartShadow: {
+    flex: 2,
+    backgroundColor: colors.greenDeep,
+    borderRadius: radius.lg,
+    paddingBottom: 4,
+  },
+  walkStartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space[8],
+    height: 52,
+    borderRadius: radius.lg,
+    backgroundColor: colors.green,
+  },
+  walkStartDisabled: {
+    opacity: 0.5,
+  },
+  walkStartPressed: {
+    transform: [{ translateY: 2 }],
+  },
+  walkStartLabel: {
+    fontFamily: typeTokens.body.family,
+    fontSize: typeTokens.size.title,
+    fontWeight: typeTokens.body.weights.extra,
+    color: colors.card,
   },
 })

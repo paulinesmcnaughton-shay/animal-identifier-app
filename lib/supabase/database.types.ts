@@ -83,6 +83,50 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['domestic_species']['Insert']>
         Relationships: []
       }
+      user_sightings: {
+        Row: {
+          id: string
+          user_id: string
+          species_id: string
+          species_name: string
+          kingdom: string
+          latin_name: string | null
+          dex_number: string | null
+          confidence: number | null
+          is_domestic: boolean
+          photo_uri: string | null
+          latitude: number | null
+          longitude: number | null
+          spotted_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          species_id: string
+          species_name: string
+          kingdom: string
+          latin_name?: string | null
+          dex_number?: string | null
+          confidence?: number | null
+          is_domestic?: boolean
+          photo_uri?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          spotted_at?: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['user_sightings']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'user_sightings_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       community_sightings: {
         Row: {
           id: string
@@ -94,6 +138,8 @@ export interface Database {
           spotted_at: string
           report_count: number
           created_at: string
+          user_id: string | null
+          privacy: string
         }
         Insert: {
           id?: string
@@ -105,9 +151,19 @@ export interface Database {
           spotted_at?: string
           report_count?: number
           created_at?: string
+          user_id?: string | null
+          privacy?: string
         }
         Update: Partial<Database['public']['Tables']['community_sightings']['Insert']>
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: 'community_sightings_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
       }
       profiles: {
         Row: {

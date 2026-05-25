@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   ScrollView,
@@ -16,7 +17,7 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { KingdomBadge } from '@/design/atoms/KingdomBadge'
+import { KingdomBadge, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { ScreenHeader } from '@/design/atoms/ScreenHeader'
 import { dexCardHairline } from '@/design/dex-card-shell'
 import { screenLayout } from '@/design/screen-layout'
@@ -35,6 +36,7 @@ import {
   searchPickerSpecies,
   type PickerSpeciesItem,
 } from '@/features/species/search-picker-species'
+import { saveUserSighting } from '@/features/sightings/save-user-sighting'
 
 const SEARCH_DEBOUNCE_MS = 400
 
@@ -60,6 +62,7 @@ export function ManualPickerScreen() {
   const [items, setItems] = useState<PickerSpeciesItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSavingUnknown, setIsSavingUnknown] = useState(false)
+  const [isSavingSelection, setIsSavingSelection] = useState(false)
 
   const cardWidth = (width - screenLayout.padH * 2 - space[16]) / 2
 
@@ -95,20 +98,49 @@ export function ManualPickerScreen() {
     else router.replace('/capture/scan')
   }, [])
 
-  const handleSelectSpecies = useCallback((item: PickerSpeciesItem) => {
-    router.replace({
-      pathname: '/species/[id]',
-      params: {
-        id: pickerItemToLookupId(item),
-        name: item.commonName,
-        kingdom: item.kingdom,
-        number: item.dexNumber ?? '',
-        ...(item.latinName ? { latin: item.latinName } : {}),
-        ...(item.isDomestic ? { domestic: '1' } : {}),
-        fromCapture: '1',
-      },
-    })
-  }, [])
+  const handleSelectSpecies = useCallback(
+    async (item: PickerSpeciesItem) => {
+      if (isSavingSelection) return
+
+      const speciesId = pickerItemToLookupId(item)
+      const kingdom = item.kingdom as KingdomKey
+
+      setIsSavingSelection(true)
+      const saveResult = await saveUserSighting({
+        speciesId,
+        speciesName: item.commonName,
+        kingdom,
+        latinName: item.latinName,
+        dexNumber: item.dexNumber,
+        isDomestic: item.isDomestic,
+        photoUri,
+      })
+      setIsSavingSelection(false)
+
+      if (!saveResult.ok) {
+        Alert.alert(
+          'Could not save',
+          saveResult.errorMessage ?? 'Sign in to add finds to your collection.',
+        )
+        return
+      }
+
+      router.replace({
+        pathname: '/species/[id]',
+        params: {
+          id: speciesId,
+          name: item.commonName,
+          kingdom,
+          number: item.dexNumber ?? '',
+          ...(item.latinName ? { latin: item.latinName } : {}),
+          ...(item.isDomestic ? { domestic: '1' } : {}),
+          fromCapture: '1',
+          saved: '1',
+        },
+      })
+    },
+    [isSavingSelection, photoUri],
+  )
 
   const handleNotSure = useCallback(async () => {
     if (!photoUri || isSavingUnknown) return
@@ -206,7 +238,11 @@ export function ManualPickerScreen() {
           )
         }
         renderItem={({ item }) => (
-          <PickerSpeciesCard item={item} width={cardWidth} onPress={() => handleSelectSpecies(item)} />
+          <PickerSpeciesCard
+            item={item}
+            width={cardWidth}
+            onPress={() => void handleSelectSpecies(item)}
+          />
         )}
       />
 

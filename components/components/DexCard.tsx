@@ -27,7 +27,7 @@ interface DexCardProps {
 
 export function DexCard({ species, width, onPress }: DexCardProps) {
   const { number, name, date, gradient, cornerBadge, showFootprint, kingdom } = species
-  const photoUrl = useTaxaPhoto(name, kingdom)
+  const { url: photoUrl } = useTaxaPhoto(name, kingdom)
   const kingdomBg = KINGDOM[kingdom]?.bg ?? colors.dim
 
   const card = (

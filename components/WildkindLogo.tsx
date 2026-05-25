@@ -1,1 +1,1 @@
-export { WildKindLogo } from './components/WildKindLogo'
+export { WildKindLogo } from './components/wild-kind-logo'

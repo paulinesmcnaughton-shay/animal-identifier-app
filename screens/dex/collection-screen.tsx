@@ -15,16 +15,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CollectionStatsCard } from '@/components/collection-stats-card'
 import { DexCollectionEmpty } from '@/components/dex/DexCollectionEmpty'
 import { DexCard, type DexCardSpecies } from '@/components/DexCard'
-import {
-  DEX_COLLECTION_SIZE,
-  getDexCollectionByKingdom,
-  getDexCollectionSorted,
-} from '@/data/dex-collection'
+import { DEX_COLLECTION_SIZE } from '@/data/dex-collection'
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import { useAccountProfile } from '@/features/settings/account-profile'
+import { useUserSightingsData } from '@/features/sightings/use-user-sightings-data'
 import { speciesDetailRouteParamsFromId } from '@/features/species/species-latin-names'
+import { useAuth } from '@/lib/auth/auth-context'
 
 const H_PAD = screenLayout.padH
 const GAP = space[8]
@@ -39,7 +37,9 @@ const FILTERS: { key: string; label: string; kind: KingdomKey | null }[] = [
 export function CollectionScreen() {
   const insets = useSafeAreaInsets()
   const [activeFilter, setActiveFilter] = useState('all')
+  const { isAuthenticated } = useAuth()
   const { spotsCaptured, streakDays, badgesCount, isLoading, isReady } = useAccountProfile()
+  const { dexEntries, isLoading: dexDataLoading } = useUserSightingsData()
 
   const colWidth = useMemo(() => {
     const w = Dimensions.get('window').width
@@ -51,17 +51,17 @@ export function CollectionScreen() {
 
     const filtered =
       activeFilter === 'all'
-        ? getDexCollectionSorted()
-        : getDexCollectionByKingdom(activeFilter as KingdomKey)
+        ? dexEntries
+        : dexEntries.filter((entry) => entry.kingdom === activeFilter)
 
     const result: DexCardSpecies[][] = []
     for (let i = 0; i < filtered.length; i += 3) {
       result.push(filtered.slice(i, i + 3))
     }
     return result
-  }, [activeFilter, spotsCaptured])
+  }, [activeFilter, dexEntries, spotsCaptured])
 
-  if (isLoading || !isReady) {
+  if (isLoading || !isReady || (isAuthenticated && dexDataLoading && spotsCaptured > 0)) {
     return (
       <View style={[styles.screen, styles.loading, { paddingTop: contentTopInset(insets.top) }]}>
         <ActivityIndicator size="large" color={colors.green} />

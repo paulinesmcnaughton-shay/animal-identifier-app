@@ -14,3 +14,12 @@ export const screenLayout = {
 export function contentTopInset(safeAreaTop: number): number {
   return safeAreaTop + screenLayout.headerTop
 }
+
+/**
+ * Profile (and app-wide) baseline: primary text must not start above this Y from the
+ * physical top of the screen. Map sheets and overlays use mapTopOverlayBottom, which
+ * is always >= this value.
+ */
+export function primaryContentTopY(safeAreaTop: number): number {
+  return contentTopInset(safeAreaTop)
+}

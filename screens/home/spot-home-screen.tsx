@@ -18,6 +18,7 @@ import { colors, radius, shadow, space, type as typeTokens } from '@/design/toke
 import type { DayPeriodGreeting } from '@/features/profile/time-greeting'
 import { useSpotGreeting } from '@/features/profile/use-spot-greeting'
 import { useAccountProfile } from '@/features/settings/account-profile'
+import { useUserSightingsData } from '@/features/sightings/use-user-sightings-data'
 
 interface HeaderProps {
   greeting: DayPeriodGreeting
@@ -192,6 +193,7 @@ export function SpotHomeScreen() {
   const router = useRouter()
   const { firstName, timeZone, level, streakDays, spotsCaptured, weeklyQuest, isReady, isLoading } =
     useAccountProfile()
+  const { recentCards } = useUserSightingsData()
   const greeting = useSpotGreeting(timeZone)
   const [creatureInfoOpen, setCreatureInfoOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -249,6 +251,7 @@ export function SpotHomeScreen() {
         <RecentSpotsSection
           title="Recent finds"
           spotsCaptured={spotsCaptured}
+          recentCards={recentCards}
           cardWidth={120}
           horizontalPadding={screenLayout.padH}
         />

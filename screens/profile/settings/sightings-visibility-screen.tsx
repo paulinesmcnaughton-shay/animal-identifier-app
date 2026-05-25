@@ -1,42 +1,65 @@
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 
+import { SightingsSharingFields } from '@/components/settings/SightingsSharingFields'
 import { SettingsDetailShell } from '@/components/settings/SettingsDetailShell'
-import { SettingsOptionGroup } from '@/components/settings/SettingsOptionGroup'
 import {
-  SIGHTINGS_VISIBILITY_OPTIONS,
-  type SightingsVisibility,
   loadSettingsPreferences,
   saveSightingsVisibility,
+  type SightingsVisibility,
 } from '@/features/settings/preferences'
+import {
+  sharingPrefsFromSightingsVisibility,
+  sightingsVisibilityFromSharingPrefs,
+} from '@/features/settings/sightings-sharing-prefs'
 
 export function SightingsVisibilityScreenContent() {
   const router = useRouter()
-  const [value, setValue] = useState<SightingsVisibility>('public')
+  const [shareFindings, setShareFindings] = useState(true)
+  const [showUsername, setShowUsername] = useState(true)
 
   const load = useCallback(async () => {
     const prefs = await loadSettingsPreferences()
-    setValue(prefs.sightingsVisibility)
+    const sharing = sharingPrefsFromSightingsVisibility(prefs.sightingsVisibility)
+    setShareFindings(sharing.shareFindings)
+    setShowUsername(sharing.showUsername)
   }, [])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const handleSelect = async (next: SightingsVisibility) => {
-    setValue(next)
-    await saveSightingsVisibility(next)
+  const persist = async (nextShare: boolean, nextShowName: boolean) => {
+    const visibility: SightingsVisibility = sightingsVisibilityFromSharingPrefs(
+      nextShare,
+      nextShowName,
+    )
+    await saveSightingsVisibility(visibility)
+  }
+
+  const handleShareFindingsChange = (next: boolean) => {
+    setShareFindings(next)
+    const nextShowName = next ? showUsername : false
+    if (!next) setShowUsername(false)
+    void persist(next, nextShowName)
+  }
+
+  const handleShowUsernameChange = (next: boolean) => {
+    setShowUsername(next)
+    void persist(shareFindings, next)
   }
 
   return (
     <SettingsDetailShell
-      title="Sightings visibility"
+      title="Nearby map sharing"
       onBack={() => router.back()}
-      sectionLabel="WHO CAN SEE YOUR SPOTS">
-      <SettingsOptionGroup
-        options={SIGHTINGS_VISIBILITY_OPTIONS}
-        value={value}
-        onSelect={(next) => void handleSelect(next)}
+      sectionLabel="NEARBY MAP">
+      <SightingsSharingFields
+        shareFindings={shareFindings}
+        showUsername={showUsername}
+        onShareFindingsChange={handleShareFindingsChange}
+        onShowUsernameChange={handleShowUsernameChange}
+        variant="settings"
       />
     </SettingsDetailShell>
   )

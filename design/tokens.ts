@@ -66,6 +66,14 @@ export const shadow = {
     shadowRadius: 24,
     elevation: 8,
   },
+  /** Bottom sheets — casts upward so white cards read on light maps */
+  sheetUp: {
+    shadowColor: '#152130',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 12,
+  },
 } as const
 
 /** Shadow wrapper for hero/profile cards — use on an outer View with borderRadius. */

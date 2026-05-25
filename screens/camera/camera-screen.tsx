@@ -10,6 +10,7 @@ import { useFocusEffect, useIsFocused } from '@react-navigation/native'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Linking,
   Modal,
@@ -36,6 +37,7 @@ import { identifyAnimalOrPlant } from '@/features/identify/identify-image'
 import { buildManualPickerRouteParams } from '@/features/identify/manual-picker-params'
 import { friendlyIdentifyError } from '@/features/identify/friendly-identify-error'
 import { type IdentResult, IdentifyError } from '@/features/identify/types'
+import { saveUserSighting } from '@/features/sightings/save-user-sighting'
 
 type Facing = 'back' | 'front'
 
@@ -86,6 +88,7 @@ export function CameraScreen() {
   const [captureResult, setCaptureResult] = useState<IdentResult | null>(null)
   const [captureSheetError, setCaptureSheetError] = useState<string | null>(null)
   const [manualOutcome, setManualOutcome] = useState<ManualIdentifyOutcome | null>(null)
+  const [isSavingCollection, setIsSavingCollection] = useState(false)
 
   const clearLockTimer = useCallback(() => {
     if (lockTimerRef.current) {
@@ -167,19 +170,49 @@ export function CameraScreen() {
     setFacing((current) => (current === 'back' ? 'front' : 'back'))
   }, [])
 
-  const handleAddToCollection = useCallback(() => {
+  const handleAddToCollection = useCallback(async () => {
     if (!captureResult) return
+
+    const speciesId =
+      captureResult.lookupId ?? slugifySpeciesName(captureResult.commonName)
+    const kingdom = (captureResult.kingdom ?? 'mammal') as KingdomKey
+
+    setIsSavingCollection(true)
+    const saveResult = await saveUserSighting({
+      speciesId,
+      speciesName: captureResult.commonName,
+      kingdom,
+      latinName: captureResult.latinName,
+      dexNumber: captureResult.dexNumber,
+      confidence: captureResult.confidence,
+      isDomestic: captureResult.isDomestic,
+      photoUri: capturedPhotoUri,
+    })
+    setIsSavingCollection(false)
+
+    if (!saveResult.ok) {
+      Alert.alert(
+        'Could not save',
+        saveResult.errorMessage ?? 'Sign in to add finds to your collection.',
+      )
+      return
+    }
+
     router.push({
       pathname: '/species/[id]',
       params: {
-        id: captureResult.lookupId ?? slugifySpeciesName(captureResult.commonName),
+        id: speciesId,
         name: captureResult.commonName,
-        kingdom: captureResult.kingdom ?? 'mammal',
+        kingdom,
         number: captureResult.dexNumber ?? '',
+        confidence: String(captureResult.confidence),
+        ...(captureResult.latinName ? { latin: captureResult.latinName } : {}),
+        ...(captureResult.isDomestic ? { domestic: '1' } : {}),
         fromCapture: '1',
+        saved: '1',
       },
     } as Href)
-  }, [captureResult])
+  }, [captureResult, capturedPhotoUri])
 
   const handleChooseSpecies = useCallback(() => {
     const uri = capturedPhotoUri
@@ -500,7 +533,8 @@ export function CameraScreen() {
             : undefined
         }
         bottomInset={insets.bottom}
-        onAddToCollection={handleAddToCollection}
+        isSavingCollection={isSavingCollection}
+        onAddToCollection={() => void handleAddToCollection()}
         onChooseSpecies={handleChooseSpecies}
         onRetake={dismissResultSheet}
         onRetry={handleRetryIdentification}

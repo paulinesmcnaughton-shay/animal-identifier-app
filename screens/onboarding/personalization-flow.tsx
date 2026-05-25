@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons'
 import {
   BricolageGrotesque_800ExtraBold,
   useFonts as useBricolageFonts,
@@ -17,8 +18,10 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { SightingsSharingFields } from '@/components/settings/SightingsSharingFields'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
-import { notifyAccountProfileChanged } from '@/features/settings/account-profile-events'
+import { saveSightingsVisibility } from '@/features/settings/preferences'
+import { sightingsVisibilityFromSharingPrefs } from '@/features/settings/sightings-sharing-prefs'
 import { syncAccountProfileFromAuth } from '@/features/settings/sync-account-profile'
 import { deviceTimeZone } from '@/features/profile/time-greeting'
 import {
@@ -68,6 +71,8 @@ export function PersonalizationFlow() {
 
   const [interests, setInterests] = useState<string[]>([])
   const [ageGroup, setAgeGroup] = useState<string | null>(null)
+  const [shareFindings, setShareFindings] = useState(true)
+  const [showUsername, setShowUsername] = useState(true)
 
   const [bricolageLoaded] = useBricolageFonts({ BricolageGrotesque_800ExtraBold })
   const [nunitoLoaded] = useNunitoFonts({ Nunito_400Regular, Nunito_700Bold })
@@ -163,6 +168,9 @@ export function PersonalizationFlow() {
       return
     }
 
+    await saveSightingsVisibility(
+      sightingsVisibilityFromSharingPrefs(shareFindings, showUsername),
+    )
     await syncAccountProfileFromAuth(user)
     router.replace('/home')
   }
@@ -220,20 +228,36 @@ export function PersonalizationFlow() {
               value={locationText}
               onChangeText={setLocationText}
             />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Detect my location"
-              onPress={detectLocation}
-              style={({ pressed }) => [styles.detectBtn, pressed && { opacity: 0.7 }]}>
-              {detectingLocation
-                ? <ActivityIndicator size="small" color={colors.green} />
-                : (
-                  <Text style={[styles.detectText, { fontFamily: 'Nunito_700Bold' }]}>
-                    📍 Detect my location
-                  </Text>
+            <View style={styles.detectShadow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Detect my location"
+                onPress={detectLocation}
+                disabled={detectingLocation}
+                style={({ pressed }) => [
+                  styles.detectInner,
+                  detectingLocation && styles.detectDisabled,
+                  pressed && !detectingLocation && styles.detectPressed,
+                ]}>
+                {detectingLocation ? (
+                  <ActivityIndicator size="small" color={colors.card} />
+                ) : (
+                  <>
+                    <Ionicons name="location" size={18} color={colors.card} />
+                    <Text style={styles.detectLabel}>Detect my location</Text>
+                  </>
                 )}
-            </Pressable>
+              </Pressable>
+            </View>
           </View>
+
+          <SightingsSharingFields
+            shareFindings={shareFindings}
+            showUsername={showUsername}
+            onShareFindingsChange={setShareFindings}
+            onShowUsernameChange={setShowUsername}
+            variant="onboarding"
+          />
 
           <View style={styles.ctaWrap}>
             <Pressable
@@ -407,8 +431,34 @@ const styles = StyleSheet.create({
     fontSize: typeTokens.size.bodyLG,
     color: colors.ink,
   },
-  detectBtn: { alignSelf: 'flex-start', paddingVertical: space[8] },
-  detectText: { fontSize: typeTokens.size.body, color: colors.green },
+  detectShadow: {
+    backgroundColor: colors.greenDeep,
+    borderRadius: radius.sm,
+    paddingBottom: 4,
+    marginTop: space[4],
+  },
+  detectInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space[8],
+    backgroundColor: colors.green,
+    borderRadius: radius.sm,
+    paddingVertical: space[16],
+    paddingHorizontal: space[16],
+  },
+  detectPressed: {
+    transform: [{ translateY: 2 }],
+  },
+  detectDisabled: {
+    opacity: 0.7,
+  },
+  detectLabel: {
+    fontFamily: typeTokens.body.family,
+    fontSize: typeTokens.size.label,
+    fontWeight: typeTokens.body.weights.extra,
+    color: colors.card,
+  },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space[8], marginBottom: space[32] },
   chip: {
     paddingHorizontal: space[16],

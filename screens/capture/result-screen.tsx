@@ -3,7 +3,7 @@ import { Image } from 'expo-image'
 import { router, useLocalSearchParams } from 'expo-router'
 import type { IdentifySource } from '@/features/identify/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Alert, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native'
 import ReAnimated, {
   useAnimatedStyle,
   useSharedValue,
@@ -21,6 +21,8 @@ import { identifyAnimalOrPlant } from '@/features/identify/identify-image'
 import { buildManualPickerRouteParams } from '@/features/identify/manual-picker-params'
 import { friendlyIdentifyError } from '@/features/identify/friendly-identify-error'
 import type { IdentResult } from '@/features/identify/types'
+import type { KingdomKey } from '@/design/atoms/KingdomBadge'
+import { saveUserSighting } from '@/features/sightings/save-user-sighting'
 
 export function ResultScreen() {
   const insets = useSafeAreaInsets()
@@ -55,6 +57,7 @@ export function ResultScreen() {
   const [isLoading, setIsLoading] = useState(!!photoUri && !prefilledResult && !prefilledError)
   const [result, setResult] = useState<IdentResult | null>(prefilledResult)
   const [errorMessage, setErrorMessage] = useState<string | null>(prefilledError)
+  const [isSaving, setIsSaving] = useState(false)
 
   const pulseAnim = useRef(new Animated.Value(1)).current
 
@@ -113,22 +116,48 @@ export function ResultScreen() {
     else router.replace('/capture/scan')
   }
 
-  const handleAddToCollection = () => {
+  const handleAddToCollection = async () => {
     if (!result) {
       router.replace('/(tabs)/dex')
       return
     }
+
+    const speciesId = result.lookupId ?? slugifySpeciesName(result.commonName)
+    const kingdom = (result.kingdom ?? 'mammal') as KingdomKey
+
+    setIsSaving(true)
+    const saveResult = await saveUserSighting({
+      speciesId,
+      speciesName: result.commonName,
+      kingdom,
+      latinName: result.latinName,
+      dexNumber: result.dexNumber,
+      confidence: result.confidence,
+      isDomestic: result.isDomestic,
+      photoUri: photoUri,
+    })
+    setIsSaving(false)
+
+    if (!saveResult.ok) {
+      Alert.alert(
+        'Could not save',
+        saveResult.errorMessage ?? 'Sign in to add finds to your collection.',
+      )
+      return
+    }
+
     router.replace({
       pathname: '/species/[id]',
       params: {
-        id: result.lookupId ?? slugifySpeciesName(result.commonName),
+        id: speciesId,
         name: result.commonName,
-        kingdom: result.kingdom ?? 'mammal',
+        kingdom,
         number: result.dexNumber ?? '',
         confidence: String(result.confidence),
         ...(result.latinName ? { latin: result.latinName } : {}),
         ...(result.isDomestic ? { domestic: '1' } : {}),
         fromCapture: '1',
+        saved: '1',
       },
     })
   }
@@ -216,7 +245,11 @@ export function ResultScreen() {
           <View style={styles.confidenceBar}>
             <ProgressBar progress={result.confidence} />
           </View>
-          <PopButton label="Add to collection" onPress={handleAddToCollection} />
+          <PopButton
+            label={isSaving ? 'Saving…' : 'Add to collection'}
+            onPress={() => void handleAddToCollection()}
+            disabled={isSaving}
+          />
         </ReAnimated.View>
       ) : null}
     </View>
@@ -226,15 +259,21 @@ export function ResultScreen() {
 interface PopButtonProps {
   label: string
   onPress: () => void
+  disabled?: boolean
 }
 
-function PopButton({ label, onPress }: PopButtonProps) {
+function PopButton({ label, onPress, disabled }: PopButtonProps) {
   return (
     <View style={styles.popWrap}>
       <Pressable
         accessibilityRole="button"
+        disabled={disabled}
         onPress={onPress}
-        style={({ pressed }) => [styles.popButton, pressed && styles.popPressed]}>
+        style={({ pressed }) => [
+          styles.popButton,
+          pressed && !disabled && styles.popPressed,
+          disabled && styles.popDisabled,
+        ]}>
         <Text style={styles.popLabel}>{label}</Text>
       </Pressable>
     </View>
@@ -387,6 +426,9 @@ const styles = StyleSheet.create({
   },
   popPressed: {
     transform: [{ translateY: 2 }],
+  },
+  popDisabled: {
+    opacity: 0.6,
   },
   popLabel: {
     color: colors.card,
