@@ -100,6 +100,7 @@ export function SettingsScreenContent() {
       autoTagLocation: true,
       vibrateOnIdentify: false,
       useScientificNames: false,
+      distanceUnit: 'miles',
     }),
   )
   const [autoRecordSounds, setAutoRecordSounds] = useState(true)
@@ -359,6 +360,13 @@ export function SettingsScreenContent() {
             }}
           />
           <SettingsRow
+            icon="speedometer"
+            iconBg={colors.sky}
+            title="Distance units"
+            subtitle={rowSubtitles.distanceUnit}
+            action={{ type: 'chevron', onPress: () => router.push('/settings-distance-unit') }}
+          />
+          <SettingsRow
             icon="grid"
             iconBg={colors.plum}
             title="Dex layout"
@@ -373,7 +381,7 @@ export function SettingsScreenContent() {
           <SettingsRow
             icon="eye"
             iconBg={colors.greenLight}
-            title="Sightings visibility"
+            title="Nearby map sharing"
             subtitle={rowSubtitles.sightingsVisibility}
             action={{ type: 'chevron', onPress: () => router.push('/settings-sightings-visibility') }}
             isLast

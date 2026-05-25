@@ -2,12 +2,12 @@ import { useRouter } from 'expo-router'
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 
 import { DexCard, type DexCardSpecies } from '@/components/DexCard'
-import { getRecentFindDexCards, getRecentFinds, recentFindRouteParams } from '@/data/mock'
 import { screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 
 interface RecentSpotsSectionProps {
   spotsCaptured: number
+  recentCards?: DexCardSpecies[]
   title?: string
   cardWidth: number
   onSeeAll?: () => void
@@ -17,6 +17,7 @@ interface RecentSpotsSectionProps {
 
 export function RecentSpotsSection({
   spotsCaptured,
+  recentCards = [],
   title = 'Recent spots',
   cardWidth,
   onSeeAll,
@@ -24,20 +25,17 @@ export function RecentSpotsSection({
   horizontalPadding = space[16],
 }: RecentSpotsSectionProps) {
   const router = useRouter()
-  const recentFinds = spotsCaptured > 0 ? getRecentFindDexCards() : []
+  const recentFinds = spotsCaptured > 0 ? recentCards : []
 
   const handleOpenSpecies = (species: DexCardSpecies) => {
-    const item = getRecentFinds().find((find) => find.id === species.id)
     router.push({
       pathname: '/species/[id]',
-      params: item
-        ? recentFindRouteParams(item)
-        : {
-            id: species.id,
-            name: species.name,
-            number: species.number,
-            kingdom: species.kingdom,
-          },
+      params: {
+        id: species.id,
+        name: species.name,
+        number: species.number,
+        kingdom: species.kingdom,
+      },
     })
   }
 
@@ -95,7 +93,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: space[16],
     paddingHorizontal: space[16],
-    gap: space[12],
+    gap: space[8],
   },
   sectionTitle: {
     fontSize: typeTokens.size.bodyLG,
