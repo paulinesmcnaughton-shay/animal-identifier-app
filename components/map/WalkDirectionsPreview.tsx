@@ -34,7 +34,7 @@ interface WalkDirectionsPreviewProps {
   isRouteLoading: boolean
   routeFailed: boolean
   distanceUnit: DistanceUnit
-  scrollBottomInset?: number
+  scrollEnabled?: boolean
   onExit: () => void
 }
 
@@ -45,7 +45,7 @@ export function WalkDirectionsPreview({
   isRouteLoading,
   routeFailed,
   distanceUnit,
-  scrollBottomInset = 0,
+  scrollEnabled = true,
   onExit,
 }: WalkDirectionsPreviewProps) {
   const durationLabel = routeSummary
@@ -56,6 +56,51 @@ export function WalkDirectionsPreview({
     : '—'
 
   const showSteps = routeSteps.length > 0 && !isRouteLoading
+
+  const bodyContent = (
+    <>
+      <Text style={styles.speciesName} numberOfLines={2}>
+        {speciesName}
+      </Text>
+
+      {isRouteLoading ? (
+        <View style={styles.loadingRow}>
+          <ActivityIndicator color={colors.green} />
+          <Text style={styles.loadingText}>Planning your walking route…</Text>
+        </View>
+      ) : (
+        <View style={styles.summaryBlock}>
+          <Text style={styles.duration}>{durationLabel}</Text>
+          <Text style={styles.meta}>
+            {distanceLabel}
+            {routeSummary?.isWalkingRoute ? ' · Sidewalk route' : ' · Direct path'}
+            {routeFailed ? ' · Using fallback path' : ''}
+          </Text>
+        </View>
+      )}
+
+      {showSteps ? (
+        <View style={styles.stepsBlock}>
+          <Text style={styles.stepsHeading}>Directions</Text>
+          {routeSteps.map((step, index) => (
+            <View key={`${step.maneuverType}-${index}`} style={styles.stepRow}>
+              <View style={styles.stepIndex}>
+                <Text style={styles.stepIndexText}>{index + 1}</Text>
+              </View>
+              <View style={styles.stepBody}>
+                <Text style={styles.stepInstruction}>{step.instruction}</Text>
+                {step.distanceM > 0 ? (
+                  <Text style={styles.stepDistance}>
+                    {formatDistance(step.distanceM, distanceUnit)}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </>
+  )
 
   return (
     <View style={styles.root}>
@@ -77,60 +122,23 @@ export function WalkDirectionsPreview({
               walkDirectionsIconButton.onLight,
               pressed && styles.pressed,
             ]}>
-            <Ionicons name="close" size={WALK_DIRECTIONS_ICON.close} color={colors.ink2} />
+            <Ionicons name="close" size={WALK_DIRECTIONS_ICON.close} color={colors.green} />
           </Pressable>
         </View>
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          scrollBottomInset > 0 && { paddingBottom: scrollBottomInset },
-        ]}
-        showsVerticalScrollIndicator={false}
-        bounces>
-        <Text style={styles.speciesName} numberOfLines={2}>
-          {speciesName}
-        </Text>
-
-        {isRouteLoading ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={colors.green} />
-            <Text style={styles.loadingText}>Planning your walking route…</Text>
-          </View>
-        ) : (
-          <View style={styles.summaryBlock}>
-            <Text style={styles.duration}>{durationLabel}</Text>
-            <Text style={styles.meta}>
-              {distanceLabel}
-              {routeSummary?.isWalkingRoute ? ' · Sidewalk route' : ' · Direct path'}
-              {routeFailed ? ' · Using fallback path' : ''}
-            </Text>
-          </View>
-        )}
-
-        {showSteps ? (
-          <View style={styles.stepsBlock}>
-            <Text style={styles.stepsHeading}>Directions</Text>
-            {routeSteps.map((step, index) => (
-              <View key={`${step.maneuverType}-${index}`} style={styles.stepRow}>
-                <View style={styles.stepIndex}>
-                  <Text style={styles.stepIndexText}>{index + 1}</Text>
-                </View>
-                <View style={styles.stepBody}>
-                  <Text style={styles.stepInstruction}>{step.instruction}</Text>
-                  {step.distanceM > 0 ? (
-                    <Text style={styles.stepDistance}>
-                      {formatDistance(step.distanceM, distanceUnit)}
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
-            ))}
-          </View>
-        ) : null}
-      </ScrollView>
+      {scrollEnabled ? (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          scrollEnabled
+          showsVerticalScrollIndicator={false}
+          bounces>
+          {bodyContent}
+        </ScrollView>
+      ) : (
+        <View style={[styles.scroll, styles.scrollContent]}>{bodyContent}</View>
+      )}
     </View>
   )
 }

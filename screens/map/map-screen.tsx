@@ -30,6 +30,7 @@ import {
 } from 'react-native-gesture-handler'
 import Animated, {
   runOnJS,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -54,7 +55,6 @@ import { colors, radius, shadow, space, type as typeTokens } from '@/design/toke
 import { useDeviceHeading } from '@/features/map/use-device-heading'
 import { getKingdomPinZoomStyle } from '@/features/map/kingdom-pin-zoom'
 import { arrowRotationDegrees, bearingDegrees, liveGuideDistanceM } from '@/features/map/map-guide-math'
-import { haversineDistanceM } from '@/features/map/geo'
 import {
   createMapGuideTarget,
   fitMapGuideCamera,
@@ -83,10 +83,10 @@ import {
 } from '@/features/map/nearby-radius'
 import { useNearbyCommunitySightings } from '@/features/map/use-nearby-community'
 import { useUserLocation, type MapCoordinate } from '@/features/map/use-user-location'
-import { useAccountProfile } from '@/features/settings/account-profile'
 import {
   MAP_SHEET_HEIGHT_DEFAULT,
   mapExpandedSheetTopY,
+  WALK_PREVIEW_SUMMARY_PEEK_BODY,
 } from '@/features/map/map-sheet-layout'
 import { PAN_ACTIVE_OFFSET_Y, PAN_FAIL_OFFSET_X } from '@/lib/draggable-sheet'
 
@@ -127,6 +127,25 @@ function sheetBottomInset(bottomSafeArea: number): number {
 
 type ViewMode = 'sightings' | 'nearby'
 
+function fuzzyFilterSightings(items: NearbyMapSighting[], query: string): NearbyMapSighting[] {
+  if (!query) return items
+  const words = query.split(/\s+/).filter(w => w.length >= 2)
+  if (words.length === 0) return items.filter(s => s.name.toLowerCase().includes(query))
+  const scored = items
+    .map(s => {
+      // Include name-without-spaces so "bluejay" matches "Blue Jay"
+      const searchable =
+        `${s.name} ${s.kingdom} ${s.scientificName ?? ''} ${s.name.replace(/\s/g, '')}`.toLowerCase()
+      let score = 0
+      for (const word of words) {
+        if (searchable.includes(word)) score++
+      }
+      return { item: s, score }
+    })
+    .filter(({ score }) => score > 0)
+  return scored.sort((a, b) => b.score - a.score).map(({ item }) => item)
+}
+
 export function MapScreenContent() {
   const insets = useSafeAreaInsets()
   const { height: windowHeight } = useWindowDimensions()
@@ -136,10 +155,16 @@ export function MapScreenContent() {
   const [viewMode, setViewMode] = useState<ViewMode>('sightings')
   const [selectedSighting, setSelectedSighting] = useState<NearbyMapSighting | null>(null)
   const [walkSession, setWalkSession] = useState<WalkGuideSession | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [speciesPickerItems, setSpeciesPickerItems] = useState<NearbyMapSighting[] | null>(null)
+  const [cityNames, setCityNames] = useState<Record<string, string>>({})
+  const [isGeocoding, setIsGeocoding] = useState(false)
   const [mapStyle, setMapStyle] = useState<'light' | 'terrain'>('light')
   const [zoom, setZoom] = useState(13)
   const [mapBearing, setMapBearing] = useState(0)
   const { heading: deviceHeading, isAvailable: hasHeading } = useDeviceHeading()
+  const deviceHeadingRef = useRef(deviceHeading)
+  deviceHeadingRef.current = deviceHeading
   const {
     coordinate: userCoord,
     isLive: hasLiveLocation,
@@ -148,7 +173,6 @@ export function MapScreenContent() {
     refreshLocation,
   } = useUserLocation()
   const { isAuthenticated } = useAuth()
-  const { spotsCaptured } = useAccountProfile()
   const { mapPins } = useUserSightingsData()
   const distanceUnit = useDistanceUnit()
   const mapCenteredRef = useRef<'none' | 'cached' | 'live'>('none')
@@ -165,12 +189,22 @@ export function MapScreenContent() {
     }, [refreshLocation]),
   )
 
-  const mySightingsNearby = useMemo(() => {
-    if (!isAuthenticated || spotsCaptured === 0 || !hasLiveLocation) return []
-    return mapPins.filter((pin) => isWithinNearbyRadius(pin.distanceM))
-  }, [hasLiveLocation, isAuthenticated, mapPins, spotsCaptured])
+  const mySightings = isAuthenticated ? mapPins : []
 
-  const pinsOnMap = viewMode === 'nearby' ? nearbyCommunity : mySightingsNearby
+  const normalizedQuery = searchQuery.trim().toLowerCase()
+
+  const filteredSightings = useMemo(
+    () => fuzzyFilterSightings(mySightings, normalizedQuery),
+    [mySightings, normalizedQuery],
+  )
+
+  const filteredNearby = useMemo(
+    () => fuzzyFilterSightings(nearbyCommunity, normalizedQuery),
+    [nearbyCommunity, normalizedQuery],
+  )
+
+  const activeItems = viewMode === 'nearby' ? filteredNearby : filteredSightings
+  const pinsOnMap = activeItems
 
   const pinZoomStyle = useMemo(() => getKingdomPinZoomStyle(zoom), [zoom])
 
@@ -194,7 +228,8 @@ export function MapScreenContent() {
     [insets.bottom, insets.top],
   )
 
-  const [isFollowingWalkNav, setIsFollowingWalkNav] = useState(true)
+  const isFollowingWalkNavRef = useRef(true)
+  const [isFollowingWalkPreview, setIsFollowingWalkPreview] = useState(true)
   const lastWalkNavCameraRef = useRef({ at: 0, lng: 0, lat: 0 })
 
   const {
@@ -277,8 +312,14 @@ export function MapScreenContent() {
   }, [mapSheetTopY, sheetUsesExpandedTopAnchor, windowHeight])
 
   const tabBarClearance = insets.bottom + TAB_BAR_HEIGHT + space[16]
-  const walkPreviewFooterInset =
+  const walkPreviewFooterBody =
     space[16] + WALK_PREVIEW_ACTION_HEIGHT + tabBarClearance + FAB_SIZE / 2
+  const walkPreviewSummaryPeekHeight =
+    WALK_PREVIEW_SUMMARY_PEEK_BODY + walkPreviewFooterBody
+  const snapWalkPreviewCollapsed = Math.max(
+    SNAP_EXPANDED,
+    sheetHeight - walkPreviewSummaryPeekHeight,
+  )
   const snapCollapsed =
     sheetHeight - (tabBarClearance + GAP_ABOVE_NAV + SHEET_HEADER_HEIGHT + SHEET_FAB_CLEARANCE_PEEK)
   const snapWalkPreview = Math.max(SNAP_EXPANDED, sheetHeight - WALK_PREVIEW_DEFAULT_HEIGHT)
@@ -308,6 +349,22 @@ export function MapScreenContent() {
 
   const walkSessionRef = useRef(walkSession)
   walkSessionRef.current = walkSession
+  const snapWalkPreviewCollapsedRef = useRef(snapWalkPreviewCollapsed)
+  snapWalkPreviewCollapsedRef.current = snapWalkPreviewCollapsed
+  const snapWalkPreviewRef = useRef(snapWalkPreview)
+  snapWalkPreviewRef.current = snapWalkPreview
+  const snapExpandedYRef = useRef(snapExpandedY)
+  snapExpandedYRef.current = snapExpandedY
+
+  const [walkDirectionsScrollEnabled, setWalkDirectionsScrollEnabled] = useState(false)
+
+  useAnimatedReaction(
+    () => translateY.value < 12,
+    (isExpanded) => {
+      runOnJS(setWalkDirectionsScrollEnabled)(isExpanded)
+    },
+    [translateY],
+  )
 
   const sheetSnapY = useMemo((): number => {
     if (isWalkPreview) return snapWalkPreview
@@ -331,19 +388,46 @@ export function MapScreenContent() {
           context.value = translateY.value
         })
         .onUpdate((e) => {
+          const isWalkPreviewDrag = walkSessionRef.current?.phase === 'preview'
+          const maxDragY = isWalkPreviewDrag
+            ? snapWalkPreviewCollapsedRef.current
+            : snapCollapsed
           translateY.value = Math.max(
-            snapExpandedY,
-            Math.min(snapCollapsed, context.value + e.translationY),
+            snapExpandedYRef.current,
+            Math.min(maxDragY, context.value + e.translationY),
           )
         })
         .onEnd((e) => {
+          if (walkSessionRef.current?.phase === 'preview') {
+            const collapsedY = snapWalkPreviewCollapsedRef.current
+            const defaultY = snapWalkPreviewRef.current
+            const y = translateY.value
+
+            if (e.velocityY < -400) {
+              translateY.value = withSpring(SNAP_EXPANDED, SPRING)
+              return
+            }
+            if (e.velocityY > 400) {
+              translateY.value = withSpring(collapsedY, SPRING)
+              return
+            }
+
+            const midExpandDefault = defaultY / 2
+            const midDefaultCollapsed = (defaultY + collapsedY) / 2
+
+            if (y < midExpandDefault) {
+              translateY.value = withSpring(SNAP_EXPANDED, SPRING)
+            } else if (y < midDefaultCollapsed) {
+              translateY.value = withSpring(defaultY, SPRING)
+            } else {
+              translateY.value = withSpring(collapsedY, SPRING)
+            }
+            return
+          }
+
           const mid = (snapCollapsed + snapExpandedY) / 2
           if (e.velocityY < -500 || translateY.value < mid) {
             translateY.value = withSpring(snapExpandedY, SPRING)
-            return
-          }
-          if (walkSessionRef.current?.phase === 'preview') {
-            translateY.value = withSpring(snapWalkPreview, SPRING)
             return
           }
           if (selectedSightingRef.current !== null) {
@@ -352,7 +436,7 @@ export function MapScreenContent() {
           }
           translateY.value = withSpring(snapCollapsed, SPRING)
         }),
-    [context, dismissSheetDetail, sheetExpandable, snapCollapsed, snapExpandedY, snapWalkPreview, translateY],
+    [context, dismissSheetDetail, sheetExpandable, snapCollapsed, snapExpandedY, translateY],
   )
 
   const handleClearSheetSelection = useCallback(() => {
@@ -380,7 +464,7 @@ export function MapScreenContent() {
 
   const handleEndWalkGuide = useCallback(() => {
     setWalkSession(null)
-    setIsFollowingWalkNav(true)
+    isFollowingWalkNavRef.current = true
     if (userCoord !== null) {
       cameraRef.current?.setCamera({
         centerCoordinate: userCoord,
@@ -403,7 +487,7 @@ export function MapScreenContent() {
             ? ([walkTarget.sighting.lng, walkTarget.sighting.lat] as MapCoordinate)
             : null
 
-      const heading = resolveWalkNavHeading(deviceHeading, userCoord, lookAhead)
+      const heading = resolveWalkNavHeading(deviceHeadingRef.current, userCoord, lookAhead)
 
       applyWalkNavigationCamera({
         cameraRef,
@@ -418,7 +502,7 @@ export function MapScreenContent() {
         lat: userCoord[1],
       }
     },
-    [deviceHeading, userCoord, walkGuideMetrics, walkNavPadding, walkTarget],
+    [userCoord, walkGuideMetrics, walkNavPadding, walkTarget],
   )
 
   const focusWalkNavigationCameraRef = useRef(focusWalkNavigationCamera)
@@ -427,7 +511,7 @@ export function MapScreenContent() {
   const handleRefitWalkRoute = useCallback(() => {
     if (!walkTarget || userCoord === null) return
     if (isWalkNavigating) {
-      setIsFollowingWalkNav(true)
+      isFollowingWalkNavRef.current = true
       focusWalkNavigationCamera(500)
       return
     }
@@ -458,18 +542,19 @@ export function MapScreenContent() {
   ])
 
   useEffect(() => {
-    if (!isWalkPreview || !walkGuideMetrics?.routeCoordinates.length) return
+    if (!isWalkPreview || !isFollowingWalkPreview || !walkGuideMetrics?.routeCoordinates.length) return
     fitMapGuideCameraToRoute({
       cameraRef,
       coordinates: walkGuideMetrics.routeCoordinates,
       padding: previewCameraPadding,
     })
-  }, [isWalkPreview, previewCameraPadding, walkGuideMetrics?.routeCoordinates])
+  }, [isFollowingWalkPreview, isWalkPreview, previewCameraPadding, walkGuideMetrics?.routeCoordinates])
 
   const handleOpenWalkPreview = useCallback(
     (sighting: NearbyMapSighting) => {
       if (userCoord === null) return
       if (!isWithinNearbyRadius(sighting.distanceM)) return
+      setIsFollowingWalkPreview(true)
       setWalkSession({ target: createMapGuideTarget(sighting), phase: 'preview' })
       setSelectedSighting(null)
     },
@@ -477,7 +562,7 @@ export function MapScreenContent() {
   )
 
   const handleStartWalkNavigation = useCallback(() => {
-    setIsFollowingWalkNav(true)
+    isFollowingWalkNavRef.current = true
     setWalkSession((prev) => {
       if (!prev) return null
       return { ...prev, phase: 'navigating' }
@@ -489,25 +574,6 @@ export function MapScreenContent() {
     lastWalkNavCameraRef.current = { at: 0, lng: 0, lat: 0 }
     focusWalkNavigationCameraRef.current(600)
   }, [isWalkNavigating])
-
-  useEffect(() => {
-    if (!isWalkNavigating || userCoord === null || !isFollowingWalkNav) return
-
-    const [lng, lat] = userCoord
-    const prev = lastWalkNavCameraRef.current
-    const movedM = haversineDistanceM([prev.lng, prev.lat], { lat, lng })
-    const elapsedMs = Date.now() - prev.at
-    if (elapsedMs < 350 && movedM < 6) return
-
-    focusWalkNavigationCamera(elapsedMs < 800 ? 400 : 250)
-  }, [
-    deviceHeading,
-    focusWalkNavigationCamera,
-    isFollowingWalkNav,
-    isWalkNavigating,
-    userCoord,
-    walkGuideMetrics?.routeCoordinates,
-  ])
 
   const handleMapPress = () => {
     if (pinJustTappedRef.current) {
@@ -531,10 +597,111 @@ export function MapScreenContent() {
     cameraRef.current?.setCamera({ zoomLevel: Math.max(1, zoom - 1), animationDuration: 250 })
   }
 
+  const geocodePlace = useCallback(async (query: string): Promise<void> => {
+    if (!MAPBOX_TOKEN) return
+    setIsGeocoding(true)
+    try {
+      const q = encodeURIComponent(query)
+      const res = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${q}.json?access_token=${MAPBOX_TOKEN}&types=place,region,country,district&limit=1`,
+      )
+      const json = await res.json() as { features?: Array<{ center: [number, number]; relevance?: number }> }
+      const feature = json.features?.[0]
+      // Only fly if Mapbox is highly confident this is an exact place match (relevance >= 0.85)
+      if (feature?.center && (feature.relevance ?? 0) >= 0.85) {
+        cameraRef.current?.setCamera({
+          centerCoordinate: feature.center,
+          zoomLevel: 10,
+          animationDuration: 800,
+        })
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setIsGeocoding(false)
+    }
+  }, [])
+
+  const handleSearchSubmit = useCallback(() => {
+    const query = searchQuery.trim()
+    if (!query) return
+    const matches = activeItems
+    if (matches.length > 1) {
+      setSpeciesPickerItems(matches)
+      return
+    }
+    if (matches.length === 1) {
+      handleSelectMapSighting(matches[0]!)
+      return
+    }
+    // No species matches — try geocoding if it could be a place name (multi-word or 6+ chars)
+    if (query.includes(' ') || query.length >= 6) {
+      void geocodePlace(query)
+    }
+  }, [activeItems, geocodePlace, handleSelectMapSighting, searchQuery])
+
+  const handleCloseSpeciesPicker = useCallback(() => {
+    setSpeciesPickerItems(null)
+  }, [])
+
+  const handlePickerSelect = useCallback(
+    (item: NearbyMapSighting) => {
+      setSpeciesPickerItems(null)
+      handleSelectMapSighting(item)
+    },
+    [handleSelectMapSighting],
+  )
+
+  useEffect(() => {
+    if (!speciesPickerItems || speciesPickerItems.length === 0 || !MAPBOX_TOKEN) return
+    const loadCityNames = async () => {
+      const entries = await Promise.all(
+        speciesPickerItems.map(async (item) => {
+          try {
+            const res = await fetch(
+              `https://api.mapbox.com/geocoding/v5/mapbox.places/${item.lng},${item.lat}.json?access_token=${MAPBOX_TOKEN}&types=place,locality&limit=1`,
+            )
+            const json = await res.json() as { features?: Array<{ text: string }> }
+            const city = json.features?.[0]?.text ?? `${item.lat.toFixed(1)}, ${item.lng.toFixed(1)}`
+            return [item.id, city] as const
+          } catch {
+            return [item.id, `${item.lat.toFixed(1)}, ${item.lng.toFixed(1)}`] as const
+          }
+        }),
+      )
+      setCityNames(Object.fromEntries(entries))
+    }
+    void loadCityNames()
+  }, [speciesPickerItems])
+
+  const handleSearchChange = (text: string) => {
+    setSearchQuery(text)
+    setSpeciesPickerItems(null)
+    if (text === '' && userCoord !== null) {
+      cameraRef.current?.setCamera({
+        centerCoordinate: userCoord,
+        zoomLevel: 15,
+        animationDuration: 500,
+      })
+    }
+  }
+
+  const handleClearSearch = () => {
+    setSearchQuery('')
+    setSpeciesPickerItems(null)
+    if (userCoord !== null) {
+      cameraRef.current?.setCamera({
+        centerCoordinate: userCoord,
+        zoomLevel: 15,
+        animationDuration: 500,
+      })
+    }
+  }
+
   const handleLocateMe = () => {
     if (userCoord === null) return
     if (isWalkNavigating) {
-      setIsFollowingWalkNav(true)
+      isFollowingWalkNavRef.current = true
       focusWalkNavigationCamera(600)
       return
     }
@@ -564,24 +731,22 @@ export function MapScreenContent() {
     setWalkSession(null)
   }
 
-  const handleMapRegionUpdate = useCallback(
-    (feature: {
-      properties: {
-        zoomLevel: number
-        heading?: number
-        isGestureActive?: boolean
-      }
+  const handleCameraChanged = useCallback(
+    (state: {
+      properties: { zoom: number; heading: number }
+      gestures: { isGestureActive: boolean }
     }) => {
-      setZoom(feature.properties.zoomLevel)
-      const heading = feature.properties.heading
+      setZoom(state.properties.zoom)
+      const heading = state.properties.heading
       if (typeof heading === 'number' && Number.isFinite(heading)) {
         setMapBearing(heading)
       }
-      if (isWalkNavigating && feature.properties.isGestureActive) {
-        setIsFollowingWalkNav(false)
+      if (state.gestures.isGestureActive) {
+        if (isWalkNavigating) isFollowingWalkNavRef.current = false
+        if (isWalkPreview) setIsFollowingWalkPreview(false)
       }
     },
-    [isWalkNavigating],
+    [isWalkNavigating, isWalkPreview],
   )
 
   return (
@@ -608,8 +773,7 @@ export function MapScreenContent() {
           compassEnabled={false}
           scaleBarEnabled={false}
           onPress={handleMapPress}
-          onRegionIsChanging={handleMapRegionUpdate}
-          onRegionDidChange={handleMapRegionUpdate}
+          onCameraChanged={handleCameraChanged}
           onMapLoadingError={() => console.warn('MapLoadError: check token and network')}>
 
           <Camera
@@ -723,10 +887,31 @@ export function MapScreenContent() {
         <View style={styles.searchBar}>
           <Ionicons name="search" size={16} color={colors.dim} />
           <TextInput
-            placeholder="Search species or places…"
+            placeholder="Search by cities, animals or plants"
             placeholderTextColor={colors.dim}
             style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={handleSearchChange}
+            onSubmitEditing={handleSearchSubmit}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            clearButtonMode="never"
           />
+          {isGeocoding ? (
+            <Animated.View style={styles.geocodingSpinner}>
+              <Ionicons name="globe-outline" size={16} color={colors.greenLight} />
+            </Animated.View>
+          ) : null}
+          {searchQuery.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              onPress={handleClearSearch}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close-circle" size={16} color={colors.dim} />
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.togglePill}>
@@ -805,6 +990,55 @@ export function MapScreenContent() {
         </Pressable>
       </View>
 
+      {/* ── Species selection picker ── */}
+      {speciesPickerItems !== null ? (
+        <>
+          <Pressable
+            style={[StyleSheet.absoluteFill, styles.pickerBackdrop]}
+            onPress={handleCloseSpeciesPicker}
+          />
+          <View style={[styles.speciesPicker, { paddingBottom: tabBarClearance }]}>
+            <View style={styles.handle} />
+            <View style={styles.speciesPickerHeader}>
+              <Text style={styles.sheetTitle}>
+                {speciesPickerItems.length} result{speciesPickerItems.length === 1 ? '' : 's'}
+              </Text>
+              <Text style={styles.sheetSub}>
+                "{searchQuery}" · spotted in multiple locations
+              </Text>
+            </View>
+            <FlatList
+              data={speciesPickerItems}
+              keyExtractor={(item) => item.id}
+              scrollEnabled
+              showsVerticalScrollIndicator={false}
+              style={styles.nearbyList}
+              contentContainerStyle={{ paddingBottom: space[8] }}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => handlePickerSelect(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.name} in ${cityNames[item.id] ?? 'unknown location'}`}
+                  style={({ pressed }) => [styles.nearbyRowPressable, pressed && styles.nearbyRowPressed]}>
+                  <View style={styles.nearbyRow}>
+                    <View style={styles.nearbyMeta}>
+                      <NearbySpeciesName name={item.name} style={styles.nearbyName} />
+                      <Text style={styles.nearbyDist}>
+                        {cityNames[item.id]
+                          ? `${cityNames[item.id]} · ${item.date}`
+                          : item.date}
+                      </Text>
+                    </View>
+                    <KingdomBadge kind={item.kingdom} />
+                  </View>
+                </Pressable>
+              )}
+            />
+          </View>
+        </>
+      ) : null}
+
       {/* ── Bottom sheet ── */}
       {!isWalkNavigating ? (
       <>
@@ -817,45 +1051,78 @@ export function MapScreenContent() {
               : { height: sheetHeight, bottom: 0 },
             sheetStyle,
           ]}>
-          <View style={[styles.sheetSurface, { paddingBottom: tabBarClearance }]}>
+          <View
+            style={[
+              styles.sheetSurface,
+              { paddingBottom: isWalkPreview ? 0 : tabBarClearance },
+            ]}>
             {isWalkPreview && walkTarget ? (
-              <View style={[styles.sheetInner, styles.sheetInnerDetail]}>
-                <View style={styles.handle} />
-                <WalkDirectionsPreview
-                  speciesName={walkTarget.sighting.name}
-                  routeSummary={routeSummary}
-                  routeSteps={routeSteps}
-                  isRouteLoading={isRouteLoading}
-                  routeFailed={routeFailed}
-                  distanceUnit={distanceUnit}
-                  scrollBottomInset={walkPreviewFooterInset}
-                  onExit={handleEndWalkGuide}
-                />
+              <View style={[styles.sheetInner, styles.sheetInnerDetail, styles.walkPreviewSheet]}>
+                <View style={styles.walkPreviewDragZone}>
+                  <View style={styles.handle} />
+                </View>
+                <View style={styles.walkPreviewContent}>
+                  <WalkDirectionsPreview
+                    speciesName={walkTarget.sighting.name}
+                    routeSummary={routeSummary}
+                    routeSteps={routeSteps}
+                    isRouteLoading={isRouteLoading}
+                    routeFailed={routeFailed}
+                    distanceUnit={distanceUnit}
+                    scrollEnabled={walkDirectionsScrollEnabled}
+                    onExit={handleEndWalkGuide}
+                  />
+                </View>
+                <View
+                  style={[
+                    styles.walkPreviewFooterInSheet,
+                    { paddingBottom: tabBarClearance + FAB_SIZE / 2 },
+                  ]}>
+                  <View style={styles.walkPreviewActions}>
+                    <View style={styles.walkExitShadow}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Exit directions"
+                        onPress={handleEndWalkGuide}
+                        style={({ pressed }) => [styles.walkExitBtn, pressed && styles.walkBtnPressed]}>
+                        <Text style={styles.walkExitLabel}>Exit</Text>
+                      </Pressable>
+                    </View>
+                    <View style={styles.walkStartShadow}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Start walking directions"
+                        disabled={isRouteLoading}
+                        onPress={handleStartWalkNavigation}
+                        style={({ pressed }) => [
+                          styles.walkStartBtn,
+                          isRouteLoading && styles.walkStartDisabled,
+                          pressed && !isRouteLoading && styles.walkStartPressed,
+                        ]}>
+                        <Ionicons name="navigate" size={20} color={colors.card} />
+                        <Text style={styles.walkStartLabel}>Start</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
               </View>
             ) : viewMode === 'sightings' ? (
               <SightingsSheet
-                selectedSighting={viewMode === 'sightings' ? selectedSighting : null}
+                items={filteredSightings}
+                selectedSighting={selectedSighting}
                 distanceUnit={distanceUnit}
-                hasLiveLocation={hasLiveLocation}
+                onSelectSighting={handleSelectMapSighting}
                 onClearSelection={handleClearSheetSelection}
-                onTakeMeThere={handleOpenWalkPreview}
-                areaLabel={
-                  hasLiveLocation
-                    ? 'Around you'
-                    : locationDenied
-                      ? 'Location off'
-                      : 'Locating…'
-                }
-                spotsCaptured={spotsCaptured}
+                searchQuery={normalizedQuery}
               />
             ) : (
               <NearbySheet
-                items={nearbyCommunity}
+                items={filteredNearby}
                 isLoading={nearbyLoading}
                 error={nearbyError}
                 distanceUnit={distanceUnit}
                 priorityMiles={NEARBY_PRIORITY_MILES}
-
+                searchQuery={normalizedQuery}
                 hasLiveLocation={hasLiveLocation}
                 selectedSighting={selectedSighting}
                 onSelectSighting={handleSelectMapSighting}
@@ -866,40 +1133,6 @@ export function MapScreenContent() {
           </View>
         </Animated.View>
       </GestureDetector>
-
-      {/* Walk preview: solid footer hides sheet content behind Exit + Start */}
-      {isWalkPreview && walkTarget ? (
-        <View
-          style={[
-            styles.walkPreviewFooter,
-            { paddingBottom: tabBarClearance + FAB_SIZE / 2 },
-          ]}>
-          <View style={styles.walkPreviewActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Exit directions"
-              onPress={handleEndWalkGuide}
-              style={({ pressed }) => [styles.walkExitBtn, pressed && styles.walkBtnPressed]}>
-              <Text style={styles.walkExitLabel}>Exit</Text>
-            </Pressable>
-            <View style={styles.walkStartShadow}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Start walking directions"
-                disabled={isRouteLoading}
-                onPress={handleStartWalkNavigation}
-                style={({ pressed }) => [
-                  styles.walkStartBtn,
-                  isRouteLoading && styles.walkStartDisabled,
-                  pressed && !isRouteLoading && styles.walkStartPressed,
-                ]}>
-                <Ionicons name="navigate" size={20} color={colors.card} />
-                <Text style={styles.walkStartLabel}>Start</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      ) : null}
       </>
       ) : null}
     </View>
@@ -909,29 +1142,23 @@ export function MapScreenContent() {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 interface SightingsSheetProps {
+  items: NearbyMapSighting[]
   selectedSighting: NearbyMapSighting | null
   distanceUnit: DistanceUnit
-  hasLiveLocation: boolean
+  searchQuery: string
+  onSelectSighting: (sighting: NearbyMapSighting) => void
   onClearSelection: () => void
-  onTakeMeThere: (sighting: NearbyMapSighting) => void
-  areaLabel: string
-  spotsCaptured: number
 }
 
 function SightingsSheet({
+  items,
   selectedSighting,
   distanceUnit,
-  hasLiveLocation,
+  searchQuery,
+  onSelectSighting,
   onClearSelection,
-  onTakeMeThere,
-  areaLabel,
-  spotsCaptured,
 }: SightingsSheetProps) {
-  const hasSightings = spotsCaptured > 0
-
   if (selectedSighting) {
-    const canGuide =
-      hasLiveLocation && isWithinNearbyRadius(selectedSighting.distanceM)
     return (
       <View style={[styles.sheetInner, styles.sheetInnerDetail]}>
         <View style={styles.handle} />
@@ -939,9 +1166,10 @@ function SightingsSheet({
           sighting={selectedSighting}
           distanceUnit={distanceUnit}
           listLabel="My Sightings"
-          canTakeMeThere={canGuide}
+          canTakeMeThere={false}
+          showDirections={false}
           onBack={onClearSelection}
-          onTakeMeThere={() => onTakeMeThere(selectedSighting)}
+          onTakeMeThere={() => {}}
         />
       </View>
     )
@@ -950,22 +1178,47 @@ function SightingsSheet({
   return (
     <View style={styles.sheetInner}>
       <View style={styles.handle} />
-      <View style={styles.sheetRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.sheetTitle}>{areaLabel}</Text>
-          <Text style={styles.sheetSub}>
-            {hasSightings
-              ? `${spotsCaptured} species spotted`
-              : 'Nothing spotted yet — head outside!'}
-          </Text>
-        </View>
-        {hasSightings ? (
-          <View style={styles.statChip}>
-            <Ionicons name="trending-up" size={13} color={colors.green} />
-            <Text style={styles.statChipText}>Keep exploring</Text>
-          </View>
-        ) : null}
-      </View>
+      <Text style={styles.sheetTitle}>My Sightings</Text>
+      <Text style={[styles.sheetSub, { marginBottom: space[16] }]}>
+        {searchQuery
+          ? items.length === 0
+            ? '0 results found'
+            : `${items.length} result${items.length === 1 ? '' : 's'} found for "${searchQuery}"`
+          : items.length > 0
+            ? `${items.length} species spotted around the world`
+            : 'Nothing spotted yet — head outside!'}
+      </Text>
+      <FlatList
+        data={items}
+        keyExtractor={(item) => item.id}
+        scrollEnabled
+        style={styles.nearbyList}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={null}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        renderItem={({ item }) => (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`View ${item.name}`}
+            onPress={() => onSelectSighting(item)}
+            style={({ pressed }) => [styles.nearbyRowPressable, pressed && styles.nearbyRowPressed]}>
+            <View style={styles.nearbyRow}>
+              <View style={styles.nearbyMeta}>
+                <View style={styles.nearbyNameRow}>
+                  <NearbySpeciesName name={item.name} style={styles.nearbyName} />
+                  {item.isNew && (
+                    <View style={styles.newTag}>
+                      <Text style={styles.newTagText}>NEW</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.nearbyDist}>{item.date}</Text>
+              </View>
+              <KingdomBadge kind={item.kingdom} />
+            </View>
+          </Pressable>
+        )}
+      />
     </View>
   )
 }
@@ -976,6 +1229,7 @@ interface NearbySheetProps {
   error: string | null
   distanceUnit: DistanceUnit
   priorityMiles: number
+  searchQuery: string
   hasLiveLocation: boolean
   selectedSighting: NearbyMapSighting | null
   onSelectSighting: (sighting: NearbyMapSighting) => void
@@ -1028,6 +1282,7 @@ function NearbySheet({
   error,
   distanceUnit,
   priorityMiles,
+  searchQuery,
   hasLiveLocation,
   selectedSighting,
   onSelectSighting,
@@ -1037,9 +1292,11 @@ function NearbySheet({
   const emptyMessage = error
     ?? (isLoading
       ? 'Loading nearby species…'
-      : !hasLiveLocation
-        ? `Turn on location to see species within ${priorityMiles} miles of you.`
-        : nearbySearchEmptyMessage(distanceUnit))
+      : searchQuery
+        ? `No species matching "${searchQuery}" nearby.`
+        : !hasLiveLocation
+          ? `Turn on location to see species within ${priorityMiles} miles of you.`
+          : nearbySearchEmptyMessage(distanceUnit))
 
   const canGuideToSighting = (sighting: NearbyMapSighting) =>
     hasLiveLocation && isWithinNearbyRadius(sighting.distanceM)
@@ -1311,6 +1568,20 @@ const styles = StyleSheet.create({
   sheetInnerDetail: {
     paddingTop: space[8],
   },
+  walkPreviewSheet: {
+    flex: 1,
+    minHeight: 0,
+    paddingHorizontal: 0,
+  },
+  walkPreviewDragZone: {
+    paddingHorizontal: space[16],
+    paddingBottom: space[8],
+  },
+  walkPreviewContent: {
+    flex: 1,
+    minHeight: 0,
+    paddingHorizontal: space[16],
+  },
   nearbyRowPressable: {
     borderRadius: radius.md,
   },
@@ -1401,17 +1672,12 @@ const styles = StyleSheet.create({
     color: colors.earth,
     letterSpacing: 0.5,
   },
-  walkPreviewFooter: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+  walkPreviewFooterInSheet: {
     backgroundColor: colors.card,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.hairline,
     paddingTop: space[16],
     paddingHorizontal: space[16],
-    zIndex: 15,
   },
   walkPreviewActions: {
     flexDirection: 'row',
@@ -1419,18 +1685,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: space[16],
   },
-  walkExitBtn: {
+  walkExitShadow: {
     flex: 1,
+    backgroundColor: 'rgba(115, 136, 160, 0.15)',
+    borderRadius: radius.lg,
+    paddingBottom: 4,
+  },
+  walkExitBtn: {
     alignItems: 'center',
     justifyContent: 'center',
     height: 52,
     borderRadius: radius.lg,
     backgroundColor: colors.card,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.hairline,
   },
   walkBtnPressed: {
-    opacity: 0.7,
+    transform: [{ translateY: 2 }],
   },
   walkExitLabel: {
     fontFamily: typeTokens.body.family,
@@ -1464,5 +1735,37 @@ const styles = StyleSheet.create({
     fontSize: typeTokens.size.title,
     fontWeight: typeTokens.body.weights.extra,
     color: colors.card,
+  },
+
+  // Geocoding spinner inline in search bar
+  geocodingSpinner: {
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Species picker overlay
+  pickerBackdrop: {
+    zIndex: 25,
+    backgroundColor: 'rgba(21, 33, 48, 0.35)',
+  },
+  speciesPicker: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 30,
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xxl,
+    borderTopRightRadius: radius.xxl,
+    maxHeight: '60%',
+    paddingHorizontal: space[16],
+    paddingTop: space[16],
+    ...shadow.sheetUp,
+  },
+  speciesPickerHeader: {
+    gap: space[4],
+    marginBottom: space[16],
   },
 })

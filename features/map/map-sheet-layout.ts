@@ -43,6 +43,23 @@ export const MAP_SHEET_HEADER_ROW_MIN_HEIGHT = 44
 /** Padding before the first line of scrollable sheet body (below fixed header). */
 export const MAP_SHEET_SCROLL_TOP_PADDING = space[16]
 
+/**
+ * Walk preview collapsed peek — handle through distance meta (e.g. “1.3 mi · Sidewalk route”).
+ * Sheet stops here when dragged down; directions stay hidden until user slides up.
+ */
+export const WALK_PREVIEW_SUMMARY_PEEK_BODY =
+  MAP_SHEET_HANDLE_BLOCK_HEIGHT
+  + space[8]
+  + MAP_SHEET_HEADER_ROW_MIN_HEIGHT
+  + space[8]
+  + MAP_SHEET_SCROLL_TOP_PADDING
+  + typeTokens.size.title
+  + space[8]
+  + typeTokens.size.displaySM
+  + space[8]
+  + typeTokens.size.bodySM
+  + space[16]
+
 /** Sheet top edge when expanded — never above map search / toggle chrome. */
 export function mapExpandedSheetTopY(safeAreaTop: number): number {
   return mapTopOverlayBottom(safeAreaTop)
