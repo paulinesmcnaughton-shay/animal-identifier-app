@@ -7,7 +7,7 @@ import type { UserSightingRow } from '@/features/sightings/fetch-user-sightings'
 
 export function userSightingToNearbyMapPin(
   row: UserSightingRow,
-  userCoord: MapCoordinate,
+  userCoord: MapCoordinate | null,
 ): NearbyMapSighting | null {
   if (row.latitude == null || row.longitude == null) return null
 
@@ -24,7 +24,7 @@ export function userSightingToNearbyMapPin(
     date: formatSpottedAgo(row.spotted_at),
     count: 1,
     isNew: Date.now() - new Date(row.spotted_at).getTime() < 48 * 3_600_000,
-    distanceM: haversineDistanceM(userCoord, { lat, lng }),
+    distanceM: userCoord ? haversineDistanceM(userCoord, { lat, lng }) : 0,
     source: 'user',
     explorerCount: 1,
     isVerified: false,

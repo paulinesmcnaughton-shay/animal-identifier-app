@@ -6,16 +6,17 @@ import {
   type ClaudeIdentPayload,
 } from '@/features/identify/claude-vision'
 import {
+  canUseOpenAiVision,
+  identifyWithOpenAiVision,
+  type OpenAiIdentPayload,
+} from '@/features/identify/openai-vision'
+import {
   canUseGoogleVision,
   detectImageCategory,
   mapLabelsToPipelineCategory,
 } from '@/features/identify/google-vision'
 import { isGenericAnimalName } from '@/features/identify/generic-animal-name'
-import {
-  canUseInaturalist,
-  scoreImageWithInaturalist,
-  scoreImageWithInaturalistIfConfident,
-} from '@/features/identify/inaturalist'
+import { lookupSpeciesInGbif } from '@/features/identify/gbif'
 import { enrichIdentResult } from '@/features/species/dex-number-registry'
 import { kingdomKeyFromTaxonomy } from '@/features/species/kingdom-from-taxonomy'
 import { fetchDomesticSpeciesFromSupabase } from '@/features/species/fetch-domestic-species'
@@ -28,29 +29,8 @@ import {
   type IdentResult,
   type IdentifyOutcome,
   type PipelineCategory,
-  IdentifyError,
   MANUAL_PICKER_CONFIDENCE_THRESHOLD,
 } from '@/features/identify/types'
-
-interface InatTaxonResult {
-  id: number
-  preferred_common_name?: string
-  name?: string
-  iconic_taxon_name?: string
-}
-
-const INAT_ICONIC_MAP: Record<string, IdentResult['kingdom']> = {
-  Animalia: 'mammal',
-  Aves: 'bird',
-  Reptilia: 'reptile',
-  Amphibia: 'amphibian',
-  Actinopterygii: 'fish',
-  Insecta: 'insect',
-  Arachnida: 'arachnid',
-  Mollusca: 'mollusc',
-  Plantae: 'plant',
-  Fungi: 'plant',
-}
 
 const WILD_CATEGORIES: PipelineCategory[] = [
   'bird',
@@ -94,28 +74,6 @@ function manualOutcome(
   }
 }
 
-function kingdomToPipelineCategory(kingdom: IdentResult['kingdom']): PipelineCategory {
-  switch (kingdom) {
-    case 'bird':
-      return 'bird'
-    case 'insect':
-    case 'arachnid':
-      return 'insect'
-    case 'reptile':
-    case 'amphibian':
-      return 'reptile'
-    case 'plant':
-      return 'plant'
-    case 'fish':
-    case 'mollusc':
-      return 'wild_mammal'
-    case 'mammal':
-      return 'wild_mammal'
-    default:
-      return 'unknown'
-  }
-}
-
 function inferCategoryFromLabels(labels: string[]): PipelineCategory {
   if (labels.length === 0) return 'unknown'
   return mapLabelsToPipelineCategory(labels)
@@ -142,38 +100,11 @@ function pickSpeciesHintFromLabels(labels: string[], category: PipelineCategory)
   return null
 }
 
-async function lookupWildTaxon(commonName: string): Promise<IdentResult | null> {
-  const res = await fetch(
-    `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(commonName)}&per_page=1&rank=species,subspecies,variety`,
-  )
-  if (!res.ok) return null
-
-  const json = (await res.json()) as { results?: InatTaxonResult[] }
-  const taxon = json.results?.[0]
-  if (!taxon) return null
-
-  const iconic = taxon.iconic_taxon_name ?? 'Animalia'
-  const resolvedName = taxon.preferred_common_name?.trim() || taxon.name?.trim() || commonName
-
-  return enrichIdentResult(
-    {
-      commonName: resolvedName,
-      kingdom: INAT_ICONIC_MAP[iconic] ?? 'mammal',
-      confidence: MANUAL_PICKER_CONFIDENCE_THRESHOLD,
-      source: 'inaturalist',
-      latinName: taxon.name,
-      isDomestic: false,
-    },
-    { inatTaxonId: taxon.id },
-  )
-}
-
 async function resolveDomesticBreed(
   uri: string,
   breedName: string,
   confidence: number,
   source: IdentResult['source'],
-  latinName?: string,
 ): Promise<IdentifyOutcome | null> {
   const canonical = applyBreedAlias(breedName)
   const domestic = await fetchDomesticSpeciesFromSupabase(
@@ -197,25 +128,6 @@ async function resolveDomesticBreed(
       dexNumber: domestic.detail.dexNumber,
     },
   }
-}
-
-async function tryResolveInatAsDomestic(
-  uri: string,
-  inat: IdentResult,
-): Promise<IdentifyOutcome | null> {
-  if (inat.kingdom !== 'mammal') return null
-
-  const petKind = inferPetKindFromLabels(inat.commonName, inat.latinName ?? '')
-  const looksDomestic =
-    petKind != null ||
-    /\b(canis|felis|dog|cat|corgi|retriever|shepherd|terrier|poodle|beagle|bulldog|labrador)\b/i.test(
-      `${inat.commonName} ${inat.latinName ?? ''}`,
-    )
-
-  if (!looksDomestic) return null
-  if (needsBreedRefinement(inat.commonName)) return null
-
-  return resolveDomesticBreed(uri, inat.commonName, inat.confidence, 'inaturalist', inat.latinName)
 }
 
 async function tryResolveDomesticFromVisionLabels(
@@ -261,222 +173,160 @@ async function tryResolveWildFromVisionLabels(
   const hint = pickSpeciesHintFromLabels(labels, category)
   if (!hint) return null
 
-  const wild = await lookupWildTaxon(hint)
+  const wild = await lookupSpeciesInGbif(hint)
   if (!wild) return null
 
-  pipelineLog(`Google species hint → iNat taxon: ${wild.commonName}`)
+  pipelineLog(`Google species hint → GBIF taxon: ${wild.commonName}`)
   return {
     status: 'identified',
     uri,
     result: {
       ...wild,
       confidence: Math.max(wild.confidence, 0.72),
-      source: 'google',
+      source: 'gbif',
     },
   }
 }
 
-async function tryInaturalistPrimary(uri: string): Promise<{
-  outcome: IdentifyOutcome | null
-  hint: IdentResult | null
-}> {
-  if (!(await canUseInaturalist())) {
-    pipelineLog('iNaturalist unavailable')
-    return { outcome: null, hint: null }
-  }
+type AiPayload = ClaudeIdentPayload | OpenAiIdentPayload
 
-  let hint: IdentResult | null = null
-
-  try {
-    const confident = await scoreImageWithInaturalistIfConfident(uri)
-    if (confident) {
-      pipelineLog(`iNat confident: ${confident.commonName} (${confident.confidence})`)
-      const domestic = await tryResolveInatAsDomestic(uri, confident)
-      if (domestic) return { outcome: domestic, hint: confident }
-      return { outcome: { status: 'identified', uri, result: confident }, hint: confident }
-    }
-  } catch (error) {
-    if (error instanceof IdentifyError && error.code === 'NOT_LIVING') {
-      return { outcome: null, hint: null }
-    }
-    if (!(error instanceof IdentifyError && error.code === 'NO_RESULTS')) throw error
-  }
-
-  try {
-    hint = await scoreImageWithInaturalist(uri)
-    pipelineLog(`iNat below threshold: ${hint.commonName} (${hint.confidence})`)
-  } catch (error) {
-    if (error instanceof IdentifyError && (error.code === 'NO_RESULTS' || error.code === 'NOT_LIVING')) {
-      return { outcome: null, hint: null }
-    }
-    throw error
-  }
-
-  return { outcome: null, hint }
-}
-
-async function routeDomesticAnthropicFallback(
+async function tryAiIdentification(
   uri: string,
-  category: PipelineCategory,
-  visionLabels: string[],
-  inatHint: IdentResult | null,
-): Promise<IdentifyOutcome> {
-  let claude: ClaudeIdentPayload | null = null
-
+  mode: 'domestic_breed' | 'wild_species',
+): Promise<{ payload: AiPayload; source: 'claude' | 'openai' } | null> {
   if (canUseClaudeVision()) {
-    pipelineLog('Anthropic fallback for domestic breed')
     try {
-      claude = await identifyWithClaudeVision(uri, 'domestic_breed')
-      pipelineLog(`Claude: ${claude.commonName} ${claude.confidence}`)
+      const payload = await identifyWithClaudeVision(uri, mode)
+      pipelineLog(`Claude: ${payload.commonName} ${payload.confidence}`)
+      return { payload, source: 'claude' }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Claude failed'
       pipelineLog(`Claude error: ${message}`)
     }
   }
 
-  if (claude && !needsManualPicker(claude)) {
+  if (canUseOpenAiVision()) {
+    try {
+      const payload = await identifyWithOpenAiVision(uri, mode)
+      pipelineLog(`OpenAI: ${payload.commonName} ${payload.confidence}`)
+      return { payload, source: 'openai' }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'OpenAI failed'
+      pipelineLog(`OpenAI error: ${message}`)
+    }
+  }
+
+  return null
+}
+
+async function routeDomesticFallback(
+  uri: string,
+  category: PipelineCategory,
+  visionLabels: string[],
+): Promise<IdentifyOutcome> {
+  const ai = await tryAiIdentification(uri, 'domestic_breed')
+
+  if (ai && !needsManualPicker(ai.payload)) {
     const identified = await resolveDomesticBreed(
       uri,
-      claude.commonName,
-      claude.confidence,
-      'claude',
-      claude.latinName,
+      ai.payload.commonName,
+      ai.payload.confidence,
+      ai.source,
     )
     if (identified) return identified
   }
 
-  if (inatHint && !needsBreedRefinement(inatHint.commonName)) {
-    const fromInat = await resolveDomesticBreed(
-      uri,
-      inatHint.commonName,
-      Math.max(inatHint.confidence, MANUAL_PICKER_CONFIDENCE_THRESHOLD),
-      'inaturalist',
-      inatHint.latinName,
-    )
-    if (fromInat) return fromInat
-  }
-
-  if (claude && claude.commonName !== 'Unknown') {
+  if (ai && ai.payload.commonName !== 'Unknown') {
     const hintOutcome = await resolveDomesticBreed(
       uri,
-      claude.commonName,
-      Math.max(claude.confidence, MANUAL_PICKER_CONFIDENCE_THRESHOLD),
-      'claude',
-      claude.latinName,
+      ai.payload.commonName,
+      Math.max(ai.payload.confidence, MANUAL_PICKER_CONFIDENCE_THRESHOLD),
+      ai.source,
     )
     if (hintOutcome) return hintOutcome
   }
 
   const mixed = resolveDomesticMixedBreedFallback(
-    claude?.commonName ?? inatHint?.commonName ?? visionLabels[0] ?? 'dog',
+    ai?.payload.commonName ?? visionLabels[0] ?? 'dog',
     visionLabels,
-    claude?.confidence ?? inatHint?.confidence ?? 0.45,
+    ai?.payload.confidence ?? 0.45,
   )
-  const mixedOutcome = await resolveDomesticBreed(
-    uri,
-    mixed.commonName,
-    mixed.confidence,
-    'claude',
-  )
+  const mixedOutcome = await resolveDomesticBreed(uri, mixed.commonName, mixed.confidence, 'google')
   if (mixedOutcome) {
     pipelineLog(`Domestic mixed-breed fallback: ${mixed.commonName}`)
     return mixedOutcome
   }
 
   return manualOutcome(uri, category, {
-    hintCommonName:
-      claude?.commonName && claude.commonName !== 'Unknown'
-        ? applyBreedAlias(claude.commonName)
-        : inatHint?.commonName,
+    hintCommonName: ai?.payload.commonName && ai.payload.commonName !== 'Unknown'
+      ? applyBreedAlias(ai.payload.commonName)
+      : undefined,
     hintKingdom: 'mammal',
   })
 }
 
-async function routeWildAnthropicFallback(
+async function routeWildFallback(
   uri: string,
   category: PipelineCategory,
   visionLabels: string[],
-  inatHint: IdentResult | null,
 ): Promise<IdentifyOutcome> {
   const visionHint = pickSpeciesHintFromLabels(visionLabels, category)
-  const hintName =
-    inatHint?.commonName && !isGenericAnimalName(inatHint.commonName)
-      ? inatHint.commonName
-      : visionHint ?? undefined
 
-  if (!canUseClaudeVision()) {
-    if (inatHint && inatHint.confidence > 0) {
-      return { status: 'identified', uri, result: inatHint }
-    }
+  const ai = await tryAiIdentification(uri, 'wild_species')
+
+  if (!ai) {
     return manualOutcome(uri, category, {
-      hintCommonName: hintName,
-      hintKingdom: inatHint?.kingdom ?? undefined,
+      hintCommonName: visionHint ?? undefined,
     })
   }
 
-  pipelineLog('Anthropic fallback for wild species')
-  let claude: ClaudeIdentPayload
-  try {
-    claude = await identifyWithClaudeVision(uri, 'wild_species')
-    pipelineLog(`Claude: ${claude.commonName} ${claude.confidence}`)
-  } catch (error) {
-    if (inatHint && inatHint.confidence > 0) {
-      return { status: 'identified', uri, result: inatHint }
-    }
-    throw error
-  }
-
-  if (needsManualPicker(claude)) {
+  if (needsManualPicker(ai.payload)) {
     return manualOutcome(uri, category, {
-      hintCommonName: claude.commonName !== 'Unknown' ? claude.commonName : hintName,
-      hintKingdom: claude.kingdom ?? inatHint?.kingdom,
+      hintCommonName: ai.payload.commonName !== 'Unknown' ? ai.payload.commonName : visionHint ?? undefined,
+      hintKingdom: ai.payload.kingdom,
     })
   }
 
-  const wild = await lookupWildTaxon(claude.commonName)
+  const wild = await lookupSpeciesInGbif(ai.payload.commonName)
   if (wild) {
     return {
       status: 'identified',
       uri,
       result: {
         ...wild,
-        confidence: Math.max(wild.confidence, claude.confidence),
-        source: 'claude',
-        latinName: claude.latinName || wild.latinName,
+        confidence: Math.max(wild.confidence, ai.payload.confidence),
+        source: ai.source,
+        latinName: ai.payload.latinName || wild.latinName,
         isDomestic: false,
       },
     }
   }
 
-  const kingdom = kingdomKeyFromTaxonomy(claude.kingdom)
-  if (claude.confidence >= MANUAL_PICKER_CONFIDENCE_THRESHOLD) {
+  const kingdom = kingdomKeyFromTaxonomy(ai.payload.kingdom)
+  if (ai.payload.confidence >= MANUAL_PICKER_CONFIDENCE_THRESHOLD) {
     return {
       status: 'identified',
       uri,
       result: enrichIdentResult({
-        commonName: claude.commonName,
+        commonName: ai.payload.commonName,
         kingdom,
-        confidence: claude.confidence,
-        source: 'claude',
-        latinName: claude.latinName,
+        confidence: ai.payload.confidence,
+        source: ai.source,
+        latinName: ai.payload.latinName,
         isDomestic: false,
-        lookupId: slugifySpeciesName(claude.commonName),
+        lookupId: slugifySpeciesName(ai.payload.commonName),
       }),
     }
   }
 
   return manualOutcome(uri, category, {
-    hintCommonName: claude.commonName,
-    hintKingdom: claude.kingdom,
+    hintCommonName: ai.payload.commonName,
+    hintKingdom: ai.payload.kingdom,
   })
 }
 
 export async function runIdentificationPipeline(uri: string): Promise<IdentifyOutcome> {
-  pipelineLog('Step 1: iNaturalist')
-  const { outcome: inatOutcome, hint: inatHint } = await tryInaturalistPrimary(uri)
-  if (inatOutcome) return inatOutcome
-
-  pipelineLog('Step 2: Google Cloud Vision')
+  pipelineLog('Step 1: Google Cloud Vision')
   let category: PipelineCategory = 'unknown'
   let visionLabels: string[] = []
 
@@ -503,21 +353,6 @@ export async function runIdentificationPipeline(uri: string): Promise<IdentifyOu
     pipelineLog('Google Vision unavailable')
   }
 
-  if (category === 'unknown' && inatHint?.kingdom) {
-    category = kingdomToPipelineCategory(inatHint.kingdom)
-    if (inferPetKindFromLabels(inatHint.commonName, inatHint.latinName ?? '')) {
-      category = inferPetKindFromLabels(inatHint.commonName, inatHint.latinName ?? '') === 'cat'
-        ? 'domestic_cat'
-        : 'domestic_dog'
-    }
-    pipelineLog(`Category from iNat hint: ${category}`)
-  }
-
-  if (category === 'unknown') {
-    category = inferCategoryFromLabels(visionLabels)
-    if (category !== 'unknown') pipelineLog(`Category from Google labels: ${category}`)
-  }
-
   if (category === 'unknown') {
     const petKind = inferPetKindFromLabels(...visionLabels)
     if (petKind === 'dog') category = 'domestic_dog'
@@ -527,32 +362,27 @@ export async function runIdentificationPipeline(uri: string): Promise<IdentifyOu
     }
   }
 
-  if (category === 'unknown' && !canUseClaudeVision()) {
-    return manualOutcome(uri, category, {
-      hintCommonName: inatHint?.commonName,
-      hintKingdom: inatHint?.kingdom ?? undefined,
-    })
+  if (category === 'unknown') {
+    category = inferCategoryFromLabels(visionLabels)
+    if (category !== 'unknown') pipelineLog(`Category from labels: ${category}`)
   }
 
-  pipelineLog('Step 3: Anthropic fallback')
+  pipelineLog('Step 2: AI identification (Claude → OpenAI)')
   if (category === 'domestic_dog' || category === 'domestic_cat') {
-    return routeDomesticAnthropicFallback(uri, category, visionLabels, inatHint)
+    return routeDomesticFallback(uri, category, visionLabels)
   }
 
   if (WILD_CATEGORIES.includes(category)) {
-    return routeWildAnthropicFallback(uri, category, visionLabels, inatHint)
+    return routeWildFallback(uri, category, visionLabels)
   }
 
-  if (canUseClaudeVision()) {
+  if (canUseClaudeVision() || canUseOpenAiVision()) {
     const guessed =
       /\b(bouquet|flower|floral|plant|rose|garden|bloom)\b/i.test(visionLabels.join(' '))
         ? 'plant'
         : 'wild_mammal'
-    return routeWildAnthropicFallback(uri, guessed, visionLabels, inatHint)
+    return routeWildFallback(uri, guessed, visionLabels)
   }
 
-  return manualOutcome(uri, category, {
-    hintCommonName: inatHint?.commonName,
-    hintKingdom: inatHint?.kingdom ?? undefined,
-  })
+  return manualOutcome(uri, category, undefined)
 }

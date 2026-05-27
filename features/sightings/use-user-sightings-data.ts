@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from 'react'
 import type { DexCardSpecies } from '@/components/DexCard'
 import type { NearbyMapSighting } from '@/features/map/map-sighting'
 import { userSightingToNearbyMapPin } from '@/features/map/map-sighting-adapters'
-import { filterWithinNearbyRadius } from '@/features/map/nearby-radius'
 import { useUserLocation } from '@/features/map/use-user-location'
 import {
   buildDexEntriesFromSightings,
@@ -20,13 +19,6 @@ interface UserSightingsDataState {
   dexEntries: DexCardSpecies[]
   recentCards: DexCardSpecies[]
   isLoading: boolean
-}
-
-const EMPTY: UserSightingsDataState = {
-  mapPins: [],
-  dexEntries: [],
-  recentCards: [],
-  isLoading: false,
 }
 
 export function useUserSightingsData(): UserSightingsDataState {
@@ -48,14 +40,13 @@ export function useUserSightingsData(): UserSightingsDataState {
     setIsLoading(false)
   }, [isAuthenticated])
 
-  const mapPins = useMemo(() => {
-    if (userCoord === null) return []
-    return filterWithinNearbyRadius(
+  const mapPins = useMemo(
+    () =>
       rows
         .map((row) => userSightingToNearbyMapPin(row, userCoord))
         .filter((item): item is NearbyMapSighting => item !== null),
-    )
-  }, [rows, userCoord])
+    [rows, userCoord],
+  )
 
   const dexEntries = useMemo(() => buildDexEntriesFromSightings(rows), [rows])
 

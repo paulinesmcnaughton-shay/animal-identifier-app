@@ -10,7 +10,8 @@ import { CollectorTierBadge } from '@/components/CollectorTierBadge'
 import { RecentSpotsSection } from '@/components/profile/RecentSpotsSection'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
-import { mockCreatureOfDay } from '@/data/mock'
+import { useCreatureOfWeek } from '@/features/home/creature-of-week'
+import type { CreatureRosterItem } from '@/features/home/creature-of-week'
 import type { WeeklyQuestProgress } from '@/features/profile/home-stats'
 import { dexCardHairline } from '@/design/dex-card-shell'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
@@ -128,12 +129,13 @@ function WeeklyQuestCard({ quest }: WeeklyQuestCardProps) {
   )
 }
 
-interface CreatureOfDayCardProps {
+interface CreatureOfWeekCardProps {
+  creature: CreatureRosterItem
   onInfoPress: () => void
 }
 
-function CreatureOfDayCard({ onInfoPress }: CreatureOfDayCardProps) {
-  const { commonName, scientificName, kingdom, description, bonusXp, heroImage } = mockCreatureOfDay
+function CreatureOfWeekCard({ creature, onInfoPress }: CreatureOfWeekCardProps) {
+  const { commonName, scientificName, kingdom, description, bonusXp, heroImage } = creature
   const router = useRouter()
 
   return (
@@ -195,6 +197,7 @@ export function SpotHomeScreen() {
     useAccountProfile()
   const { recentCards } = useUserSightingsData()
   const greeting = useSpotGreeting(timeZone)
+  const creatureOfWeek = useCreatureOfWeek()
   const [creatureInfoOpen, setCreatureInfoOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true)
@@ -243,10 +246,10 @@ export function SpotHomeScreen() {
         <WeeklyQuestCard quest={weeklyQuest} />
         <View style={styles.sectionGap}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Creature of the day</Text>
-            <Text style={styles.newEvery}>NEW EVERY 24H</Text>
+            <Text style={styles.sectionTitle}>Creature of the week</Text>
+            <Text style={styles.newEvery}>NEW EVERY WEEK</Text>
           </View>
-          <CreatureOfDayCard onInfoPress={() => setCreatureInfoOpen(true)} />
+          <CreatureOfWeekCard creature={creatureOfWeek} onInfoPress={() => setCreatureInfoOpen(true)} />
         </View>
         <RecentSpotsSection
           title="Recent finds"
@@ -259,7 +262,7 @@ export function SpotHomeScreen() {
 
       <CreatureInfoOverlay
         visible={creatureInfoOpen}
-        creature={mockCreatureOfDay}
+        creature={creatureOfWeek}
         onClose={() => setCreatureInfoOpen(false)}
       />
 

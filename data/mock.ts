@@ -50,6 +50,7 @@ function dexNum(id: string): string {
   return getDexNumberForSpeciesId(id) ?? '#???'
 }
 
+/** @deprecated Use useCreatureOfWeek from @/features/home/creature-of-week */
 export const mockCreatureOfDay = {
   id: 'gecko',
   commonName: 'Crested Gecko',

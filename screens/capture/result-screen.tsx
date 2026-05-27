@@ -19,8 +19,8 @@ import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import { slugifySpeciesName } from '@/data/species-catalog'
 import { identifyAnimalOrPlant } from '@/features/identify/identify-image'
 import { buildManualPickerRouteParams } from '@/features/identify/manual-picker-params'
-import { friendlyIdentifyError } from '@/features/identify/friendly-identify-error'
-import type { IdentResult } from '@/features/identify/types'
+import type { IdentResult, PipelineCategory } from '@/features/identify/types'
+import { MANUAL_PICKER_CONFIDENCE_THRESHOLD } from '@/features/identify/types'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
 
@@ -49,22 +49,30 @@ export function ResultScreen() {
           source: (params.source as IdentifySource) || 'inaturalist',
         }
       : null
-  const prefilledError =
-    typeof params.errorMessage === 'string' && params.errorMessage.length > 0
-      ? params.errorMessage
-      : null
 
-  const [isLoading, setIsLoading] = useState(!!photoUri && !prefilledResult && !prefilledError)
-  const [result, setResult] = useState<IdentResult | null>(prefilledResult)
-  const [errorMessage, setErrorMessage] = useState<string | null>(prefilledError)
+  const hasPrefilledError =
+    typeof params.errorMessage === 'string' && params.errorMessage.length > 0
+
+  const initialResult: IdentResult | null = hasPrefilledError
+    ? { commonName: 'Unknown Species', kingdom: null, confidence: 0, source: 'manual' }
+    : prefilledResult
+
+  const [isLoading, setIsLoading] = useState(!!photoUri && !prefilledResult && !hasPrefilledError)
+  const [result, setResult] = useState<IdentResult | null>(initialResult)
+  const [isLowConfidence, setIsLowConfidence] = useState(
+    hasPrefilledError ||
+      (prefilledResult !== null &&
+        prefilledResult.confidence < MANUAL_PICKER_CONFIDENCE_THRESHOLD),
+  )
+  const [manualCategory, setManualCategory] = useState<PipelineCategory>('unknown')
   const [isSaving, setIsSaving] = useState(false)
 
   const pulseAnim = useRef(new Animated.Value(1)).current
 
   const runIdentification = useCallback(async (imageUri: string) => {
     setIsLoading(true)
-    setErrorMessage(null)
     setResult(null)
+    setIsLowConfidence(false)
 
     const pulse = Animated.loop(
       Animated.sequence([
@@ -77,15 +85,28 @@ export function ResultScreen() {
     try {
       const outcome = await identifyAnimalOrPlant(imageUri)
       if (outcome.status === 'manual') {
-        router.replace({
-          pathname: '/identify/manual-picker',
-          params: buildManualPickerRouteParams({ ...outcome, uri: imageUri }),
-        })
+        setManualCategory(outcome.category ?? 'unknown')
+        setIsLowConfidence(true)
+        setResult(
+          outcome.hintCommonName
+            ? {
+                commonName: outcome.hintCommonName,
+                kingdom: (outcome.hintKingdom as KingdomKey) ?? null,
+                confidence: 0.45,
+                source: 'manual',
+              }
+            : { commonName: 'Unknown Species', kingdom: null, confidence: 0, source: 'manual' },
+        )
         return
       }
       setResult(outcome.result)
+      if (outcome.result.confidence < MANUAL_PICKER_CONFIDENCE_THRESHOLD) {
+        setIsLowConfidence(true)
+      }
     } catch (error) {
-      setErrorMessage(friendlyIdentifyError(error))
+      setIsLowConfidence(true)
+      setManualCategory('unknown')
+      setResult({ commonName: 'Unknown Species', kingdom: null, confidence: 0, source: 'manual' })
       if (__DEV__) console.warn('[WildKind iNat]', error)
     } finally {
       pulse.stop()
@@ -95,9 +116,9 @@ export function ResultScreen() {
   }, [pulseAnim])
 
   useEffect(() => {
-    if (!photoUri || prefilledResult || prefilledError) return
+    if (!photoUri || prefilledResult || hasPrefilledError) return
     void runIdentification(photoUri)
-  }, [photoUri, prefilledResult, prefilledError, runIdentification])
+  }, [photoUri, prefilledResult, hasPrefilledError, runIdentification])
 
   const cardOffset = useSharedValue(320)
 
@@ -166,6 +187,24 @@ export function ResultScreen() {
     if (photoUri) void runIdentification(photoUri)
   }
 
+  const handleNotQuite = () => {
+    router.push({
+      pathname: '/identify/manual-picker',
+      params: buildManualPickerRouteParams({
+        uri: photoUri ?? '',
+        category: manualCategory,
+        hintCommonName:
+          result?.commonName && result.commonName !== 'Unknown Species'
+            ? result.commonName
+            : undefined,
+        hintKingdom: result?.kingdom ?? undefined,
+      }),
+    })
+  }
+
+  const notQuiteLabel =
+    result?.kingdom === 'plant' ? 'Not quite — choose plants' : 'Not quite — choose species'
+
   const confidencePercent = result ? Math.round(result.confidence * 100) : 0
 
   return (
@@ -203,25 +242,6 @@ export function ResultScreen() {
           <View style={styles.pulseInner} />
           <Text style={styles.loadingLabel}>Identifying…</Text>
         </View>
-      ) : errorMessage ? (
-        <ReAnimated.View
-          style={[
-            styles.card,
-            { paddingBottom: insets.bottom + space[16] },
-            cardAnimatedStyle,
-          ]}>
-          <View style={styles.handle} />
-          <Text style={styles.speciesName}>Couldn't identify</Text>
-          <Text style={styles.errorBody}>{errorMessage}</Text>
-          <PopButton label="Try again" onPress={handleRetry} />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Retake photo"
-            onPress={handleClose}
-            style={styles.secondaryAction}>
-            <Text style={styles.secondaryActionText}>Retake photo</Text>
-          </Pressable>
-        </ReAnimated.View>
       ) : result ? (
         <ReAnimated.View
           style={[
@@ -245,11 +265,36 @@ export function ResultScreen() {
           <View style={styles.confidenceBar}>
             <ProgressBar progress={result.confidence} />
           </View>
-          <PopButton
-            label={isSaving ? 'Saving…' : 'Add to collection'}
-            onPress={() => void handleAddToCollection()}
-            disabled={isSaving}
-          />
+
+          {result.confidence > 0 ? (
+            <PopButton
+              label={isSaving ? 'Saving…' : 'Add to collection'}
+              onPress={() => void handleAddToCollection()}
+              disabled={isSaving}
+            />
+          ) : (
+            <PopButton label="Choose species" onPress={handleNotQuite} />
+          )}
+
+          {isLowConfidence && result.confidence > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={notQuiteLabel}
+              onPress={handleNotQuite}
+              style={styles.secondaryAction}>
+              <Text style={styles.secondaryActionText}>{notQuiteLabel}</Text>
+            </Pressable>
+          ) : null}
+
+          {result.confidence === 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Try again"
+              onPress={handleRetry}
+              style={styles.secondaryAction}>
+              <Text style={styles.secondaryActionText}>Try again</Text>
+            </Pressable>
+          ) : null}
         </ReAnimated.View>
       ) : null}
     </View>
@@ -370,12 +415,6 @@ const styles = StyleSheet.create({
     fontWeight: typeTokens.display.weight,
     color: colors.ink,
     letterSpacing: -0.6,
-    marginBottom: space[16],
-  },
-  errorBody: {
-    fontSize: typeTokens.size.body,
-    color: colors.ink2,
-    lineHeight: 22,
     marginBottom: space[16],
   },
   metaRow: {

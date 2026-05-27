@@ -39,8 +39,6 @@ export const walkDirectionsIconButton = StyleSheet.create({
   },
   onLight: {
     backgroundColor: colors.bg2,
-    borderWidth: 1,
-    borderColor: colors.hairline,
   },
   maneuver: {
     width: WALK_DIRECTIONS_TOUCH,

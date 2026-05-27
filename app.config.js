@@ -109,6 +109,8 @@ module.exports = {
   extra: {
     mapboxToken: process.env.MAPBOX_ACCESS_TOKEN ?? '',
     anthropicApiKey: envString('ANTHROPIC_API_KEY'),
+    openAiApiKey: envString('OPENAI_API_KEY'),
+    googleVisionApiKey: envString('GOOGLE_VISION_API_KEY'),
     plantnetApiKey: envString('PLANTNET_API_KEY'),
     SUPABASE_URL: envString('SUPABASE_URL') || 'https://wiysesftlprovkpouvqu.supabase.co',
     SUPABASE_PUBLISHABLE_KEY:

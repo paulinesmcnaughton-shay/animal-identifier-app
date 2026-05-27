@@ -30,6 +30,8 @@ interface NearbySpotDetailCardProps {
   /** Label on the back row (e.g. "Nearby" or "My Sightings"). */
   listLabel?: string
   canTakeMeThere?: boolean
+  /** When false, hides the directions button and the out-of-range note entirely. */
+  showDirections?: boolean
   onBack: () => void
   onTakeMeThere: () => void
 }
@@ -39,6 +41,7 @@ export function NearbySpotDetailCard({
   distanceUnit,
   listLabel = 'Nearby',
   canTakeMeThere = true,
+  showDirections = true,
   onBack,
   onTakeMeThere,
 }: NearbySpotDetailCardProps) {
@@ -165,23 +168,25 @@ export function NearbySpotDetailCard({
           <Text style={styles.noticeText}>{PRIVATE_PROPERTY_NOTICE}</Text>
         </View>
 
-        {canTakeMeThere ? (
-          <View style={styles.btnWrap}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Get walking directions"
-              onPress={onTakeMeThere}
-              style={({ pressed }) => [styles.btn, pressed && styles.btnPressed]}>
-              <Ionicons name="walk" size={18} color={colors.card} />
-              <Text style={styles.btnText}>Get directions</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <Text style={styles.outOfRangeNote}>
-            In-app directions only work for spots within {NEARBY_RADIUS_MILES} miles of your
-            current location.
-          </Text>
-        )}
+        {showDirections ? (
+          canTakeMeThere ? (
+            <View style={styles.btnWrap}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Get walking directions"
+                onPress={onTakeMeThere}
+                style={({ pressed }) => [styles.btn, pressed && styles.btnPressed]}>
+                <Ionicons name="walk" size={18} color={colors.card} />
+                <Text style={styles.btnText}>Get directions</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Text style={styles.outOfRangeNote}>
+              In-app directions only work for spots within {NEARBY_RADIUS_MILES} miles of your
+              current location.
+            </Text>
+          )
+        ) : null}
       </ScrollView>
     </View>
   )

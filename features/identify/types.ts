@@ -10,7 +10,7 @@ export type PipelineCategory =
   | 'wild_mammal'
   | 'unknown'
 
-export type IdentifySource = 'claude' | 'inaturalist' | 'google' | 'manual'
+export type IdentifySource = 'claude' | 'openai' | 'gbif' | 'inaturalist' | 'google' | 'manual'
 
 export interface IdentResult {
   commonName: string
