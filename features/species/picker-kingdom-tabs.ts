@@ -31,5 +31,6 @@ export function matchesPickerKingdom(
 ): boolean {
   if (filter === 'all') return true
   if (filter === 'fungi') return isFungiTaxonomy(taxonomyKingdom)
+  if (filter === 'plant') return kingdom === 'plant' || kingdom === 'tree' || kingdom === 'flower'
   return kingdom === filter
 }

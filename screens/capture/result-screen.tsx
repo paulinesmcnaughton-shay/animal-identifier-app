@@ -177,6 +177,7 @@ export function ResultScreen() {
         confidence: String(result.confidence),
         ...(result.latinName ? { latin: result.latinName } : {}),
         ...(result.isDomestic ? { domestic: '1' } : {}),
+        ...(photoUri ? { capturePhotoUri: photoUri } : {}),
         fromCapture: '1',
         saved: '1',
       },

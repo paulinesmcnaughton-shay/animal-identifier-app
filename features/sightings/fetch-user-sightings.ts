@@ -18,7 +18,9 @@ const GRADIENT_BY_KINGDOM: Record<KingdomKey, readonly [string, string]> = {
   insect: ['#FFC93C', '#E8A020'],
   arachnid: ['#C4B5FD', '#4338CA'],
   mollusc: ['#FCE7C7', '#B45309'],
-  plant: ['#A4DE3A', '#65A30D'],
+  plant:  ['#A4DE3A', '#65A30D'],
+  tree:   ['#52B788', '#2D6A4F'],
+  flower: ['#F9A8D4', '#E879A0'],
 }
 
 export interface UserSightingRow {
@@ -48,6 +50,7 @@ function rowToDexCard(row: UserSightingRow): DexCardSpecies {
     date: formatSpottedAgo(row.spotted_at),
     kingdom,
     gradient: GRADIENT_BY_KINGDOM[kingdom],
+    photoUri: row.photo_uri ?? null,
   }
 }
 

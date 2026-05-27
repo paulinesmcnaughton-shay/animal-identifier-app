@@ -245,6 +245,20 @@ const KINGDOM_FALLBACK: Record<KingdomKey, NearbyFieldGuide> = {
     approachTip: 'Photograph leaves, flowers, or cap from multiple angles for ID.',
     bestTimeToSpot: NA,
   },
+  tree: {
+    whatIsIt: 'A tree or large woody plant near this location.',
+    safetyLevel: 'low',
+    safetyNote: 'Avoid fallen branches and do not climb without proper gear.',
+    approachTip: 'Photograph bark, leaves, and overall shape for best identification.',
+    bestTimeToSpot: NA,
+  },
+  flower: {
+    whatIsIt: 'A flowering plant near this location.',
+    safetyLevel: 'low',
+    safetyNote: 'Do not touch or eat unknown flowers — some are toxic.',
+    approachTip: 'Photograph the full bloom, leaves, and stem for accurate ID.',
+    bestTimeToSpot: 'Spring and summer when blooms are open.',
+  },
 }
 
 export function hasSpecificFieldGuide(sighting: NearbyMapSighting): boolean {

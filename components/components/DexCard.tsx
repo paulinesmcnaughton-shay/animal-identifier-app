@@ -17,6 +17,7 @@ export interface DexCardSpecies {
   gradient: readonly [string, string]
   cornerBadge?: 'NEW' | 'RARE'
   showFootprint?: boolean
+  photoUri?: string | null
 }
 
 interface DexCardProps {
@@ -26,8 +27,9 @@ interface DexCardProps {
 }
 
 export function DexCard({ species, width, onPress }: DexCardProps) {
-  const { number, name, date, gradient, cornerBadge, showFootprint, kingdom } = species
-  const { url: photoUrl } = useTaxaPhoto(name, kingdom)
+  const { number, name, date, gradient, cornerBadge, showFootprint, kingdom, photoUri } = species
+  const { url: taxaUrl } = useTaxaPhoto(photoUri ? null : name, kingdom)
+  const photoUrl = photoUri ?? taxaUrl
   const kingdomBg = KINGDOM[kingdom]?.bg ?? colors.dim
 
   const card = (

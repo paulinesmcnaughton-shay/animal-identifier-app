@@ -37,6 +37,7 @@ import {
   type PickerSpeciesItem,
 } from '@/features/species/search-picker-species'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
+import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
 
 const SEARCH_DEBOUNCE_MS = 400
 
@@ -134,6 +135,7 @@ export function ManualPickerScreen() {
           number: item.dexNumber ?? '',
           ...(item.latinName ? { latin: item.latinName } : {}),
           ...(item.isDomestic ? { domestic: '1' } : {}),
+          ...(photoUri ? { capturePhotoUri: photoUri } : {}),
           fromCapture: '1',
           saved: '1',
         },
@@ -271,6 +273,9 @@ interface PickerSpeciesCardProps {
 }
 
 function PickerSpeciesCard({ item, width, onPress }: PickerSpeciesCardProps) {
+  const { url: taxaUrl } = useTaxaPhoto(item.imageUrl ? null : item.commonName, item.kingdom)
+  const imageUrl = item.imageUrl ?? taxaUrl
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -278,8 +283,8 @@ function PickerSpeciesCard({ item, width, onPress }: PickerSpeciesCardProps) {
       onPress={onPress}
       style={({ pressed }) => [styles.card, { width }, pressed && styles.cardPressed]}>
       <View style={styles.cardArt}>
-        {item.imageUrl ? (
-          <Image source={{ uri: item.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
+        {imageUrl ? (
+          <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
         ) : (
           <LinearGradient
             colors={[...item.gradient]}

@@ -21,17 +21,18 @@ Set isGeneric: true only if you cannot identify a specific breed.
 Set confidence between 0 and 1.
 If you truly cannot identify anything, set commonName to "Unknown" and confidence to 0.`
 
-const WILD_SPECIES_PROMPT = `You are a wildlife identification expert.
-Identify the exact species in this photo.
+const WILD_SPECIES_PROMPT = `You are an expert animal and species identifier.
+Identify the exact species in this photo — including wild animals, domestic pets (dogs, cats), birds, insects, reptiles, and plants.
 Respond ONLY with JSON:
 {
-  "commonName": "Monarch Butterfly",
-  "latinName": "Danaus plexippus",
-  "kingdom": "Insecta",
-  "confidence": 0.88,
-  "isDomestic": false,
+  "commonName": "Pembroke Welsh Corgi",
+  "latinName": "Canis lupus familiaris",
+  "kingdom": "Mammalia",
+  "confidence": 0.92,
+  "isDomestic": true,
   "isGeneric": false
 }
+Set isDomestic: true for dogs, cats, and other domestic pets. Set isDomestic: false for wild species.
 Set isGeneric: true if you can only identify a general category without a specific species.
 Set confidence between 0 and 1.
 If you truly cannot identify anything, set commonName to "Unknown" and confidence to 0.`
@@ -78,7 +79,7 @@ function parsePayload(text: string, mode: OpenAiVisionMode): OpenAiIdentPayload 
     latinName,
     kingdom,
     confidence,
-    isDomestic: mode === 'domestic_breed',
+    isDomestic: typeof parsed.isDomestic === 'boolean' ? parsed.isDomestic : mode === 'domestic_breed',
     isGeneric: parsed.isGeneric === true,
   }
 }
@@ -97,7 +98,7 @@ export async function identifyWithOpenAiVision(
   const userText =
     mode === 'domestic_breed'
       ? 'Identify the dog or cat breed in this image.'
-      : 'Identify the wild species in this image.'
+      : 'Identify the species in this image.'
 
   let res: Response
   try {

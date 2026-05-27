@@ -2,6 +2,7 @@ import { enrichIdentResult } from '@/features/species/dex-number-registry'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import type { IdentResult } from '@/features/identify/types'
 import { MANUAL_PICKER_CONFIDENCE_THRESHOLD } from '@/features/identify/types'
+import { classifyPlantType } from '@/features/species/kingdom-from-taxonomy'
 
 const GBIF_MATCH_URL = 'https://api.gbif.org/v1/species/match'
 
@@ -29,12 +30,14 @@ const CLASS_TO_KINGDOM: Record<string, KingdomKey> = {
   Gastropoda: 'mollusc',
 }
 
-function resolveKingdom(match: GbifMatchResponse): KingdomKey | null {
+function resolveKingdom(match: GbifMatchResponse, commonName?: string): KingdomKey | null {
   if (match.class) {
     const k = CLASS_TO_KINGDOM[match.class]
     if (k) return k
   }
-  if (match.kingdom === 'Plantae' || match.kingdom === 'Fungi') return 'plant'
+  if (match.kingdom === 'Plantae' || match.kingdom === 'Fungi') {
+    return commonName ? classifyPlantType(commonName) : 'plant'
+  }
   if (match.kingdom === 'Animalia') return 'mammal'
   return null
 }
@@ -52,7 +55,7 @@ export async function lookupSpeciesInGbif(commonName: string): Promise<IdentResu
     if ((match.confidence ?? 0) < 60) return null
 
     const latinName = match.canonicalName?.trim() || match.scientificName?.trim()
-    const kingdom = resolveKingdom(match)
+    const kingdom = resolveKingdom(match, commonName)
 
     return enrichIdentResult({
       commonName,

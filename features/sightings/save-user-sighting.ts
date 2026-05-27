@@ -1,3 +1,4 @@
+import * as FileSystem from 'expo-file-system/legacy'
 import * as Location from 'expo-location'
 
 import { slugifySpeciesName } from '@/data/species-catalog'
@@ -10,6 +11,15 @@ import { getSupabaseClient } from '@/lib/supabase/client'
 
 const XP_NEW_SPECIES = 25
 const XP_REPEAT_SPECIES = 5
+const SIGHTINGS_DIR = `${FileSystem.documentDirectory}sightings/`
+
+async function persistCapturePhoto(uri: string): Promise<string> {
+  await FileSystem.makeDirectoryAsync(SIGHTINGS_DIR, { intermediates: true })
+  const filename = `sighting-${Date.now()}.jpg`
+  const dest = `${SIGHTINGS_DIR}${filename}`
+  await FileSystem.copyAsync({ from: uri, to: dest })
+  return dest
+}
 
 export interface SaveUserSightingInput {
   speciesId: string
@@ -87,6 +97,15 @@ export async function saveUserSighting(
 
   const spottedAt = new Date().toISOString()
 
+  let savedPhotoUri = input.photoUri?.trim() || null
+  if (savedPhotoUri) {
+    try {
+      savedPhotoUri = await persistCapturePhoto(savedPhotoUri)
+    } catch {
+      // keep original URI if copy fails
+    }
+  }
+
   const { error: insertError } = await supabase.from('user_sightings').insert({
     user_id: userId,
     species_id: speciesId,
@@ -96,7 +115,7 @@ export async function saveUserSighting(
     dex_number: input.dexNumber?.trim() || null,
     confidence: input.confidence ?? null,
     is_domestic: input.isDomestic ?? false,
-    photo_uri: input.photoUri?.trim() || null,
+    photo_uri: savedPhotoUri,
     latitude,
     longitude,
     spotted_at: spottedAt,

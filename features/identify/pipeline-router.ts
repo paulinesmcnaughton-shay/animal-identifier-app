@@ -18,7 +18,7 @@ import {
 import { isGenericAnimalName } from '@/features/identify/generic-animal-name'
 import { lookupSpeciesInGbif } from '@/features/identify/gbif'
 import { enrichIdentResult } from '@/features/species/dex-number-registry'
-import { kingdomKeyFromTaxonomy } from '@/features/species/kingdom-from-taxonomy'
+import { classifyPlantType, kingdomKeyFromTaxonomy } from '@/features/species/kingdom-from-taxonomy'
 import { fetchDomesticSpeciesFromSupabase } from '@/features/species/fetch-domestic-species'
 import {
   inferPetKindFromLabels,
@@ -219,6 +219,30 @@ async function tryAiIdentification(
   return null
 }
 
+function aiResultAsIdentified(
+  uri: string,
+  ai: { payload: AiPayload; source: 'claude' | 'openai' },
+  confidence?: number,
+): IdentifyOutcome {
+  const baseKingdom = kingdomKeyFromTaxonomy(ai.payload.kingdom) ?? 'mammal'
+  const kingdom = baseKingdom === 'plant'
+    ? classifyPlantType(ai.payload.commonName, ai.payload.latinName)
+    : baseKingdom
+  return {
+    status: 'identified',
+    uri,
+    result: enrichIdentResult({
+      commonName: ai.payload.commonName,
+      kingdom,
+      confidence: confidence ?? ai.payload.confidence,
+      source: ai.source,
+      latinName: ai.payload.latinName,
+      isDomestic: ai.payload.isDomestic,
+      lookupId: slugifySpeciesName(ai.payload.commonName),
+    }),
+  }
+}
+
 async function routeDomesticFallback(
   uri: string,
   category: PipelineCategory,
@@ -227,25 +251,13 @@ async function routeDomesticFallback(
   const ai = await tryAiIdentification(uri, 'domestic_breed')
 
   if (ai && !needsManualPicker(ai.payload)) {
-    const identified = await resolveDomesticBreed(
-      uri,
-      ai.payload.commonName,
-      ai.payload.confidence,
-      ai.source,
-    )
+    // Try Supabase for rich breed data; fall back to AI result directly if not catalogued
+    const identified = await resolveDomesticBreed(uri, ai.payload.commonName, ai.payload.confidence, ai.source)
     if (identified) return identified
+    return aiResultAsIdentified(uri, ai)
   }
 
-  if (ai && ai.payload.commonName !== 'Unknown') {
-    const hintOutcome = await resolveDomesticBreed(
-      uri,
-      ai.payload.commonName,
-      Math.max(ai.payload.confidence, MANUAL_PICKER_CONFIDENCE_THRESHOLD),
-      ai.source,
-    )
-    if (hintOutcome) return hintOutcome
-  }
-
+  // Try mixed-breed Supabase fallback
   const mixed = resolveDomesticMixedBreedFallback(
     ai?.payload.commonName ?? visionLabels[0] ?? 'dog',
     visionLabels,
@@ -257,10 +269,16 @@ async function routeDomesticFallback(
     return mixedOutcome
   }
 
+  // AI gave us something below threshold but still useful — return it at minimum confidence
+  if (ai && ai.payload.commonName !== 'Unknown') {
+    return aiResultAsIdentified(uri, ai, Math.max(ai.payload.confidence, MANUAL_PICKER_CONFIDENCE_THRESHOLD))
+  }
+
+  const genericBreedHint = category === 'domestic_cat' ? 'Domestic Cat' : 'Mixed Breed Dog'
   return manualOutcome(uri, category, {
     hintCommonName: ai?.payload.commonName && ai.payload.commonName !== 'Unknown'
       ? applyBreedAlias(ai.payload.commonName)
-      : undefined,
+      : genericBreedHint,
     hintKingdom: 'mammal',
   })
 }
@@ -274,15 +292,38 @@ async function routeWildFallback(
 
   const ai = await tryAiIdentification(uri, 'wild_species')
 
+  const categoryFallbackHint: Partial<Record<PipelineCategory, string>> = {
+    bird: 'Unknown Bird',
+    insect: 'Unknown Insect',
+    reptile: 'Unknown Reptile',
+    plant: 'Unknown Plant',
+    wild_mammal: 'Unknown Animal',
+  }
+  const wildFallbackHint = visionHint ?? categoryFallbackHint[category]
+
   if (!ai) {
     return manualOutcome(uri, category, {
-      hintCommonName: visionHint ?? undefined,
+      hintCommonName: wildFallbackHint,
+    })
+  }
+
+  if (ai.payload.isDomestic) {
+    const name = ai.payload.commonName !== 'Unknown' ? ai.payload.commonName : null
+    if (name) {
+      const identified = await resolveDomesticBreed(uri, name, ai.payload.confidence, ai.source)
+      if (identified) return identified
+      if (ai.payload.confidence > 0) return aiResultAsIdentified(uri, ai)
+    }
+    const petKind = /\b(cat|feline|kitten|tabby)\b/i.test(ai.payload.commonName) ? 'cat' : 'dog'
+    return manualOutcome(uri, category, {
+      hintCommonName: petKind === 'cat' ? 'Domestic Cat' : 'Mixed Breed Dog',
+      hintKingdom: 'mammal',
     })
   }
 
   if (needsManualPicker(ai.payload)) {
     return manualOutcome(uri, category, {
-      hintCommonName: ai.payload.commonName !== 'Unknown' ? ai.payload.commonName : visionHint ?? undefined,
+      hintCommonName: ai.payload.commonName !== 'Unknown' ? ai.payload.commonName : wildFallbackHint,
       hintKingdom: ai.payload.kingdom,
     })
   }
@@ -302,7 +343,10 @@ async function routeWildFallback(
     }
   }
 
-  const kingdom = kingdomKeyFromTaxonomy(ai.payload.kingdom)
+  const baseKingdom2 = kingdomKeyFromTaxonomy(ai.payload.kingdom)
+  const kingdom = baseKingdom2 === 'plant'
+    ? classifyPlantType(ai.payload.commonName, ai.payload.latinName)
+    : baseKingdom2
   if (ai.payload.confidence >= MANUAL_PICKER_CONFIDENCE_THRESHOLD) {
     return {
       status: 'identified',
@@ -320,7 +364,7 @@ async function routeWildFallback(
   }
 
   return manualOutcome(uri, category, {
-    hintCommonName: ai.payload.commonName,
+    hintCommonName: ai.payload.commonName !== 'Unknown' ? ai.payload.commonName : wildFallbackHint,
     hintKingdom: ai.payload.kingdom,
   })
 }
@@ -384,5 +428,5 @@ export async function runIdentificationPipeline(uri: string): Promise<IdentifyOu
     return routeWildFallback(uri, guessed, visionLabels)
   }
 
-  return manualOutcome(uri, category, undefined)
+  return manualOutcome(uri, category, { hintCommonName: 'Unknown Species' })
 }

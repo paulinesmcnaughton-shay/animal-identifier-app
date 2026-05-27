@@ -35,8 +35,7 @@ import { colors, radius, shadow, space, type as typeTokens } from '@/design/toke
 import { slugifySpeciesName } from '@/data/species-catalog'
 import { identifyAnimalOrPlant } from '@/features/identify/identify-image'
 import { buildManualPickerRouteParams } from '@/features/identify/manual-picker-params'
-import { friendlyIdentifyError } from '@/features/identify/friendly-identify-error'
-import { type IdentResult, IdentifyError } from '@/features/identify/types'
+import type { IdentResult } from '@/features/identify/types'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
 
 type Facing = 'back' | 'front'
@@ -235,11 +234,19 @@ export function CameraScreen() {
     (outcome: Awaited<ReturnType<typeof identifyAnimalOrPlant>>) => {
       if (outcome.status === 'manual') {
         setManualOutcome(outcome)
-        setCaptureResult(null)
+        const hint: IdentResult | null = outcome.hintCommonName
+          ? {
+              commonName: outcome.hintCommonName,
+              kingdom: (outcome.hintKingdom as KingdomKey) ?? null,
+              confidence: 0.45,
+              source: 'manual',
+            }
+          : null
+        setCaptureResult(hint)
         setCaptureSheetError(null)
-        setResultSheetPhase('manual')
+        setResultSheetPhase(hint ? 'success' : 'manual')
         setOverlayPhase('idle')
-        setAccentColor(colors.sun)
+        setAccentColor(hint ? kingdomAccent(hint.kingdom) : colors.sun)
         return
       }
 
@@ -278,11 +285,13 @@ export function CameraScreen() {
         }, 400)
       } catch (error) {
         if (!isActive()) return
-        if (!(error instanceof IdentifyError)) throw error
+        if (__DEV__) console.warn('[WildKind Camera]', error)
         setOverlayPhase('idle')
         setAccentColor(colors.sun)
-        setCaptureSheetError(friendlyIdentifyError(error))
-        setResultSheetPhase('error')
+        setCaptureResult(null)
+        setCaptureSheetError(null)
+        setManualOutcome(null)
+        setResultSheetPhase('manual')
       }
     },
     [showCaptureResult],

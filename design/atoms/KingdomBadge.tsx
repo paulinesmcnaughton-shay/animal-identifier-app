@@ -12,6 +12,8 @@ export type KingdomKey =
   | 'arachnid'
   | 'mollusc'
   | 'plant'
+  | 'tree'
+  | 'flower'
 
 export const KINGDOM: Record<KingdomKey, { bg: string; label: string; emoji: string }> = {
   insect:    { bg: '#FFC93C', label: 'Insect',    emoji: '🦋' },
@@ -23,6 +25,8 @@ export const KINGDOM: Record<KingdomKey, { bg: string; label: string; emoji: str
   arachnid:  { bg: '#A855F7', label: 'Arachnid',  emoji: '🕷️' },
   mollusc:   { bg: '#92633A', label: 'Mollusc',   emoji: '🐚' },
   plant:     { bg: '#65A30D', label: 'Plant',     emoji: '🌿' },
+  tree:      { bg: '#2D6A4F', label: 'Tree',      emoji: '🌳' },
+  flower:    { bg: '#E879A0', label: 'Flower',    emoji: '🌸' },
 }
 
 interface KingdomBadgeProps {

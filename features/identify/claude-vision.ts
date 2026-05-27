@@ -4,7 +4,7 @@ import { readImageBase64 } from './read-image-base64'
 import { IdentifyError } from './types'
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
-const CLAUDE_MODELS = ['claude-sonnet-4-20250514', 'claude-opus-4-20250514'] as const
+const CLAUDE_MODELS = ['claude-sonnet-4-5-20251001', 'claude-haiku-4-5-20251001'] as const
 const ANTHROPIC_VERSION = '2023-06-01'
 
 const DOMESTIC_BREED_PROMPT = `You are an expert dog and cat breed identifier.
@@ -22,17 +22,18 @@ Set isGeneric: true only if you cannot identify a specific breed.
 Set confidence between 0 and 1.
 If you truly cannot identify anything, set commonName to "Unknown" and confidence to 0.`
 
-const WILD_SPECIES_PROMPT = `You are a wildlife identification expert.
-Identify the exact species in this photo.
+const WILD_SPECIES_PROMPT = `You are an expert animal and species identifier.
+Identify the exact species in this photo — including wild animals, domestic pets (dogs, cats), birds, insects, reptiles, and plants.
 Respond ONLY with JSON:
 {
-  "commonName": "Monarch Butterfly",
-  "latinName": "Danaus plexippus",
-  "kingdom": "Insecta",
-  "confidence": 0.88,
-  "isDomestic": false,
+  "commonName": "Pembroke Welsh Corgi",
+  "latinName": "Canis lupus familiaris",
+  "kingdom": "Mammalia",
+  "confidence": 0.92,
+  "isDomestic": true,
   "isGeneric": false
 }
+Set isDomestic: true for dogs, cats, and other domestic pets. Set isDomestic: false for wild species.
 Set isGeneric: true if you can only identify a general category without a specific species.
 Set confidence between 0 and 1.
 If you truly cannot identify anything, set commonName to "Unknown" and confidence to 0.`
@@ -83,7 +84,7 @@ function parseClaudePayload(text: string, mode: ClaudeVisionMode): ClaudeIdentPa
     latinName,
     kingdom,
     confidence,
-    isDomestic: mode === 'domestic_breed' ? true : false,
+    isDomestic: typeof parsed.isDomestic === 'boolean' ? parsed.isDomestic : mode === 'domestic_breed',
     isGeneric: parsed.isGeneric === true,
   }
 }
@@ -101,7 +102,7 @@ export async function identifyWithClaudeVision(
   const userText =
     mode === 'domestic_breed'
       ? 'Identify the dog or cat breed in this image.'
-      : 'Identify the wild species in this image.'
+      : 'Identify the species in this image.'
 
   let lastError: IdentifyError | null = null
 

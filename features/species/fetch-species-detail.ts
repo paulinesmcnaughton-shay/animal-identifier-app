@@ -13,7 +13,7 @@ import {
 } from '@/features/species/fetch-domestic-species'
 import { isDomesticDexNumber, resolveGlobalDexNumber } from '@/features/species/dex-number-registry'
 import { resolveLatinName } from '@/features/species/species-latin-names'
-import { kingdomKeyFromTaxonomy } from '@/features/species/kingdom-from-taxonomy'
+import { classifyPlantType, kingdomKeyFromTaxonomy } from '@/features/species/kingdom-from-taxonomy'
 import type {
   LatinNameSource,
   SpeciesDetailFetchOptions,
@@ -36,6 +36,8 @@ const KINGDOM_KEYS: KingdomKey[] = [
   'arachnid',
   'mollusc',
   'plant',
+  'tree',
+  'flower',
 ]
 
 const RARITIES: SpeciesRarity[] = ['Common', 'Uncommon', 'Rare', 'Very Rare']
@@ -170,6 +172,12 @@ function shouldQueryDomestic(lookupId: string, isDomestic?: boolean): boolean {
   return UUID_RE.test(safeId)
 }
 
+const PLANT_KINGDOMS = new Set<KingdomKey>(['plant', 'tree', 'flower'])
+
+function defaultTaxonomyKingdom(kingdom: KingdomKey): string {
+  return PLANT_KINGDOMS.has(kingdom) ? 'Plantae' : 'Animalia'
+}
+
 function wildDetailShell(
   lookupId: string,
   commonName: string,
@@ -196,8 +204,8 @@ function wildDetailShell(
     stats: [],
     vitals: [],
     taxonomy: {
-      kingdom: 'Animalia',
-      phylum: 'Unknown',
+      kingdom: defaultTaxonomyKingdom(kingdom),
+      phylum: PLANT_KINGDOMS.has(kingdom) ? 'Tracheophyta' : 'Unknown',
       class: 'Unknown',
       order: 'Unknown',
       family: 'Unknown',
@@ -212,7 +220,8 @@ function mapInatTaxonToWildResult(
   const latinName = taxon.name?.trim() || 'Species unknown'
   const commonName =
     taxon.preferred_common_name?.trim() || taxon.name?.trim() || 'Unknown species'
-  const kingdom = kingdomKeyFromTaxonomy(taxon.iconic_taxon_name ?? 'Animalia')
+  const baseKingdom = kingdomKeyFromTaxonomy(taxon.iconic_taxon_name ?? 'Animalia')
+  const kingdom = baseKingdom === 'plant' ? classifyPlantType(commonName, latinName) : baseKingdom
   const dexNumber = resolveGlobalDexNumber({
     lookupId,
     commonName,
@@ -230,13 +239,25 @@ function mapInatTaxonToWildResult(
       ...wildDetailShell(lookupId, commonName, latinName, kingdom),
       dexNumber,
       ...(taxon.wikipedia_summary?.trim()
-        ? { description: taxon.wikipedia_summary.trim() }
+        ? { description: stripHtml(taxon.wikipedia_summary) }
         : {}),
     },
     imageUrl,
     isDomestic: false,
     latinNameSource: 'inaturalist.taxon.name',
   }
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#\d+;/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 type WikiPageMap = Record<string, { extract?: string; missing?: string }>

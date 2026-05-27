@@ -1,5 +1,18 @@
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 
+const TREE_RE =
+  /\b(tree|trees|oak|maple|pine|cedar|spruce|fir|birch|ash|elm|willow|palm|beech|walnut|chestnut|poplar|larch|yew|holly|boxwood|buxus|privet|hedge|shrub|bush|conifer|sycamore|redwood|sequoia|cypress|juniper|alder|hornbeam|acacia|eucalyptus|baobab|fig|mulberry|bamboo|cactus|succulent)\b/i
+
+const FLOWER_RE =
+  /\b(flower|flowers|rose|tulip|daisy|sunflower|lily|orchid|peony|carnation|daffodil|hydrangea|lavender|poppy|iris|chrysanthemum|marigold|zinnia|dahlia|aster|blossom|violet|pansy|geranium|begonia|petunia|foxglove|snapdragon|lupin|buttercup|dandelion|clover|heather|bluebell|primrose|crocus|hyacinth|freesia|jasmine|camellia|azalea|rhododendron|wisteria|bougainvillea|hibiscus|magnolia|cosmos|verbena|lobelia)\b/i
+
+export function classifyPlantType(commonName: string, latinName?: string): 'tree' | 'flower' | 'plant' {
+  const text = `${commonName} ${latinName ?? ''}`
+  if (FLOWER_RE.test(text)) return 'flower'
+  if (TREE_RE.test(text)) return 'tree'
+  return 'plant'
+}
+
 const CLASS_TO_KINGDOM: Record<string, KingdomKey> = {
   mammalia: 'mammal',
   aves: 'bird',

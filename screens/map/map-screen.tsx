@@ -190,13 +190,14 @@ export function MapScreenContent() {
   )
 
   const mySightings = isAuthenticated ? mapPins : []
+  const hasSightings = mySightings.length > 0
 
   const normalizedQuery = searchQuery.trim().toLowerCase()
 
-  const filteredSightings = useMemo(
-    () => fuzzyFilterSightings(mySightings, normalizedQuery),
-    [mySightings, normalizedQuery],
-  )
+  const filteredSightings = useMemo(() => {
+    const filtered = fuzzyFilterSightings(mySightings, normalizedQuery)
+    return [...filtered].sort((a, b) => a.distanceM - b.distanceM)
+  }, [mySightings, normalizedQuery])
 
   const filteredNearby = useMemo(
     () => fuzzyFilterSightings(nearbyCommunity, normalizedQuery),
@@ -299,7 +300,7 @@ export function MapScreenContent() {
   const mapSheetTopY = mapExpandedSheetTopY(insets.top)
 
   const sheetUsesExpandedTopAnchor =
-    isWalkPreview || selectedSighting !== null
+    isWalkPreview || selectedSighting !== null || (viewMode === 'sightings' && hasSightings)
 
   const sheetHeight = useMemo(() => {
     if (sheetUsesExpandedTopAnchor) {
@@ -328,8 +329,11 @@ export function MapScreenContent() {
     SNAP_EXPANDED,
     sheetHeight - PIN_PANEL_BODY_HEIGHT - fabClearance,
   )
+  /** My Sightings medium snap — same visual height as Nearby's default card. */
+  const snapSightingsMedium = Math.max(SNAP_EXPANDED, sheetHeight - MAP_SHEET_HEIGHT_DEFAULT)
+
   const snapExpandedY =
-    isWalkPreview || viewMode === 'nearby' || selectedSighting !== null
+    isWalkPreview || viewMode === 'nearby' || selectedSighting !== null || (viewMode === 'sightings' && hasSightings)
       ? SNAP_EXPANDED
       : snapCollapsed
 
@@ -343,9 +347,8 @@ export function MapScreenContent() {
     setWalkSession(null)
   }, [])
 
-  /** Nearby list expands freely; My Sightings is a header peek until a pin is opened. */
   const sheetExpandable =
-    isWalkPreview || (!isWalkNavigating && (viewMode === 'nearby' || selectedSighting !== null))
+    isWalkPreview || (!isWalkNavigating && (viewMode === 'nearby' || selectedSighting !== null || (viewMode === 'sightings' && hasSightings)))
 
   const walkSessionRef = useRef(walkSession)
   walkSessionRef.current = walkSession
@@ -355,6 +358,12 @@ export function MapScreenContent() {
   snapWalkPreviewRef.current = snapWalkPreview
   const snapExpandedYRef = useRef(snapExpandedY)
   snapExpandedYRef.current = snapExpandedY
+  const snapSightingsMediumRef = useRef(snapSightingsMedium)
+  snapSightingsMediumRef.current = snapSightingsMedium
+  const hasSightingsRef = useRef(hasSightings)
+  hasSightingsRef.current = hasSightings
+  const viewModeRef = useRef(viewMode)
+  viewModeRef.current = viewMode
 
   const [walkDirectionsScrollEnabled, setWalkDirectionsScrollEnabled] = useState(false)
 
@@ -371,8 +380,9 @@ export function MapScreenContent() {
     if (isWalkNavigating) return snapCollapsed
     if (viewMode === 'nearby') return SNAP_EXPANDED
     if (selectedSighting !== null) return SNAP_EXPANDED
+    if (viewMode === 'sightings' && hasSightings) return snapSightingsMedium
     return snapCollapsed
-  }, [isWalkNavigating, isWalkPreview, selectedSighting, snapCollapsed, snapWalkPreview, viewMode])
+  }, [hasSightings, isWalkNavigating, isWalkPreview, selectedSighting, snapCollapsed, snapSightingsMedium, snapWalkPreview, viewMode])
 
   useEffect(() => {
     translateY.value = withSpring(sheetSnapY, SPRING)
@@ -425,6 +435,21 @@ export function MapScreenContent() {
             return
           }
 
+          // My Sightings — 3 snap points: collapsed → medium (same as Nearby) → full screen
+          if (viewModeRef.current === 'sightings' && hasSightingsRef.current) {
+            // Project where the sheet will land using velocity momentum.
+            // Factor 0.4 is calibrated to the ~150–300px gaps between snap points.
+            const projected = translateY.value + e.velocityY * 0.4
+            const dFull = Math.abs(projected - SNAP_EXPANDED)
+            const dMedium = Math.abs(projected - snapSightingsMedium)
+            const dCollapsed = Math.abs(projected - snapCollapsed)
+            let target = SNAP_EXPANDED
+            if (dMedium < dFull && dMedium < dCollapsed) target = snapSightingsMedium
+            else if (dCollapsed < dFull) target = snapCollapsed
+            translateY.value = withSpring(target, SPRING)
+            return
+          }
+
           const mid = (snapCollapsed + snapExpandedY) / 2
           if (e.velocityY < -500 || translateY.value < mid) {
             translateY.value = withSpring(snapExpandedY, SPRING)
@@ -436,7 +461,7 @@ export function MapScreenContent() {
           }
           translateY.value = withSpring(snapCollapsed, SPRING)
         }),
-    [context, dismissSheetDetail, sheetExpandable, snapCollapsed, snapExpandedY, translateY],
+    [context, dismissSheetDetail, sheetExpandable, snapCollapsed, snapExpandedY, snapSightingsMedium, translateY],
   )
 
   const handleClearSheetSelection = useCallback(() => {
@@ -721,6 +746,10 @@ export function MapScreenContent() {
     void Linking.openSettings()
   }, [refreshLocation])
 
+  const handleExpandSightingsSheet = useCallback(() => {
+    translateY.value = withSpring(SNAP_EXPANDED, SPRING)
+  }, [translateY])
+
   const handleToggleStyle = () => {
     setMapStyle((s) => s === 'light' ? 'terrain' : 'light')
   }
@@ -913,6 +942,20 @@ export function MapScreenContent() {
             </Pressable>
           ) : null}
         </View>
+
+        {locationDenied ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Enable GPS location"
+            onPress={() => void handleEnableLocation()}
+            style={styles.gpsBanner}>
+            <Ionicons name="location-outline" size={14} color={colors.ink2} />
+            <Text style={styles.gpsBannerText}>
+              GPS is disabled — sightings won't have location.{' '}
+              <Text style={styles.gpsBannerAllow}>Allow</Text>
+            </Text>
+          </Pressable>
+        ) : null}
 
         <View style={styles.togglePill}>
           <Pressable
@@ -1114,6 +1157,7 @@ export function MapScreenContent() {
                 onSelectSighting={handleSelectMapSighting}
                 onClearSelection={handleClearSheetSelection}
                 searchQuery={normalizedQuery}
+                onExpandSheet={handleExpandSightingsSheet}
               />
             ) : (
               <NearbySheet
@@ -1141,6 +1185,9 @@ export function MapScreenContent() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+const SIGHTINGS_INITIAL_SHOWN = 100
+const SIGHTINGS_PAGE_SIZE = 50
+
 interface SightingsSheetProps {
   items: NearbyMapSighting[]
   selectedSighting: NearbyMapSighting | null
@@ -1148,6 +1195,7 @@ interface SightingsSheetProps {
   searchQuery: string
   onSelectSighting: (sighting: NearbyMapSighting) => void
   onClearSelection: () => void
+  onExpandSheet: () => void
 }
 
 function SightingsSheet({
@@ -1157,7 +1205,18 @@ function SightingsSheet({
   searchQuery,
   onSelectSighting,
   onClearSelection,
+  onExpandSheet,
 }: SightingsSheetProps) {
+  const [shownCount, setShownCount] = useState(SIGHTINGS_INITIAL_SHOWN)
+  const prevItemCountRef = useRef(items.length)
+
+  useEffect(() => {
+    if (items.length !== prevItemCountRef.current) {
+      setShownCount(SIGHTINGS_INITIAL_SHOWN)
+      prevItemCountRef.current = items.length
+    }
+  }, [items.length])
+
   if (selectedSighting) {
     return (
       <View style={[styles.sheetInner, styles.sheetInnerDetail]}>
@@ -1175,27 +1234,50 @@ function SightingsSheet({
     )
   }
 
+  const visibleItems = items.slice(0, shownCount)
+  const remaining = items.length - shownCount
+  const hasMore = remaining > 0
+
+  const handleShowMore = () => {
+    setShownCount((prev) => prev + SIGHTINGS_PAGE_SIZE)
+    onExpandSheet()
+  }
+
+  const subtitle = searchQuery
+    ? items.length === 0
+      ? '0 results found'
+      : `${items.length} result${items.length === 1 ? '' : 's'} found for "${searchQuery}"`
+    : items.length > 0
+      ? `${items.length} species spotted around the world`
+      : 'Nothing spotted yet — head outside!'
+
   return (
     <View style={styles.sheetInner}>
       <View style={styles.handle} />
       <Text style={styles.sheetTitle}>My Sightings</Text>
-      <Text style={[styles.sheetSub, { marginBottom: space[16] }]}>
-        {searchQuery
-          ? items.length === 0
-            ? '0 results found'
-            : `${items.length} result${items.length === 1 ? '' : 's'} found for "${searchQuery}"`
-          : items.length > 0
-            ? `${items.length} species spotted around the world`
-            : 'Nothing spotted yet — head outside!'}
-      </Text>
+      <Text style={[styles.sheetSub, { marginBottom: space[16] }]}>{subtitle}</Text>
       <FlatList
-        data={items}
+        data={visibleItems}
         keyExtractor={(item) => item.id}
         scrollEnabled
         style={styles.nearbyList}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={null}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ListFooterComponent={
+          hasMore ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Show ${Math.min(SIGHTINGS_PAGE_SIZE, remaining)} more sightings`}
+              onPress={handleShowMore}
+              style={({ pressed }) => [styles.showMoreBtn, pressed && styles.showMorePressed]}>
+              <Text style={styles.showMoreLabel}>
+                Show more ({remaining} remaining)
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={colors.greenLight} />
+            </Pressable>
+          ) : null
+        }
         renderItem={({ item }) => (
           <Pressable
             accessibilityRole="button"
@@ -1501,6 +1583,26 @@ const styles = StyleSheet.create({
     color: colors.ink,
     padding: 0,
   },
+  gpsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[8],
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    paddingHorizontal: space[16],
+    paddingVertical: space[8],
+    ...shadow.card,
+  },
+  gpsBannerText: {
+    flex: 1,
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.medium,
+    color: colors.ink2,
+  },
+  gpsBannerAllow: {
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.greenLight,
+  },
   togglePill: {
     flexDirection: 'row',
     backgroundColor: colors.card,
@@ -1631,6 +1733,24 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.hairline,
     marginVertical: space[8],
+  },
+  showMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space[8],
+    paddingVertical: space[16],
+    marginTop: space[8],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.hairline,
+  },
+  showMorePressed: {
+    opacity: 0.7,
+  },
+  showMoreLabel: {
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.greenLight,
   },
   nearbyRow: {
     flexDirection: 'row',
