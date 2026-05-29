@@ -30,6 +30,11 @@ import {
   sanitizeUsernameInput,
 } from '@/features/settings/username'
 import { useAuth } from '@/lib/auth/auth-context'
+import {
+  clearPendingOnboarding,
+  clearPendingPassword,
+  getPendingPassword,
+} from '@/lib/onboarding/pending-signup'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { storage } from '@/util/storage'
 
@@ -48,12 +53,6 @@ const INTERESTS = [
   { id: 'amphibians', label: '🦎 Amphibians' },
 ]
 
-const GENDER_OPTIONS = [
-  { id: 'female', label: 'Female', icon: 'female' as const },
-  { id: 'male', label: 'Male', icon: 'male' as const },
-  { id: 'other', label: 'Prefer not to say', icon: 'person-outline' as const },
-]
-
 function calculateAge(dob: Date): number {
   const today = new Date()
   let age = today.getFullYear() - dob.getFullYear()
@@ -69,14 +68,10 @@ function dobToAgeGroup(dob: Date): string {
   return 'adult'
 }
 
-function formatDob(dob: Date): string {
-  return dob.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-}
-
 export function PersonalizationFlow() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, signUp, isLoading: authLoading } = useAuth()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -90,8 +85,6 @@ export function PersonalizationFlow() {
 
   const [interests, setInterests] = useState<string[]>([])
   const [dob, setDob] = useState<Date | null>(null)
-  const [gender, setGender] = useState<string | null>(null)
-  const [shareFindings, setShareFindings] = useState(false)
   const [showUsername, setShowUsername] = useState(true)
 
   const [bricolageLoaded] = useBricolageFonts({ BricolageGrotesque_800ExtraBold })
@@ -100,22 +93,30 @@ export function PersonalizationFlow() {
 
   useEffect(() => {
     if (authLoading) return
-    if (!user) {
-      router.replace('/login')
-      return
-    }
 
-    const metadataUsername = user.user_metadata?.username
-    if (typeof metadataUsername === 'string' && metadataUsername.trim()) {
-      setUsername((current) => current || sanitizeUsernameInput(metadataUsername))
-    }
+    void (async () => {
+      const method = await storage.getString('onboarding.method')
 
-    void storage.getString('pendingDob').then((stored) => {
+      if (!user) {
+        if (method !== 'email') {
+          router.replace('/login')
+          return
+        }
+        const pendingUsername = await storage.getString('onboarding.username')
+        if (pendingUsername) setUsername((current) => current || sanitizeUsernameInput(pendingUsername))
+      } else {
+        const metadataUsername = user.user_metadata?.username
+        if (typeof metadataUsername === 'string' && metadataUsername.trim()) {
+          setUsername((current) => current || sanitizeUsernameInput(metadataUsername))
+        }
+      }
+
+      const stored = await storage.getString('onboarding.date_of_birth')
       if (stored) {
         setDob(new Date(stored))
-        void storage.delete('pendingDob')
+        void storage.delete('onboarding.date_of_birth')
       }
-    })
+    })()
   }, [authLoading, router, user])
 
   const detectLocation = async () => {
@@ -155,50 +156,114 @@ export function PersonalizationFlow() {
   }
 
   const handleFinish = async () => {
-    if (!dob) {
-      setError('Please enter your date of birth')
-      return
-    }
-
     const usernameError = getUsernameValidationError(username)
-    if (usernameError) {
-      setError(usernameError)
-      return
-    }
+    if (usernameError) { setError(usernameError); return }
 
     setLoading(true)
     setError(null)
 
     const supabase = getSupabaseClient()
-    if (!supabase || !user) {
+    if (!supabase) {
+      setLoading(false)
+      setError('Something went wrong. Please try again.')
+      return
+    }
+
+    const method = await storage.getString('onboarding.method')
+    let activeUser = user
+
+    if (method === 'email') {
+      const pendingEmail = await storage.getString('onboarding.email')
+      const pendingPassword = getPendingPassword()
+
+      if (!pendingEmail || !pendingPassword) {
+        setLoading(false)
+        setError('Your session expired. Please start over.')
+        await clearPendingOnboarding()
+        router.replace('/signup')
+        return
+      }
+
+      const pendingUsername = await storage.getString('onboarding.username')
+      const result = await signUp({ email: pendingEmail, password: pendingPassword, username: pendingUsername ?? username })
+      clearPendingPassword()
+
+      if (result.error) { setLoading(false); setError(result.error); return }
+
+      if (result.needsEmailConfirmation) {
+        setLoading(false)
+        await clearPendingOnboarding()
+        setError('Check your email to confirm your account, then log in.')
+        router.replace('/login')
+        return
+      }
+
+      const { data: { user: newUser } } = await supabase.auth.getUser()
+      if (!newUser) {
+        setLoading(false)
+        setError('Account created but could not load your profile. Please log in.')
+        return
+      }
+      activeUser = newUser
+    }
+
+    if (!activeUser) {
       setLoading(false)
       setError('You must be logged in to continue.')
       return
     }
 
+    const [accountType, parentName, parentEmail, parentConfirmed, requiresParentSetup] = await Promise.all([
+      storage.getString('onboarding.account_type'),
+      storage.getString('onboarding.parent_name'),
+      storage.getString('onboarding.parent_email'),
+      storage.getString('onboarding.parent_permission_confirmed'),
+      storage.getString('onboarding.requires_parent_setup'),
+    ])
+
+    const isChild = accountType === 'child'
+    const isTeen = accountType === 'teen'
+
+    const canPublish = isChild || isTeen ? false : true
+    const showUsernameOnMap = isChild || isTeen ? false : showUsername
+
     const { error: saveError } = await supabase.from('profiles').upsert({
-      id: user.id,
+      id: activeUser.id,
       username: normalizeUsername(username),
       location_text: locationText.trim() || null,
       latitude,
       longitude,
       timezone: timezone ?? deviceTimeZone(),
       interests,
-      age_group: dobToAgeGroup(dob),
+      age_group: dob ? dobToAgeGroup(dob) : null,
+      date_of_birth: dob ? dob.toISOString().split('T')[0] : null,
+      account_type: accountType ?? 'adult',
+      parent_name: parentName ?? null,
+      parent_email: parentEmail ?? null,
+      parent_permission_confirmed: parentConfirmed === 'true',
+      family_account_enabled: isChild,
+      can_publish_to_nearby: canPublish,
+      show_username_on_map: showUsernameOnMap,
+      requires_parent_setup: requiresParentSetup === 'true',
       onboarding_complete: true,
     })
 
     setLoading(false)
 
-    if (saveError) {
-      setError(saveError.message)
-      return
-    }
+    if (saveError) { setError(saveError.message); return }
 
-    await saveSightingsVisibility(
-      sightingsVisibilityFromSharingPrefs(shareFindings, showUsername),
-    )
-    await syncAccountProfileFromAuth(user)
+    await Promise.all([
+      storage.delete('onboarding.account_type'),
+      storage.delete('onboarding.parent_name'),
+      storage.delete('onboarding.parent_email'),
+      storage.delete('onboarding.parent_permission_confirmed'),
+      storage.delete('onboarding.requires_parent_setup'),
+    ])
+
+    await clearPendingOnboarding()
+    await storage.set('profile.onboarding_complete', 'true')
+    await saveSightingsVisibility(sightingsVisibilityFromSharingPrefs(canPublish, showUsernameOnMap))
+    await syncAccountProfileFromAuth(activeUser)
     router.replace('/home')
   }
 
@@ -216,27 +281,24 @@ export function PersonalizationFlow() {
       if (usernameError) { setError(usernameError); return }
       setError(null)
       setStep(2)
-    } else if (step === 2) {
+    } else {
       if (interests.length === 0) { setError('Pick at least one interest'); return }
       setError(null)
-      setStep(3)
-    } else {
       void handleFinish()
     }
   }
 
   const canProceed =
     step === 1 ? username.trim().length > 0 && !getUsernameValidationError(username) :
-    step === 2 ? interests.length > 0 :
-    dob !== null
+    interests.length > 0
 
-  const ctaLabel = step === 3 ? 'Start Exploring 🌿' : 'Continue'
-  const ctaA11y = step === 1 ? 'Continue to interests' : step === 2 ? 'Continue to age group' : 'Finish setup and start exploring'
+  const ctaLabel = step === 2 ? 'Start Exploring 🌿' : 'Continue'
+  const ctaA11y = step === 1 ? 'Continue to interests' : 'Finish setup and start exploring'
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.progress}>
-        {[1, 2, 3].map((s) => (
+        {[1, 2].map((s) => (
           <View key={s} style={[styles.dot, step === s && styles.dotActive]} />
         ))}
       </View>
@@ -259,7 +321,7 @@ export function PersonalizationFlow() {
           <View style={styles.fieldGroup}>
             <View style={styles.labelRow}>
               <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Username</Text>
-              <Text style={[styles.labelHint, { fontFamily: 'Nunito_400Regular' }]}>(no spaces, use any special characters)</Text>
+              <Text style={[styles.labelHint, { fontFamily: 'Nunito_400Regular' }]}>(don't use your real name)</Text>
             </View>
             <TextInput
               style={[styles.input, { fontFamily: 'Nunito_400Regular' }]}
@@ -305,9 +367,9 @@ export function PersonalizationFlow() {
           </View>
 
           <SightingsSharingFields
-            shareFindings={shareFindings}
+            shareFindings={false}
             showUsername={showUsername}
-            onShareFindingsChange={setShareFindings}
+            onShareFindingsChange={() => {}}
             onShowUsernameChange={setShowUsername}
             variant="onboarding"
           />
@@ -347,70 +409,6 @@ export function PersonalizationFlow() {
                 </Pressable>
               )
             })}
-          </View>
-        </ScrollView>
-      )}
-
-      {step === 3 && (
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <Text style={[styles.heading, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
-            Who's exploring?
-          </Text>
-          <Text style={[styles.sub, { fontFamily: 'Nunito_400Regular' }]}>
-            We'll tailor your experience
-          </Text>
-
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Date of Birth</Text>
-            <View style={styles.dateField}>
-              <Ionicons name="calendar-outline" size={20} color={colors.dim} />
-              <Text style={[
-                styles.dateText,
-                { fontFamily: 'Nunito_400Regular' },
-                !dob && styles.datePlaceholder,
-              ]}>
-                {dob
-                  ? `${formatDob(dob)}  ·  ${calculateAge(dob)} years old`
-                  : 'Birthday from your sign-up'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <View style={styles.labelRow}>
-              <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Gender</Text>
-              <Text style={[styles.labelHint, { fontFamily: 'Nunito_400Regular' }]}>(optional)</Text>
-            </View>
-            <View style={styles.genderRow}>
-              {GENDER_OPTIONS.map((option) => {
-                const selected = gender === option.id
-                return (
-                  <Pressable
-                    key={option.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={option.label}
-                    onPress={() => setGender(selected ? null : option.id)}
-                    style={({ pressed }) => [
-                      styles.genderBtn,
-                      selected && styles.genderBtnSelected,
-                      pressed && { opacity: 0.8 },
-                    ]}>
-                    <Ionicons
-                      name={option.icon}
-                      size={22}
-                      color={selected ? colors.card : colors.ink2}
-                    />
-                    <Text style={[
-                      styles.genderLabel,
-                      { fontFamily: 'Nunito_700Bold' },
-                      selected && styles.genderLabelSelected,
-                    ]}>
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                )
-              })}
-            </View>
           </View>
         </ScrollView>
       )}
@@ -508,37 +506,6 @@ const styles = StyleSheet.create({
   chipSelected: { backgroundColor: colors.green, borderColor: colors.green },
   chipText: { fontSize: typeTokens.size.body, color: colors.ink },
   chipTextSelected: { color: colors.card },
-  dateField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: colors.hairline,
-    borderRadius: radius.md,
-    paddingHorizontal: space[16],
-    paddingVertical: space[16],
-  },
-  dateText: {
-    flex: 1,
-    fontSize: typeTokens.size.bodyLG,
-    color: colors.ink,
-  },
-  datePlaceholder: { color: colors.dim },
-  genderRow: { flexDirection: 'row', gap: space[8] },
-  genderBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[8],
-    paddingVertical: space[16],
-    borderRadius: radius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.hairline,
-    backgroundColor: colors.card,
-  },
-  genderBtnSelected: { backgroundColor: colors.green, borderColor: colors.green },
-  genderLabel: { fontSize: typeTokens.size.bodySM, color: colors.ink2 },
-  genderLabelSelected: { color: colors.card },
   ctaWrap: { backgroundColor: colors.greenDeep, borderRadius: radius.lg, paddingBottom: 4 },
   ctaWrapDisabled: { backgroundColor: colors.hairline },
   cta: { backgroundColor: colors.green, borderRadius: radius.lg, paddingVertical: space[16], alignItems: 'center' },

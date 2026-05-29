@@ -24,14 +24,24 @@ import { assignNewUserAvatar } from '@/features/settings/profile-avatar'
 import { setTesterAccount } from '@/features/settings/tester-account'
 import { getUsernameValidationError, sanitizeUsernameInput } from '@/features/settings/username'
 import { useAuth } from '@/lib/auth/auth-context'
-import { storage } from '@/util/storage'
+import { clearPendingOnboarding, storePendingEmailSignup, storePendingOAuthSignup } from '@/lib/onboarding/pending-signup'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { DobGateModal } from '@/screens/onboarding/dob-gate-modal'
 import { PrivacyTermsModal } from '@/screens/onboarding/privacy-terms-modal'
+import { storage } from '@/util/storage'
+
+function calculateAge(dob: Date): number {
+  const today = new Date()
+  let age = today.getFullYear() - dob.getFullYear()
+  const m = today.getMonth() - dob.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--
+  return age
+}
 
 export function SignupScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { signUp, signInWithApple, signInWithGoogle } = useAuth()
+  const { signInWithApple, signInWithGoogle } = useAuth()
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -46,10 +56,20 @@ export function SignupScreen() {
   const fontsReady = bricolageLoaded && nunitoLoaded
   const canSubmit = username.trim().length > 0 && email.trim().length > 0 && password.length >= 8
 
-  const finishSignup = async () => {
+  const routeByAge = async (dob: Date) => {
     await setTesterAccount(false)
     await assignNewUserAvatar()
-    router.replace('/personalize')
+    const age = calculateAge(dob)
+    if (age < 13) {
+      await storage.set('onboarding.account_type', 'child')
+      router.replace('/parent-setup-required')
+    } else if (age < 18) {
+      await storage.set('onboarding.account_type', 'teen')
+      router.replace('/teen-permission')
+    } else {
+      await storage.set('onboarding.account_type', 'adult')
+      router.replace('/personalize')
+    }
   }
 
   const handleEmailSignup = () => {
@@ -66,82 +86,67 @@ export function SignupScreen() {
 
   const handleDobConfirm = async (dob: Date) => {
     setShowDobGate(false)
-    await storage.set('pendingDob', dob.toISOString())
+    await storage.set('onboarding.date_of_birth', dob.toISOString())
 
     if (dobGateIsSocial) {
       setDobGateIsSocial(false)
-      await finishSignup()
+      await routeByAge(dob)
       return
     }
 
-    setLoading(true)
-    setError(null)
+    await storePendingEmailSignup(email, username, password)
+    await routeByAge(dob)
+  }
 
-    const result = await signUp({ email, password, username })
-    setLoading(false)
-
-    if (result.error) {
-      setError(result.error)
+  const checkOnboardingAndRoute = async () => {
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      setDobGateIsSocial(true)
+      setShowDobGate(true)
       return
     }
-
-    if (result.needsEmailConfirmation) {
-      setError('Check your email to confirm your account, then log in.')
-      router.replace('/login')
+    const { data: { user: authedUser } } = await supabase.auth.getUser()
+    if (!authedUser) {
+      setDobGateIsSocial(true)
+      setShowDobGate(true)
       return
     }
-
-    await finishSignup()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('onboarding_complete')
+      .eq('id', authedUser.id)
+      .maybeSingle()
+    if (profile?.onboarding_complete) {
+      await clearPendingOnboarding()
+      setError('You already have a WildKind account. Tap Log In below.')
+      return
+    }
+    setDobGateIsSocial(true)
+    setShowDobGate(true)
   }
 
   const handleAppleSignIn = async () => {
     if (loading) return
-
     setLoading(true)
     setError(null)
-
+    await storePendingOAuthSignup()
     const result = await signInWithApple()
     setLoading(false)
-
-    if (result.error) {
-      setError(result.error)
-      return
-    }
-
-    if (result.canceled) return
-
-    if (result.isNewUser === false) {
-      setError('You already have a WildKind account. Tap Log In below.')
-      return
-    }
-
-    setDobGateIsSocial(true)
-    setShowDobGate(true)
+    if (result.error) { await clearPendingOnboarding(); setError(result.error); return }
+    if (result.canceled) { await clearPendingOnboarding(); return }
+    await checkOnboardingAndRoute()
   }
 
   const handleGoogleSignIn = async () => {
     if (loading) return
-
     setLoading(true)
     setError(null)
-
+    await storePendingOAuthSignup()
     const result = await signInWithGoogle()
     setLoading(false)
-
-    if (result.error) {
-      setError(result.error)
-      return
-    }
-
-    if (result.canceled) return
-
-    if (result.isNewUser === false) {
-      setError('You already have a WildKind account. Tap Log In below.')
-      return
-    }
-
-    setDobGateIsSocial(true)
-    setShowDobGate(true)
+    if (result.error) { await clearPendingOnboarding(); setError(result.error); return }
+    if (result.canceled) { await clearPendingOnboarding(); return }
+    await checkOnboardingAndRoute()
   }
 
   if (!fontsReady) {

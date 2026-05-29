@@ -168,7 +168,8 @@ async function fetchSupabaseProfileRow(userId: string): Promise<SupabaseProfileR
   const supabase = getSupabaseClient()
   if (!supabase) return null
 
-  await ensureProfileRow(userId)
+  const pendingOnboarding = (await storage.getString('onboarding.pending')) === 'true'
+  if (!pendingOnboarding) await ensureProfileRow(userId)
 
   const { data, error } = await supabase
     .from('profiles')

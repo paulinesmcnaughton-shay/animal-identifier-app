@@ -188,6 +188,15 @@ export interface Database {
           weekly_quest_total: number
           weekly_quest_xp_reward: number
           weekly_quest_started_at: string
+          date_of_birth: string | null
+          account_type: string | null
+          parent_name: string | null
+          parent_email: string | null
+          parent_permission_confirmed: boolean
+          family_account_enabled: boolean
+          can_publish_to_nearby: boolean
+          show_username_on_map: boolean
+          requires_parent_setup: boolean
           created_at: string
           updated_at: string
         }
@@ -213,6 +222,15 @@ export interface Database {
           weekly_quest_total?: number
           weekly_quest_xp_reward?: number
           weekly_quest_started_at?: string
+          date_of_birth?: string | null
+          account_type?: string | null
+          parent_name?: string | null
+          parent_email?: string | null
+          parent_permission_confirmed?: boolean
+          family_account_enabled?: boolean
+          can_publish_to_nearby?: boolean
+          show_username_on_map?: boolean
+          requires_parent_setup?: boolean
           created_at?: string
           updated_at?: string
         }
