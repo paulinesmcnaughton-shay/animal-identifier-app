@@ -4,13 +4,11 @@ import {
   useFonts as useBricolageFonts,
 } from '@expo-google-fonts/bricolage-grotesque'
 import { Nunito_400Regular, Nunito_700Bold, useFonts as useNunitoFonts } from '@expo-google-fonts/nunito'
-import DateTimePicker from '@react-native-community/datetimepicker'
 import * as Location from 'expo-location'
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -33,6 +31,7 @@ import {
 } from '@/features/settings/username'
 import { useAuth } from '@/lib/auth/auth-context'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { storage } from '@/util/storage'
 
 const INTERESTS = [
   { id: 'birds', label: '🐦 Birds' },
@@ -91,7 +90,6 @@ export function PersonalizationFlow() {
 
   const [interests, setInterests] = useState<string[]>([])
   const [dob, setDob] = useState<Date | null>(null)
-  const [showDatePicker, setShowDatePicker] = useState(false)
   const [gender, setGender] = useState<string | null>(null)
   const [shareFindings, setShareFindings] = useState(false)
   const [showUsername, setShowUsername] = useState(true)
@@ -111,6 +109,13 @@ export function PersonalizationFlow() {
     if (typeof metadataUsername === 'string' && metadataUsername.trim()) {
       setUsername((current) => current || sanitizeUsernameInput(metadataUsername))
     }
+
+    void storage.getString('pendingDob').then((stored) => {
+      if (stored) {
+        setDob(new Date(stored))
+        void storage.delete('pendingDob')
+      }
+    })
   }, [authLoading, router, user])
 
   const detectLocation = async () => {
@@ -357,11 +362,8 @@ export function PersonalizationFlow() {
 
           <View style={styles.fieldGroup}>
             <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Date of Birth</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Select date of birth"
-              onPress={() => setShowDatePicker((v) => !v)}
-              style={styles.dateField}>
+            <View style={styles.dateField}>
+              <Ionicons name="calendar-outline" size={20} color={colors.dim} />
               <Text style={[
                 styles.dateText,
                 { fontFamily: 'Nunito_400Regular' },
@@ -369,23 +371,9 @@ export function PersonalizationFlow() {
               ]}>
                 {dob
                   ? `${formatDob(dob)}  ·  ${calculateAge(dob)} years old`
-                  : 'Select your birthday'}
+                  : 'Birthday from your sign-up'}
               </Text>
-              <Ionicons name="calendar-outline" size={20} color={colors.dim} />
-            </Pressable>
-            {showDatePicker && (
-              <DateTimePicker
-                value={dob ?? new Date(2000, 0, 1)}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                maximumDate={new Date()}
-                minimumDate={new Date(1920, 0, 1)}
-                onChange={(_event: unknown, selected?: Date) => {
-                  if (Platform.OS === 'android') setShowDatePicker(false)
-                  if (selected) setDob(selected)
-                }}
-              />
-            )}
+            </View>
           </View>
 
           <View style={styles.fieldGroup}>
