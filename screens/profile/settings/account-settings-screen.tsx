@@ -18,28 +18,43 @@ import {
   loadAccountProfile,
   updateAccountProfile,
 } from '@/features/settings/account-profile'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import {
   type ProfileAvatarSource,
   saveProfilePhotoFromSource,
 } from '@/features/settings/profile-avatar'
 
+const BLANK_ERROR = "This field can't be left blank."
+
 export function AccountSettingsScreenContent() {
   const router = useRouter()
-  const [displayName, setDisplayName] = useState(SETTINGS_DEFAULTS.displayName)
-  const [username, setUsername] = useState(SETTINGS_DEFAULTS.username)
-  const [email, setEmail] = useState(SETTINGS_DEFAULTS.email)
-  const [phone, setPhone] = useState(SETTINGS_DEFAULTS.phone)
+  const [displayName, setDisplayName] = useState<string>(SETTINGS_DEFAULTS.displayName)
+  const [username, setUsername] = useState<string>(SETTINGS_DEFAULTS.username)
+  const [email, setEmail] = useState<string>(SETTINGS_DEFAULTS.email)
+  const [phone, setPhone] = useState<string>(SETTINGS_DEFAULTS.phone)
+
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null)
+  const [usernameError, setUsernameError] = useState<string | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
+
   const [avatarSource, setAvatarSource] = useState<ProfileAvatarSource | null>(null)
   const [photoSheetOpen, setPhotoSheetOpen] = useState(false)
   const [pickingPhoto, setPickingPhoto] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  const hasErrors = !!displayNameError || !!usernameError || !!emailError || !!phoneError
+
   const loadFields = useCallback(async () => {
     const profile = await loadAccountProfile(mockUser.level)
     setDisplayName(profile.displayName)
-    setUsername(profile.username)
+    setUsername(normalizeUsername(profile.username))
     setEmail(profile.email)
     setPhone(profile.phone)
+    setDisplayNameError(null)
+    setUsernameError(null)
+    setEmailError(null)
+    setPhoneError(null)
     setAvatarSource(null)
   }, [])
 
@@ -62,24 +77,75 @@ export function AccountSettingsScreenContent() {
     }
   }
 
+  const handleDisplayNameBlur = () => {
+    setDisplayNameError(displayName.trim() ? null : BLANK_ERROR)
+  }
+
+  const handleUsernameChange = (text: string) => {
+    if (/\s/.test(text)) {
+      setUsernameError('Usernames cannot contain spaces.')
+    } else {
+      setUsernameError(null)
+    }
+    setUsername(sanitizeUsernameInput(text))
+  }
+
+  const handleUsernameBlur = () => {
+    if (!username.trim()) {
+      setUsernameError(BLANK_ERROR)
+    }
+  }
+
+  const handleEmailBlur = () => {
+    if (!email.trim()) {
+      setEmailError(BLANK_ERROR)
+    } else if (!email.trim().includes('@')) {
+      setEmailError('Enter a valid email address.')
+    } else {
+      setEmailError(null)
+    }
+  }
+
+  const handlePhoneBlur = () => {
+    setPhoneError(phone.trim() ? null : BLANK_ERROR)
+  }
+
   const handleSave = async () => {
     const trimmedName = displayName.trim()
     const trimmedUser = normalizeUsername(username)
     const trimmedEmail = email.trim()
     const trimmedPhone = phone.trim()
-    if (!trimmedName || !trimmedUser) {
-      Alert.alert('Missing info', 'Add a display name and username.')
-      return
+
+    const nameErr = trimmedName ? null : BLANK_ERROR
+    const userErr = !trimmedUser ? BLANK_ERROR : getUsernameValidationError(trimmedUser)
+    const emailErr = !trimmedEmail ? BLANK_ERROR : (!trimmedEmail.includes('@') ? 'Enter a valid email address.' : null)
+    const phoneErr = trimmedPhone ? null : BLANK_ERROR
+
+    if (nameErr) setDisplayNameError(nameErr)
+    if (userErr) setUsernameError(userErr)
+    if (emailErr) setEmailError(emailErr)
+    if (phoneErr) setPhoneError(phoneErr)
+
+    if (nameErr || userErr || emailErr || phoneErr) return
+
+    const supabase = getSupabaseClient()
+    if (supabase) {
+      const { data: authData } = await supabase.auth.getUser()
+      const currentUserId = authData.user?.id
+      if (currentUserId) {
+        const { data: existing } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', trimmedUser)
+          .neq('id', currentUserId)
+          .maybeSingle()
+        if (existing) {
+          Alert.alert('Username taken', 'That username is already taken. Try a different one.')
+          return
+        }
+      }
     }
-    const usernameError = getUsernameValidationError(trimmedUser)
-    if (usernameError) {
-      Alert.alert('Check username', usernameError)
-      return
-    }
-    if (trimmedEmail && !trimmedEmail.includes('@')) {
-      Alert.alert('Check email', 'Enter a valid email address.')
-      return
-    }
+
     setSaving(true)
     try {
       await updateAccountProfile({
@@ -103,7 +169,11 @@ export function AccountSettingsScreenContent() {
       contentStyle={styles.content}
       footer={
         <View style={styles.saveWrap}>
-          <Button label={saving ? 'Saving…' : 'Save changes'} onPress={() => void handleSave()} />
+          <Button
+            label={saving ? 'Saving…' : 'Save changes'}
+            onPress={() => void handleSave()}
+            disabled={saving || hasErrors}
+          />
         </View>
       }>
       <View style={styles.avatarSection}>
@@ -115,8 +185,6 @@ export function AccountSettingsScreenContent() {
           <ProfileAvatar
             size={88}
             source={avatarSource}
-            borderColor={colors.card}
-            borderWidth={3}
           />
         </Pressable>
         <Pressable accessibilityRole="button" onPress={handleOpenPhotoSheet} disabled={pickingPhoto}>
@@ -128,22 +196,30 @@ export function AccountSettingsScreenContent() {
         <Text style={styles.fieldLabel}>Display name</Text>
         <TextInput
           value={displayName}
-          onChangeText={setDisplayName}
+          onChangeText={(text) => {
+            setDisplayName(text)
+            if (text.trim()) setDisplayNameError(null)
+          }}
+          onBlur={handleDisplayNameBlur}
           placeholder="Your name"
           placeholderTextColor={colors.dim}
-          style={styles.input}
+          style={[styles.input, displayNameError ? styles.inputError : null]}
           autoCapitalize="words"
           returnKeyType="next"
         />
+        {displayNameError ? (
+          <Text style={styles.fieldError}>{displayNameError}</Text>
+        ) : null}
       </View>
 
       <View style={styles.fieldGroup}>
         <Text style={styles.fieldLabel}>Username</Text>
-        <View style={styles.usernameRow}>
+        <View style={[styles.usernameRow, usernameError ? styles.fieldBorderError : null]}>
           <Text style={styles.atSign}>@</Text>
           <TextInput
             value={username}
-            onChangeText={(text) => setUsername(sanitizeUsernameInput(text))}
+            onChangeText={handleUsernameChange}
+            onBlur={handleUsernameBlur}
             placeholder="handle"
             placeholderTextColor={colors.dim}
             style={[styles.input, styles.usernameInput]}
@@ -152,6 +228,9 @@ export function AccountSettingsScreenContent() {
             returnKeyType="done"
           />
         </View>
+        {usernameError ? (
+          <Text style={styles.fieldError}>{usernameError}</Text>
+        ) : null}
       </View>
 
       <Text style={[styles.fieldLabel, styles.sectionGap]}>Contact</Text>
@@ -160,30 +239,44 @@ export function AccountSettingsScreenContent() {
         <Text style={styles.fieldLabel}>Email</Text>
         <TextInput
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(text) => {
+            setEmail(text)
+            if (text.trim()) setEmailError(null)
+          }}
+          onBlur={handleEmailBlur}
           placeholder="you@email.com"
           placeholderTextColor={colors.dim}
-          style={styles.input}
+          style={[styles.input, emailError ? styles.inputError : null]}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
           textContentType="emailAddress"
           returnKeyType="next"
         />
+        {emailError ? (
+          <Text style={styles.fieldError}>{emailError}</Text>
+        ) : null}
       </View>
 
       <View style={styles.fieldGroup}>
         <Text style={styles.fieldLabel}>Phone</Text>
         <TextInput
           value={phone}
-          onChangeText={setPhone}
+          onChangeText={(text) => {
+            setPhone(text)
+            if (text.trim()) setPhoneError(null)
+          }}
+          onBlur={handlePhoneBlur}
           placeholder="+1 (555) 000-0000"
           placeholderTextColor={colors.dim}
-          style={styles.input}
+          style={[styles.input, phoneError ? styles.inputError : null]}
           keyboardType="phone-pad"
           textContentType="telephoneNumber"
           returnKeyType="done"
         />
+        {phoneError ? (
+          <Text style={styles.fieldError}>{phoneError}</Text>
+        ) : null}
       </View>
     </SettingsDetailShell>
 
@@ -240,6 +333,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.hairline,
   },
+  inputError: {
+    borderColor: colors.coral,
+  },
   usernameRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -248,6 +344,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.hairline,
     paddingLeft: space[16],
+  },
+  fieldBorderError: {
+    borderColor: colors.coral,
+  },
+  fieldError: {
+    fontSize: typeTokens.size.caption,
+    fontWeight: typeTokens.body.weights.medium,
+    color: colors.coral,
+    marginLeft: space[4],
   },
   atSign: {
     fontSize: typeTokens.size.body,

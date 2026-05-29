@@ -270,7 +270,7 @@ export function SpeciesDetailScreen() {
             <Text style={styles.commonName}>{species.commonName}</Text>
             <Text style={styles.latinName}>{species.latinName}</Text>
 
-            {species.kingdom !== 'plant' ? (
+            {species.kingdom !== 'plant' && species.kingdom !== 'tree' && species.kingdom !== 'flower' ? (
               <View style={styles.gameStatsWrap}>
                 <SpeciesGameStatsGrid species={species} />
               </View>

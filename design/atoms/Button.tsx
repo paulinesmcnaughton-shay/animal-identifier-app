@@ -10,19 +10,30 @@ interface ButtonProps extends Omit<PressableProps, 'style'> {
   textStyle?: TextStyle
 }
 
-export function Button({ label, variant = 'primary', style, textStyle, ...rest }: ButtonProps) {
+export function Button({ label, variant = 'primary', style, textStyle, disabled, ...rest }: ButtonProps) {
   const isPrimary = variant === 'primary'
   return (
     <Pressable
       accessibilityRole="button"
+      disabled={disabled}
       style={({ pressed }) => [
         styles.base,
-        isPrimary ? styles.primary : styles.secondary,
-        pressed && styles.pressed,
+        disabled
+          ? styles.disabled
+          : isPrimary ? styles.primary : styles.secondary,
+        pressed && !disabled && styles.pressed,
         style,
       ]}
       {...rest}>
-      <Text style={[styles.label, isPrimary ? styles.labelOnPrimary : styles.labelOnSecondary, textStyle]}>{label}</Text>
+      <Text style={[
+        styles.label,
+        disabled
+          ? styles.labelDisabled
+          : isPrimary ? styles.labelOnPrimary : styles.labelOnSecondary,
+        textStyle,
+      ]}>
+        {label}
+      </Text>
     </Pressable>
   )
 }
@@ -43,6 +54,11 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.hairline,
   },
+  disabled: {
+    backgroundColor: colors.hairline,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+  },
   pressed: {
     opacity: 0.88,
   },
@@ -55,5 +71,8 @@ const styles = StyleSheet.create({
   },
   labelOnSecondary: {
     color: colors.ink,
+  },
+  labelDisabled: {
+    color: colors.dim,
   },
 })

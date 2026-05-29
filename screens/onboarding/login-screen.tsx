@@ -26,7 +26,7 @@ import { useAuth } from '@/lib/auth/auth-context'
 export function LoginScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { signIn, signInAsDemoUser, signInWithApple, signInWithGoogle } = useAuth()
+my
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -39,17 +39,6 @@ export function LoginScreen() {
     if (isSubmitting) return
 
     setIsSubmitting(true)
-
-    if (__DEV__) {
-      const { error } = await signInAsDemoUser()
-      setIsSubmitting(false)
-      if (error) {
-        Alert.alert('Could not log in', error)
-        return
-      }
-      router.replace('/home')
-      return
-    }
 
     const { error } = await signIn({ email, password })
     setIsSubmitting(false)

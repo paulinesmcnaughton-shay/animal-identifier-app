@@ -102,6 +102,7 @@ module.exports = {
       },
     ],
     '@rnmapbox/maps',
+    '@react-native-community/datetimepicker',
   ],
   experiments: {
     typedRoutes: true,

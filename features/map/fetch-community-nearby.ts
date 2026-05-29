@@ -32,7 +32,8 @@ function rowToSighting(
   if (distanceM > maxDistanceM) return null
 
   const isPublic = row.privacy === 'public'
-  const username = row.profiles?.username?.trim() || null
+  const rawUsername = row.profiles?.username?.trim() || null
+  const username = rawUsername ? rawUsername.replace(/\s/g, '') || null : null
 
   return {
     id: row.id,

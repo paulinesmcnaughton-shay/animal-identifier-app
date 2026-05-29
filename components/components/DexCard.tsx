@@ -1,11 +1,23 @@
 import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
+import { useEffect, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import Animated, {
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated'
 
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { dexCardHairline } from '@/design/dex-card-shell'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
+import { fetchWikipediaImageUrl } from '@/features/species/fetch-wikipedia-image'
 import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
 
 export interface DexCardSpecies {
@@ -24,75 +36,136 @@ interface DexCardProps {
   species: DexCardSpecies
   width: number
   onPress?: () => void
+  onLongPress?: () => void
+  isDeleteMode?: boolean
+  onDeletePress?: () => void
 }
 
-export function DexCard({ species, width, onPress }: DexCardProps) {
-  const { number, name, date, gradient, cornerBadge, showFootprint, kingdom, photoUri } = species
+export function DexCard({
+  species,
+  width,
+  onPress,
+  onLongPress,
+  isDeleteMode = false,
+  onDeletePress,
+}: DexCardProps) {
+  const { number, name, date, gradient, cornerBadge, kingdom, photoUri } = species
   const { url: taxaUrl } = useTaxaPhoto(photoUri ? null : name, kingdom)
-  const photoUrl = photoUri ?? taxaUrl
+  const [wikiUrl, setWikiUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (photoUri) {
+      setWikiUrl(null)
+      return
+    }
+    let cancelled = false
+    void fetchWikipediaImageUrl(name).then((url) => {
+      if (!cancelled) setWikiUrl(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [name, photoUri])
+
+  const photoUrl = photoUri ?? taxaUrl ?? wikiUrl
   const kingdomBg = KINGDOM[kingdom]?.bg ?? colors.dim
 
-  const card = (
-    <View style={[styles.card, { width }]}>
-      <View style={[styles.artWrap, { backgroundColor: kingdomBg }]}>
+  // Jiggle — each card gets a phase offset so they don't all move in lockstep
+  const rotation = useSharedValue(0)
+  const phaseMs = (species.id.charCodeAt(0) % 4) * 70
 
-        {photoUrl ? (
-          <Image source={{ uri: photoUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
-        ) : (
+  useEffect(() => {
+    if (isDeleteMode) {
+      rotation.value = withDelay(
+        phaseMs,
+        withRepeat(
+          withSequence(
+            withTiming(-2, { duration: 90 }),
+            withTiming(2, { duration: 90 }),
+          ),
+          -1,
+          true,
+        ),
+      )
+    } else {
+      cancelAnimation(rotation)
+      rotation.value = withSpring(0, { damping: 15, stiffness: 200 })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDeleteMode])
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }))
+
+  const inner = (
+    <Animated.View style={animStyle}>
+      <View style={[styles.card, { width }]}>
+        <View style={[styles.artWrap, { backgroundColor: kingdomBg }]}>
+          {photoUrl ? (
+            <Image source={{ uri: photoUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          ) : (
+            <LinearGradient
+              colors={[...gradient]}
+              style={StyleSheet.absoluteFill}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+          )}
+
+          {!photoUrl ? (
+            <View style={styles.silhouette}>
+              <Text style={styles.kingdomEmoji}>{KINGDOM[kingdom]?.emoji ?? '🌿'}</Text>
+            </View>
+          ) : null}
+
           <LinearGradient
-            colors={[...gradient]}
-            style={StyleSheet.absoluteFill}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          />
-        )}
+            colors={['transparent', 'rgba(0,0,0,0.45)']}
+            style={styles.bottomOverlay}
+            pointerEvents="none">
+            <View style={styles.metaRow}>
+              <Text style={styles.number}>{number}</Text>
+              <Ionicons name="leaf-outline" size={14} color="rgba(255,255,255,0.85)" />
+            </View>
+          </LinearGradient>
 
-        {/* Paw / blob — only while no photo */}
-        {!photoUrl ? (
-          <View style={styles.silhouette}>
-            {showFootprint ? (
-              <Ionicons name="paw" size={44} color="rgba(255,255,255,0.45)" />
-            ) : (
-              <View style={styles.blob} />
-            )}
-          </View>
-        ) : null}
+          {cornerBadge ? (
+            <View style={[styles.cornerPill, cornerBadge === 'NEW' ? styles.pillNew : styles.pillRare]}>
+              <Text style={styles.cornerPillText}>{cornerBadge}</Text>
+            </View>
+          ) : null}
+        </View>
 
-        {/* Bottom overlay: number + leaf always visible */}
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.45)']}
-          style={styles.bottomOverlay}
-          pointerEvents="none">
-          <View style={styles.metaRow}>
-            <Text style={styles.number}>{number}</Text>
-            <Ionicons name="leaf-outline" size={14} color="rgba(255,255,255,0.85)" />
-          </View>
-        </LinearGradient>
-
-        {/* Corner badge */}
-        {cornerBadge ? (
-          <View style={[styles.cornerPill, cornerBadge === 'NEW' ? styles.pillNew : styles.pillRare]}>
-            <Text style={styles.cornerPillText}>{cornerBadge}</Text>
-          </View>
-        ) : null}
+        <View style={styles.footer}>
+          <Text style={styles.name} numberOfLines={1}>{name}</Text>
+          {date ? <Text style={styles.date} numberOfLines={1}>{date}</Text> : null}
+        </View>
       </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.name} numberOfLines={1}>{name}</Text>
-        {date ? <Text style={styles.date} numberOfLines={1}>{date}</Text> : null}
-      </View>
-    </View>
+      {isDeleteMode && onDeletePress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${name} from collection`}
+          onPress={onDeletePress}
+          hitSlop={8}
+          style={styles.deleteBtn}>
+          <Ionicons name="close" size={11} color={colors.card} />
+        </Pressable>
+      ) : null}
+    </Animated.View>
   )
 
-  if (!onPress) return card
+  if (!onPress && !onLongPress) return inner
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${name}, ${number}`}
-      onPress={onPress}
-      style={({ pressed }) => [pressed && styles.cardPressed]}>
-      {card}
+      onPress={isDeleteMode ? undefined : onPress}
+      onLongPress={onLongPress}
+      delayLongPress={700}
+      style={({ pressed }) => [pressed && !isDeleteMode && styles.cardPressed]}>
+      {inner}
     </Pressable>
   )
 }
@@ -144,11 +217,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  blob: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.35)',
+  kingdomEmoji: {
+    fontSize: 36,
+    textAlign: 'center',
   },
   bottomOverlay: {
     position: 'absolute',
@@ -219,5 +290,19 @@ const styles = StyleSheet.create({
     fontSize: typeTokens.size.caption,
     fontWeight: '500',
     color: colors.dim,
+  },
+  deleteBtn: {
+    position: 'absolute',
+    top: -7,
+    right: -7,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.card,
+    zIndex: 10,
   },
 })

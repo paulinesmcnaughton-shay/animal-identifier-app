@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Dimensions,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +20,7 @@ import { DEX_COLLECTION_SIZE } from '@/data/dex-collection'
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { deleteUserSighting } from '@/features/sightings/delete-user-sighting'
 import { useAccountProfile } from '@/features/settings/account-profile'
 import { useUserSightingsData } from '@/features/sightings/use-user-sightings-data'
 import { speciesDetailRouteParamsFromId } from '@/features/species/species-latin-names'
@@ -41,6 +43,10 @@ export function CollectionScreen() {
   const { spotsCaptured, streakDays, badgesCount, isLoading, isReady } = useAccountProfile()
   const { dexEntries, isLoading: dexDataLoading } = useUserSightingsData()
 
+  const [isDeleteMode, setIsDeleteMode] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<DexCardSpecies | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
   const colWidth = useMemo(() => {
     const w = Dimensions.get('window').width
     return (w - H_PAD * 2 - GAP * 2) / 3
@@ -61,6 +67,14 @@ export function CollectionScreen() {
     return result
   }, [activeFilter, dexEntries, spotsCaptured])
 
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return
+    setIsDeleting(true)
+    await deleteUserSighting(pendingDelete.id)
+    setIsDeleting(false)
+    setPendingDelete(null)
+  }
+
   if (isLoading || !isReady || (isAuthenticated && dexDataLoading && spotsCaptured > 0)) {
     return (
       <View style={[styles.screen, styles.loading, { paddingTop: contentTopInset(insets.top) }]}>
@@ -79,14 +93,24 @@ export function CollectionScreen() {
             <Text style={styles.kicker}>YOUR COLLECTION</Text>
             <Text style={styles.title}>Wild Dex</Text>
           </View>
-          <Link href="/dex/search" asChild>
+          {isDeleteMode ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Filter collection"
-              style={({ pressed }) => [styles.filterBtn, pressed && styles.filterBtnPressed]}>
-              <Ionicons name="funnel-outline" size={22} color={colors.ink2} />
+              accessibilityLabel="Exit edit mode"
+              onPress={() => setIsDeleteMode(false)}
+              style={({ pressed }) => [styles.doneBtn, pressed && styles.doneBtnPressed]}>
+              <Text style={styles.doneBtnLabel}>Done</Text>
             </Pressable>
-          </Link>
+          ) : (
+            <Link href="/dex/search" asChild>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Filter collection"
+                style={({ pressed }) => [styles.filterBtn, pressed && styles.filterBtnPressed]}>
+                <Ionicons name="funnel-outline" size={22} color={colors.ink2} />
+              </Pressable>
+            </Link>
+          )}
         </View>
 
         <CollectionStatsCard
@@ -136,6 +160,9 @@ export function CollectionScreen() {
                     key={species.id}
                     species={species}
                     width={colWidth}
+                    isDeleteMode={isDeleteMode}
+                    onLongPress={() => setIsDeleteMode(true)}
+                    onDeletePress={() => setPendingDelete(species)}
                     onPress={() =>
                       router.push({
                         pathname: '/species/[id]',
@@ -144,7 +171,7 @@ export function CollectionScreen() {
                           name: species.name,
                           number: species.number,
                           kingdom: species.kingdom,
-                        }),
+                        }) as { id: string } & Record<string, string>,
                       })
                     }
                   />
@@ -154,7 +181,66 @@ export function CollectionScreen() {
           </View>
         )}
       </ScrollView>
+
+      <DeleteConfirmModal
+        species={pendingDelete}
+        isDeleting={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </View>
+  )
+}
+
+// ─── Delete confirmation modal ────────────────────────────────────────────────
+
+interface DeleteConfirmModalProps {
+  species: DexCardSpecies | null
+  isDeleting: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function DeleteConfirmModal({ species, isDeleting, onConfirm, onCancel }: DeleteConfirmModalProps) {
+  return (
+    <Modal
+      visible={species !== null}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onCancel}>
+      <Pressable style={styles.overlay} onPress={onCancel}>
+        <Pressable style={styles.dialog} onPress={() => {}}>
+          <View style={styles.dialogIconWrap}>
+            <Ionicons name="trash-outline" size={28} color={colors.coral} />
+          </View>
+          <Text style={styles.dialogTitle}>Remove from Wild Dex?</Text>
+          <Text style={styles.dialogBody}>
+            <Text style={styles.dialogSpeciesName}>{species?.name}</Text>
+            {' '}will be permanently removed from your collection. All sightings of this species will be deleted and cannot be recovered.
+          </Text>
+          <View style={styles.dialogActions}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onCancel}
+              style={({ pressed }) => [styles.actionBtn, styles.cancelBtn, pressed && styles.actionBtnPressed]}>
+              <Text style={styles.cancelBtnLabel}>Keep it</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onConfirm}
+              disabled={isDeleting}
+              style={({ pressed }) => [styles.actionBtn, styles.deleteConfirmBtn, pressed && styles.actionBtnPressed]}>
+              {isDeleting ? (
+                <ActivityIndicator size="small" color={colors.card} />
+              ) : (
+                <Text style={styles.deleteConfirmBtnLabel}>Delete</Text>
+              )}
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   )
 }
 
@@ -209,6 +295,20 @@ const styles = StyleSheet.create({
   filterBtnPressed: {
     opacity: 0.92,
   },
+  doneBtn: {
+    paddingHorizontal: space[16],
+    paddingVertical: space[8],
+    borderRadius: radius.pill,
+    backgroundColor: colors.green,
+  },
+  doneBtnPressed: {
+    opacity: 0.8,
+  },
+  doneBtnLabel: {
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: '700',
+    color: colors.card,
+  },
   chipsWrap: {
     marginHorizontal: -H_PAD,
   },
@@ -243,10 +343,89 @@ const styles = StyleSheet.create({
   },
   grid: {
     gap: GAP,
+    paddingTop: space[8],
   },
   gridRow: {
     flexDirection: 'row',
     flexWrap: 'nowrap',
     gap: GAP,
+  },
+  // ── Modal ──
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: space[32],
+  },
+  dialog: {
+    width: '100%',
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: space[24],
+    alignItems: 'center',
+    gap: space[16],
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 32,
+    elevation: 16,
+  },
+  dialogIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: `${colors.coral}18`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogTitle: {
+    fontSize: typeTokens.size.title,
+    fontWeight: '800',
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  dialogBody: {
+    fontSize: typeTokens.size.bodySM,
+    color: colors.ink2,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  dialogSpeciesName: {
+    fontWeight: '700',
+    color: colors.ink,
+  },
+  dialogActions: {
+    flexDirection: 'row',
+    gap: space[8],
+    width: '100%',
+  },
+  actionBtn: {
+    flex: 1,
+    paddingVertical: space[16],
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionBtnPressed: {
+    opacity: 0.75,
+  },
+  cancelBtn: {
+    backgroundColor: colors.bg2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+  },
+  cancelBtnLabel: {
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: '700',
+    color: colors.ink,
+  },
+  deleteConfirmBtn: {
+    backgroundColor: colors.coral,
+  },
+  deleteConfirmBtnLabel: {
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: '700',
+    color: colors.card,
   },
 })

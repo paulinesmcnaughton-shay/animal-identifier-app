@@ -3,7 +3,7 @@ import { Image } from 'expo-image'
 import { router, useLocalSearchParams } from 'expo-router'
 import type { IdentifySource } from '@/features/identify/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Alert, Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import ReAnimated, {
   useAnimatedStyle,
   useSharedValue,
@@ -66,6 +66,8 @@ export function ResultScreen() {
   )
   const [manualCategory, setManualCategory] = useState<PipelineCategory>('unknown')
   const [isSaving, setIsSaving] = useState(false)
+  const [showDisclaimer, setShowDisclaimer] = useState(false)
+  const [publishToMap, setPublishToMap] = useState(false)
 
   const pulseAnim = useRef(new Animated.Value(1)).current
 
@@ -250,14 +252,30 @@ export function ResultScreen() {
             { paddingBottom: insets.bottom + space[16] },
             cardAnimatedStyle,
           ]}>
-          <View style={styles.handle} />
+          <View style={styles.handleRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="AI disclaimer"
+              onPress={() => setShowDisclaimer(true)}
+              style={styles.infoBtn}
+              hitSlop={12}>
+              <Ionicons name="information-circle-outline" size={22} color={colors.dim} />
+            </Pressable>
+            <View style={styles.handle} />
+            <View style={styles.handleSpacer} />
+          </View>
           <Text style={styles.speciesName}>{result.commonName}</Text>
 
-          {result.kingdom ? (
-            <View style={styles.metaRow}>
+          <View style={styles.metaRow}>
+            {result.kingdom ? (
               <KingdomBadge kind={result.kingdom} />
-            </View>
-          ) : null}
+            ) : (
+              <View style={styles.unknownBadge}>
+                <Ionicons name="help" size={13} color={colors.dim} />
+                <Text style={styles.unknownBadgeText}>Unknown</Text>
+              </View>
+            )}
+          </View>
 
           <View style={styles.confidenceRow}>
             <Text style={styles.confidenceLabel}>Confidence</Text>
@@ -266,6 +284,22 @@ export function ResultScreen() {
           <View style={styles.confidenceBar}>
             <ProgressBar progress={result.confidence} />
           </View>
+
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: publishToMap }}
+            accessibilityLabel="Share on Nearby map"
+            onPress={() => setPublishToMap(v => !v)}
+            style={styles.shareRow}>
+            <Ionicons
+              name={publishToMap ? 'checkbox' : 'square-outline'}
+              size={20}
+              color={publishToMap ? colors.green : colors.dim}
+            />
+            <Text style={styles.shareText}>
+              Your sighting is private — check to share on the Nearby map.
+            </Text>
+          </Pressable>
 
           {result.confidence > 0 ? (
             <PopButton
@@ -277,14 +311,19 @@ export function ResultScreen() {
             <PopButton label="Choose species" onPress={handleNotQuite} />
           )}
 
-          {isLowConfidence && result.confidence > 0 ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={notQuiteLabel}
-              onPress={handleNotQuite}
-              style={styles.secondaryAction}>
-              <Text style={styles.secondaryActionText}>{notQuiteLabel}</Text>
-            </Pressable>
+          {result.confidence > 0 ? (
+            <>
+              {isLowConfidence ? (
+                <Text style={styles.notSureHint}>Not sure? You can pick a different species below.</Text>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={notQuiteLabel}
+                onPress={handleNotQuite}
+                style={styles.secondaryAction}>
+                <Text style={styles.secondaryActionText}>{notQuiteLabel}</Text>
+              </Pressable>
+            </>
           ) : null}
 
           {result.confidence === 0 ? (
@@ -298,6 +337,21 @@ export function ResultScreen() {
           ) : null}
         </ReAnimated.View>
       ) : null}
+
+      <Modal
+        visible={showDisclaimer}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDisclaimer(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowDisclaimer(false)}>
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <Text style={styles.modalBody}>
+              AI results can make mistakes. WildKind uses AI and third-party sources to suggest species and information, but results may be inaccurate or incomplete. Always use caution, stay at a safe distance, and verify important information with official or expert sources.
+            </Text>
+            <PopButton label="Done" onPress={() => setShowDisclaimer(false)} />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   )
 }
@@ -406,9 +460,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[16],
     paddingTop: space[16],
   },
+  handleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: space[16],
+  },
+  handleSpacer: {
+    width: 22,
+  },
   handle: {
     ...slideUpSheetHandle,
-    marginBottom: space[16],
+  },
+  infoBtn: {
+    width: 22,
+    alignItems: 'center',
   },
   speciesName: {
     fontFamily: typeTokens.display.family,
@@ -440,6 +506,49 @@ const styles = StyleSheet.create({
     color: colors.green,
   },
   confidenceBar: {
+    marginBottom: space[16],
+  },
+  unknownBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[4],
+    backgroundColor: colors.hairline,
+    borderRadius: radius.pill,
+    paddingHorizontal: space[8],
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+  },
+  unknownBadgeText: {
+    fontSize: typeTokens.size.caption,
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.dim,
+  },
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space[8],
+    marginBottom: space[16],
+  },
+  shareText: {
+    flex: 1,
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.medium,
+    color: colors.ink2,
+    lineHeight: 20,
+  },
+  notSureHint: {
+    fontSize: typeTokens.size.caption,
+    fontWeight: typeTokens.body.weights.medium,
+    color: colors.dim,
+    textAlign: 'center',
+    marginTop: space[8],
+  },
+  aiDisclaimer: {
+    fontSize: typeTokens.size.caption,
+    fontWeight: typeTokens.body.weights.medium,
+    color: colors.dim,
+    textAlign: 'center',
+    lineHeight: 17,
     marginBottom: space[16],
   },
   secondaryAction: {
@@ -474,5 +583,26 @@ const styles = StyleSheet.create({
     color: colors.card,
     fontSize: typeTokens.size.title,
     fontWeight: typeTokens.body.weights.extra,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: space[24],
+  },
+  modalCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: space[24],
+    gap: space[16],
+    width: '100%',
+  },
+  modalBody: {
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.medium,
+    color: colors.ink2,
+    lineHeight: 21,
+    textAlign: 'center',
   },
 })

@@ -45,6 +45,19 @@ async function fetchInatPhoto(
   return pickPhotoUrl(data?.results ?? [], kingdom)
 }
 
+// Broader search without rank filter — catches breeds, cultivars, and informal taxa
+async function fetchInatPhotoAnyRank(
+  query: string,
+  kingdom: KingdomKey | null | undefined,
+): Promise<string | null> {
+  const response = await fetch(
+    `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(query)}&per_page=10`,
+  )
+  if (!response.ok) return null
+  const data = (await response.json()) as { results?: TaxaResult[] }
+  return pickPhotoUrl(data?.results ?? [], kingdom)
+}
+
 export interface TaxaPhotoResult {
   url: string | null
   isResolving: boolean
@@ -84,6 +97,17 @@ export function useTaxaPhoto(
 
         if (!found && query && query !== primaryQuery) {
           found = await fetchInatPhoto(query, kingdom)
+        }
+        if (cancelled) return
+
+        // Rank-free fallback: catches breeds, cultivars, and informal taxa
+        if (!found) {
+          found = await fetchInatPhotoAnyRank(latin || query, kingdom)
+        }
+        if (cancelled) return
+
+        if (!found && query !== (latin || query)) {
+          found = await fetchInatPhotoAnyRank(query, kingdom)
         }
         if (cancelled) return
 

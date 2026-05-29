@@ -10,6 +10,7 @@ import Mapbox, {
   VectorSource,
 } from '@rnmapbox/maps'
 import Constants from 'expo-constants'
+import { Image } from 'expo-image'
 import * as Location from 'expo-location'
 import { useFocusEffect } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -48,7 +49,7 @@ import { NearbySpeciesName } from '@/components/map/NearbySpeciesName'
 import { VerifiedIcon } from '@/components/map/VerifiedIcon'
 import { NearbyRadarRings } from '@/components/map/NearbyRadarRings'
 import { UserHeadingBeam } from '@/components/map/UserHeadingBeam'
-import { KINGDOM, KingdomBadge } from '@/design/atoms/KingdomBadge'
+import { KINGDOM, KingdomBadge, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { slideUpSheetHandle, slideUpSheetRadius } from '@/design/slide-up-sheet'
 import { contentTopInset } from '@/design/screen-layout'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
@@ -75,6 +76,9 @@ import {
 } from '@/features/settings/distance-unit'
 import { useDistanceUnit } from '@/features/settings/use-distance-unit'
 import type { NearbyMapSighting } from '@/features/map/map-sighting'
+import { categoryFilterSightings } from '@/features/map/sightings-category-search'
+import { fetchWikipediaImageUrl } from '@/features/species/fetch-wikipedia-image'
+import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
 import { useUserSightingsData } from '@/features/sightings/use-user-sightings-data'
 import { useAuth } from '@/lib/auth/auth-context'
 import {
@@ -106,7 +110,7 @@ const GREENSPACE_STROKE_STYLE = {
 } as const
 
 const SHEET_HEADER_HEIGHT = 80
-/** Extra collapsed peek so My Sightings copy clears the center camera FAB */
+/** Collapsed peek clearance when My Sightings has no spots (clears center camera FAB). */
 const SHEET_FAB_CLEARANCE_PEEK = space[16]
 const TAB_BAR_HEIGHT = 60
 const FAB_SIZE = 56
@@ -146,12 +150,24 @@ function fuzzyFilterSightings(items: NearbyMapSighting[], query: string): Nearby
   return scored.sort((a, b) => b.score - a.score).map(({ item }) => item)
 }
 
+/**
+ * Shared filter for both tabs: tries broad category expansion first ("dog" → all dog breeds),
+ * then falls back to fuzzy word matching for specific names.
+ */
+function filterSightings(items: NearbyMapSighting[], query: string): NearbyMapSighting[] {
+  if (!query) return items
+  const categoryResults = categoryFilterSightings(items, query)
+  if (categoryResults !== null) return categoryResults
+  return fuzzyFilterSightings(items, query)
+}
+
 export function MapScreenContent() {
   const insets = useSafeAreaInsets()
   const { height: windowHeight } = useWindowDimensions()
   const cameraRef = useRef<Camera>(null)
   const mapRef = useRef<MapView>(null)
   const mapNativeGestureRef = useRef<NativeViewGestureHandler>(null)
+  const searchInputRef = useRef<TextInput>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('sightings')
   const [selectedSighting, setSelectedSighting] = useState<NearbyMapSighting | null>(null)
   const [walkSession, setWalkSession] = useState<WalkGuideSession | null>(null)
@@ -195,12 +211,12 @@ export function MapScreenContent() {
   const normalizedQuery = searchQuery.trim().toLowerCase()
 
   const filteredSightings = useMemo(() => {
-    const filtered = fuzzyFilterSightings(mySightings, normalizedQuery)
+    const filtered = filterSightings(mySightings, normalizedQuery)
     return [...filtered].sort((a, b) => a.distanceM - b.distanceM)
   }, [mySightings, normalizedQuery])
 
   const filteredNearby = useMemo(
-    () => fuzzyFilterSightings(nearbyCommunity, normalizedQuery),
+    () => filterSightings(nearbyCommunity, normalizedQuery),
     [nearbyCommunity, normalizedQuery],
   )
 
@@ -300,7 +316,7 @@ export function MapScreenContent() {
   const mapSheetTopY = mapExpandedSheetTopY(insets.top)
 
   const sheetUsesExpandedTopAnchor =
-    isWalkPreview || selectedSighting !== null || (viewMode === 'sightings' && hasSightings)
+    isWalkPreview || selectedSighting !== null
 
   const sheetHeight = useMemo(() => {
     if (sheetUsesExpandedTopAnchor) {
@@ -329,11 +345,11 @@ export function MapScreenContent() {
     SNAP_EXPANDED,
     sheetHeight - PIN_PANEL_BODY_HEIGHT - fabClearance,
   )
-  /** My Sightings medium snap — same visual height as Nearby's default card. */
-  const snapSightingsMedium = Math.max(SNAP_EXPANDED, sheetHeight - MAP_SHEET_HEIGHT_DEFAULT)
-
   const snapExpandedY =
-    isWalkPreview || viewMode === 'nearby' || selectedSighting !== null || (viewMode === 'sightings' && hasSightings)
+    isWalkPreview
+    || viewMode === 'nearby'
+    || selectedSighting !== null
+    || (viewMode === 'sightings' && hasSightings)
       ? SNAP_EXPANDED
       : snapCollapsed
 
@@ -348,7 +364,11 @@ export function MapScreenContent() {
   }, [])
 
   const sheetExpandable =
-    isWalkPreview || (!isWalkNavigating && (viewMode === 'nearby' || selectedSighting !== null || (viewMode === 'sightings' && hasSightings)))
+    isWalkPreview
+    || (!isWalkNavigating
+      && (viewMode === 'nearby'
+        || selectedSighting !== null
+        || (viewMode === 'sightings' && hasSightings)))
 
   const walkSessionRef = useRef(walkSession)
   walkSessionRef.current = walkSession
@@ -358,19 +378,14 @@ export function MapScreenContent() {
   snapWalkPreviewRef.current = snapWalkPreview
   const snapExpandedYRef = useRef(snapExpandedY)
   snapExpandedYRef.current = snapExpandedY
-  const snapSightingsMediumRef = useRef(snapSightingsMedium)
-  snapSightingsMediumRef.current = snapSightingsMedium
-  const hasSightingsRef = useRef(hasSightings)
-  hasSightingsRef.current = hasSightings
-  const viewModeRef = useRef(viewMode)
-  viewModeRef.current = viewMode
-
   const [walkDirectionsScrollEnabled, setWalkDirectionsScrollEnabled] = useState(false)
+  const [sightingsListScrollEnabled, setSightingsListScrollEnabled] = useState(false)
 
   useAnimatedReaction(
     () => translateY.value < 12,
     (isExpanded) => {
       runOnJS(setWalkDirectionsScrollEnabled)(isExpanded)
+      runOnJS(setSightingsListScrollEnabled)(isExpanded)
     },
     [translateY],
   )
@@ -380,9 +395,9 @@ export function MapScreenContent() {
     if (isWalkNavigating) return snapCollapsed
     if (viewMode === 'nearby') return SNAP_EXPANDED
     if (selectedSighting !== null) return SNAP_EXPANDED
-    if (viewMode === 'sightings' && hasSightings) return snapSightingsMedium
+    if (viewMode === 'sightings' && hasSightings) return SNAP_EXPANDED
     return snapCollapsed
-  }, [hasSightings, isWalkNavigating, isWalkPreview, selectedSighting, snapCollapsed, snapSightingsMedium, snapWalkPreview, viewMode])
+  }, [hasSightings, isWalkNavigating, isWalkPreview, selectedSighting, snapCollapsed, snapWalkPreview, viewMode])
 
   useEffect(() => {
     translateY.value = withSpring(sheetSnapY, SPRING)
@@ -435,21 +450,6 @@ export function MapScreenContent() {
             return
           }
 
-          // My Sightings — 3 snap points: collapsed → medium (same as Nearby) → full screen
-          if (viewModeRef.current === 'sightings' && hasSightingsRef.current) {
-            // Project where the sheet will land using velocity momentum.
-            // Factor 0.4 is calibrated to the ~150–300px gaps between snap points.
-            const projected = translateY.value + e.velocityY * 0.4
-            const dFull = Math.abs(projected - SNAP_EXPANDED)
-            const dMedium = Math.abs(projected - snapSightingsMedium)
-            const dCollapsed = Math.abs(projected - snapCollapsed)
-            let target = SNAP_EXPANDED
-            if (dMedium < dFull && dMedium < dCollapsed) target = snapSightingsMedium
-            else if (dCollapsed < dFull) target = snapCollapsed
-            translateY.value = withSpring(target, SPRING)
-            return
-          }
-
           const mid = (snapCollapsed + snapExpandedY) / 2
           if (e.velocityY < -500 || translateY.value < mid) {
             translateY.value = withSpring(snapExpandedY, SPRING)
@@ -461,7 +461,7 @@ export function MapScreenContent() {
           }
           translateY.value = withSpring(snapCollapsed, SPRING)
         }),
-    [context, dismissSheetDetail, sheetExpandable, snapCollapsed, snapExpandedY, snapSightingsMedium, translateY],
+    [context, dismissSheetDetail, sheetExpandable, snapCollapsed, snapExpandedY, translateY],
   )
 
   const handleClearSheetSelection = useCallback(() => {
@@ -650,6 +650,8 @@ export function MapScreenContent() {
   const handleSearchSubmit = useCallback(() => {
     const query = searchQuery.trim()
     if (!query) return
+    // Both tabs filter reactively — pressing return should never auto-open a card
+    if (viewMode === 'sightings' || viewMode === 'nearby') return
     const matches = activeItems
     if (matches.length > 1) {
       setSpeciesPickerItems(matches)
@@ -663,7 +665,7 @@ export function MapScreenContent() {
     if (query.includes(' ') || query.length >= 6) {
       void geocodePlace(query)
     }
-  }, [activeItems, geocodePlace, handleSelectMapSighting, searchQuery])
+  }, [activeItems, geocodePlace, handleSelectMapSighting, searchQuery, viewMode])
 
   const handleCloseSpeciesPicker = useCallback(() => {
     setSpeciesPickerItems(null)
@@ -702,12 +704,15 @@ export function MapScreenContent() {
   const handleSearchChange = (text: string) => {
     setSearchQuery(text)
     setSpeciesPickerItems(null)
-    if (text === '' && userCoord !== null) {
-      cameraRef.current?.setCamera({
-        centerCoordinate: userCoord,
-        zoomLevel: 15,
-        animationDuration: 500,
-      })
+    if (text === '') {
+      searchInputRef.current?.blur()
+      if (userCoord !== null) {
+        cameraRef.current?.setCamera({
+          centerCoordinate: userCoord,
+          zoomLevel: 15,
+          animationDuration: 500,
+        })
+      }
     }
   }
 
@@ -916,6 +921,7 @@ export function MapScreenContent() {
         <View style={styles.searchBar}>
           <Ionicons name="search" size={16} color={colors.dim} />
           <TextInput
+            ref={searchInputRef}
             placeholder="Search by cities, animals or plants"
             placeholderTextColor={colors.dim}
             style={styles.searchInput}
@@ -1154,6 +1160,7 @@ export function MapScreenContent() {
                 items={filteredSightings}
                 selectedSighting={selectedSighting}
                 distanceUnit={distanceUnit}
+                listScrollEnabled={sightingsListScrollEnabled}
                 onSelectSighting={handleSelectMapSighting}
                 onClearSelection={handleClearSheetSelection}
                 searchQuery={normalizedQuery}
@@ -1172,6 +1179,7 @@ export function MapScreenContent() {
                 onSelectSighting={handleSelectMapSighting}
                 onClearSelection={handleClearSheetSelection}
                 onTakeMeThere={handleOpenWalkPreview}
+                onExpandSheet={handleExpandSightingsSheet}
               />
             )}
           </View>
@@ -1193,6 +1201,7 @@ interface SightingsSheetProps {
   selectedSighting: NearbyMapSighting | null
   distanceUnit: DistanceUnit
   searchQuery: string
+  listScrollEnabled: boolean
   onSelectSighting: (sighting: NearbyMapSighting) => void
   onClearSelection: () => void
   onExpandSheet: () => void
@@ -1203,6 +1212,7 @@ function SightingsSheet({
   selectedSighting,
   distanceUnit,
   searchQuery,
+  listScrollEnabled,
   onSelectSighting,
   onClearSelection,
   onExpandSheet,
@@ -1259,7 +1269,7 @@ function SightingsSheet({
       <FlatList
         data={visibleItems}
         keyExtractor={(item) => item.id}
-        scrollEnabled
+        scrollEnabled={listScrollEnabled}
         style={styles.nearbyList}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={null}
@@ -1317,6 +1327,7 @@ interface NearbySheetProps {
   onSelectSighting: (sighting: NearbyMapSighting) => void
   onClearSelection: () => void
   onTakeMeThere: (sighting: NearbyMapSighting) => void
+  onExpandSheet: () => void
 }
 
 function nearbyListSubtitle(item: NearbyMapSighting, distanceUnit: DistanceUnit): string {
@@ -1370,7 +1381,18 @@ function NearbySheet({
   onSelectSighting,
   onClearSelection,
   onTakeMeThere,
+  onExpandSheet,
 }: NearbySheetProps) {
+  const [shownCount, setShownCount] = useState(SIGHTINGS_INITIAL_SHOWN)
+  const prevItemCountRef = useRef(items.length)
+
+  useEffect(() => {
+    if (items.length !== prevItemCountRef.current) {
+      setShownCount(SIGHTINGS_INITIAL_SHOWN)
+      prevItemCountRef.current = items.length
+    }
+  }, [items.length])
+
   const emptyMessage = error
     ?? (isLoading
       ? 'Loading nearby species…'
@@ -1399,6 +1421,15 @@ function NearbySheet({
     )
   }
 
+  const visibleItems = items.slice(0, shownCount)
+  const remaining = items.length - shownCount
+  const hasMore = remaining > 0
+
+  const handleShowMore = () => {
+    setShownCount((prev) => prev + SIGHTINGS_PAGE_SIZE)
+    onExpandSheet()
+  }
+
   return (
     <View style={styles.sheetInner}>
       <View style={styles.handle} />
@@ -1409,13 +1440,27 @@ function NearbySheet({
           : 'Waiting for GPS…'}
       </Text>
       <FlatList
-        data={items}
+        data={visibleItems}
         keyExtractor={(item) => item.id}
         scrollEnabled
         style={styles.nearbyList}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={<Text style={styles.sheetSub}>{emptyMessage}</Text>}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ListFooterComponent={
+          hasMore ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Show ${Math.min(SIGHTINGS_PAGE_SIZE, remaining)} more nearby species`}
+              onPress={handleShowMore}
+              style={({ pressed }) => [styles.showMoreBtn, pressed && styles.showMorePressed]}>
+              <Text style={styles.showMoreLabel}>
+                Show more ({remaining} remaining)
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={colors.greenLight} />
+            </Pressable>
+          ) : null
+        }
         renderItem={({ item }) => (
           <Pressable
             accessibilityRole="button"
@@ -1423,6 +1468,12 @@ function NearbySheet({
             onPress={() => onSelectSighting(item)}
             style={({ pressed }) => [styles.nearbyRowPressable, pressed && styles.nearbyRowPressed]}>
             <View style={styles.nearbyRow}>
+              <RowThumbnail
+                previewImageUrl={item.previewImageUrl}
+                name={item.name}
+                scientificName={item.scientificName}
+                kingdom={item.kingdom}
+              />
               <View style={styles.nearbyMeta}>
                 <View style={styles.nearbyNameRow}>
                   <NearbySpeciesName name={item.name} style={styles.nearbyName} />
@@ -1439,6 +1490,54 @@ function NearbySheet({
           </Pressable>
         )}
       />
+    </View>
+  )
+}
+
+// ─── Row thumbnail ────────────────────────────────────────────────────────────
+
+function RowThumbnail({
+  previewImageUrl,
+  name,
+  scientificName,
+  kingdom,
+}: {
+  previewImageUrl: string | null | undefined
+  name: string
+  scientificName?: string | null
+  kingdom: string
+}) {
+  const tint = KINGDOM[kingdom as KingdomKey]?.bg ?? colors.hairline
+  const { url: taxaUrl } = useTaxaPhoto(
+    previewImageUrl ? null : name,
+    kingdom as KingdomKey,
+    previewImageUrl ? null : scientificName,
+  )
+  const [wikiUrl, setWikiUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (previewImageUrl) {
+      setWikiUrl(null)
+      return
+    }
+    let cancelled = false
+    void fetchWikipediaImageUrl(name).then((url) => {
+      if (!cancelled) setWikiUrl(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [name, previewImageUrl])
+
+  const imageUrl = previewImageUrl ?? taxaUrl ?? wikiUrl
+
+  return (
+    <View style={[styles.rowThumb, { backgroundColor: tint }]}>
+      {imageUrl ? (
+        <Image source={{ uri: imageUrl }} style={styles.rowThumbImage} contentFit="cover" />
+      ) : (
+        <Text style={styles.rowThumbEmoji}>{KINGDOM[kingdom as KingdomKey]?.emoji ?? '🌿'}</Text>
+      )}
     </View>
   )
 }
@@ -1791,6 +1890,23 @@ const styles = StyleSheet.create({
     fontWeight: typeTokens.body.weights.black,
     color: colors.earth,
     letterSpacing: 0.5,
+  },
+  rowThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  rowThumbImage: {
+    width: 44,
+    height: 44,
+  },
+  rowThumbEmoji: {
+    fontSize: 22,
+    textAlign: 'center' as const,
+    lineHeight: 44,
+    width: 44,
   },
   walkPreviewFooterInSheet: {
     backgroundColor: colors.card,

@@ -12,7 +12,7 @@ import type { EdgeInsets } from 'react-native-safe-area-context'
 
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 
-const snapStageImage = require('@/assets/images/Scan_onboarding_image_2.png')
+import snapStageImage from '@/assets/images/Scan_onboarding_image_2.png'
 
 function TwinkleStar({ style, delay = 0, size = 16, color = colors.sun }: {
   style: ViewStyle

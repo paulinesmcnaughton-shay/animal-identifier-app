@@ -107,3 +107,78 @@ export const type = {
   body: { family: 'Nunito', weights: { regular:'400', medium:'500', bold:'700', extra:'800', black:'900' } },
   size: { displayXL:48, displayLG:36, displayMD:30, displaySM:22, title:18, bodyLG:17, body:15, bodySM:14, label:13, caption:12, micro:11 },
 } as const
+
+/**
+ * Duolingo-style CTA button tokens — bottom-shadow motif.
+ *
+ * Primary:   solid green face, deep green shadow
+ * Secondary: white fill, dark green border + text + shadow
+ *
+ * Usage:
+ *   <View style={ctaButton.primaryShadow}>
+ *     <Pressable style={({ pressed }) => [ctaButton.primaryFace, pressed && ctaButton.pressed]}>
+ *       <Text style={ctaButton.primaryText}>Label</Text>
+ *     </Pressable>
+ *   </View>
+ */
+export const ctaButton = {
+  primaryShadow: {
+    backgroundColor: colors.greenDeep,
+    borderRadius: radius.lg,
+    paddingBottom: 4,
+  },
+  primaryFace: {
+    backgroundColor: colors.green,
+    borderRadius: radius.lg,
+    paddingVertical: space[16],
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  primaryText: {
+    color: colors.card,
+    fontSize: type.size.displaySM,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase' as const,
+  },
+  secondaryShadow: {
+    backgroundColor: colors.greenDeep,
+    borderRadius: radius.lg,
+    paddingBottom: 4,
+  },
+  secondaryFace: {
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.green,
+    borderRadius: radius.lg,
+    paddingVertical: space[16],
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  secondaryText: {
+    color: colors.green,
+    fontSize: type.size.displaySM,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase' as const,
+  },
+  disabledShadow: {
+    backgroundColor: colors.hairline,
+    borderRadius: radius.lg,
+    paddingBottom: 4,
+  },
+  disabledFace: {
+    backgroundColor: '#E4E9EE',
+    borderRadius: radius.lg,
+    paddingVertical: space[16],
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  disabledText: {
+    color: colors.switchOff,
+    fontSize: type.size.displaySM,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase' as const,
+  },
+  pressed: {
+    transform: [{ translateY: 2 }],
+  },
+} as const

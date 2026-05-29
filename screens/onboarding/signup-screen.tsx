@@ -24,20 +24,27 @@ import { assignNewUserAvatar } from '@/features/settings/profile-avatar'
 import { setTesterAccount } from '@/features/settings/tester-account'
 import { getUsernameValidationError, sanitizeUsernameInput } from '@/features/settings/username'
 import { useAuth } from '@/lib/auth/auth-context'
+import { storage } from '@/util/storage'
+import { DobGateModal } from '@/screens/onboarding/dob-gate-modal'
+import { PrivacyTermsModal } from '@/screens/onboarding/privacy-terms-modal'
 
 export function SignupScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { signUp, signInAsDemoUser, signInWithApple, signInWithGoogle } = useAuth()
+  const { signUp, signInWithApple, signInWithGoogle } = useAuth()
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showDobGate, setShowDobGate] = useState(false)
+  const [dobGateIsSocial, setDobGateIsSocial] = useState(false)
+  const [showPrivacy, setShowPrivacy] = useState(false)
 
   const [bricolageLoaded] = useBricolageFonts({ BricolageGrotesque_800ExtraBold })
   const [nunitoLoaded] = useNunitoFonts({ Nunito_400Regular, Nunito_700Bold })
   const fontsReady = bricolageLoaded && nunitoLoaded
+  const canSubmit = username.trim().length > 0 && email.trim().length > 0 && password.length >= 8
 
   const finishSignup = async () => {
     await setTesterAccount(false)
@@ -45,29 +52,30 @@ export function SignupScreen() {
     router.replace('/personalize')
   }
 
-  const handleEmailSignup = async () => {
+  const handleEmailSignup = () => {
     if (loading) return
+    setError(null)
+
+    const usernameError = getUsernameValidationError(username)
+    if (usernameError) { setError(usernameError); return }
+    if (!email.trim()) { setError('Please enter your email.'); return }
+    if (password.length < 8) { setError('Use at least 8 characters for your password.'); return }
+
+    setShowDobGate(true)
+  }
+
+  const handleDobConfirm = async (dob: Date) => {
+    setShowDobGate(false)
+    await storage.set('pendingDob', dob.toISOString())
+
+    if (dobGateIsSocial) {
+      setDobGateIsSocial(false)
+      await finishSignup()
+      return
+    }
 
     setLoading(true)
     setError(null)
-
-    if (__DEV__) {
-      const result = await signInAsDemoUser()
-      setLoading(false)
-      if (result.error) {
-        setError(result.error)
-        return
-      }
-      router.replace('/home')
-      return
-    }
-
-    const usernameError = getUsernameValidationError(username)
-    if (usernameError) {
-      setLoading(false)
-      setError(usernameError)
-      return
-    }
 
     const result = await signUp({ email, password, username })
     setLoading(false)
@@ -102,7 +110,13 @@ export function SignupScreen() {
 
     if (result.canceled) return
 
-    await finishSignup()
+    if (result.isNewUser === false) {
+      setError('You already have a WildKind account. Tap Log In below.')
+      return
+    }
+
+    setDobGateIsSocial(true)
+    setShowDobGate(true)
   }
 
   const handleGoogleSignIn = async () => {
@@ -121,7 +135,13 @@ export function SignupScreen() {
 
     if (result.canceled) return
 
-    await finishSignup()
+    if (result.isNewUser === false) {
+      setError('You already have a WildKind account. Tap Log In below.')
+      return
+    }
+
+    setDobGateIsSocial(true)
+    setShowDobGate(true)
   }
 
   if (!fontsReady) {
@@ -133,6 +153,7 @@ export function SignupScreen() {
   }
 
   return (
+    <>
     <KeyboardAvoidingView
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -199,16 +220,16 @@ export function SignupScreen() {
           </View>
         </View>
 
-        <View style={styles.ctaWrap}>
+        <View style={[styles.ctaWrap, !canSubmit && styles.ctaWrapDisabled]}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Create account"
             onPress={handleEmailSignup}
-            disabled={loading}
-            style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed, loading && styles.ctaDisabled]}>
+            disabled={loading || !canSubmit}
+            style={({ pressed }) => [styles.cta, !canSubmit && styles.ctaFaceDisabled, pressed && canSubmit && styles.ctaPressed]}>
             {loading
-              ? <ActivityIndicator color={colors.card} />
-              : <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>Create Account</Text>
+              ? <ActivityIndicator color={canSubmit ? colors.card : colors.switchOff} />
+              : <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }, !canSubmit && styles.ctaTextDisabled]}>Create Account</Text>
             }
           </Pressable>
         </View>
@@ -249,8 +270,24 @@ export function SignupScreen() {
             Already have an account? <Text style={styles.switchTextBold}>Log In</Text>
           </Text>
         </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Privacy and Terms"
+          onPress={() => setShowPrivacy(true)}
+          style={({ pressed }) => [styles.privacyBtn, pressed && { opacity: 0.6 }]}>
+          <Text style={[styles.privacyText, { fontFamily: 'Nunito_400Regular' }]}>Privacy & Terms</Text>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
+
+    <DobGateModal
+      visible={showDobGate}
+      isLoading={loading}
+      onSubmit={handleDobConfirm}
+    />
+    <PrivacyTermsModal visible={showPrivacy} onClose={() => setShowPrivacy(false)} />
+    </>
   )
 }
 
@@ -282,10 +319,13 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   ctaWrap: { backgroundColor: colors.greenDeep, borderRadius: radius.lg, paddingBottom: 4, marginBottom: space[24] },
+  ctaWrapDisabled: { backgroundColor: colors.hairline },
   cta: { backgroundColor: colors.green, borderRadius: radius.lg, paddingVertical: space[16], alignItems: 'center', justifyContent: 'center' },
+  ctaFaceDisabled: { backgroundColor: '#E4E9EE' },
   ctaPressed: { transform: [{ translateY: 2 }] },
   ctaDisabled: { opacity: 0.6 },
   ctaText: { color: colors.card, fontSize: typeTokens.size.displaySM, letterSpacing: 0.3, textTransform: 'uppercase' },
+  ctaTextDisabled: { color: colors.switchOff },
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: space[16], marginBottom: space[16] },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.hairline },
   dividerText: { fontSize: typeTokens.size.bodySM, color: colors.dim },
@@ -299,4 +339,6 @@ const styles = StyleSheet.create({
   switchBtn: { alignItems: 'center', paddingVertical: space[8] },
   switchText: { fontSize: typeTokens.size.body, color: colors.dim },
   switchTextBold: { color: colors.green, fontWeight: typeTokens.body.weights.bold },
+  privacyBtn: { alignItems: 'center', paddingVertical: space[8], marginTop: space[4] },
+  privacyText: { fontSize: typeTokens.size.caption, color: colors.dim },
 })

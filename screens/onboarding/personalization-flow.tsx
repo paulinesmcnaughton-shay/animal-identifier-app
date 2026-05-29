@@ -4,11 +4,13 @@ import {
   useFonts as useBricolageFonts,
 } from '@expo-google-fonts/bricolage-grotesque'
 import { Nunito_400Regular, Nunito_700Bold, useFonts as useNunitoFonts } from '@expo-google-fonts/nunito'
+import DateTimePicker from '@react-native-community/datetimepicker'
 import * as Location from 'expo-location'
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -47,12 +49,30 @@ const INTERESTS = [
   { id: 'amphibians', label: '🦎 Amphibians' },
 ]
 
-const AGE_GROUPS = [
-  { id: 'kids', label: '🧒 Kids', sub: 'Under 12' },
-  { id: 'teen', label: '🧑 Teen', sub: '13 to 17' },
-  { id: 'adult', label: '🙋 Adult', sub: '18+' },
-  { id: 'family', label: '👨‍👩‍👧 Family', sub: 'Mixed ages' },
+const GENDER_OPTIONS = [
+  { id: 'female', label: 'Female', icon: 'female' as const },
+  { id: 'male', label: 'Male', icon: 'male' as const },
+  { id: 'other', label: 'Prefer not to say', icon: 'person-outline' as const },
 ]
+
+function calculateAge(dob: Date): number {
+  const today = new Date()
+  let age = today.getFullYear() - dob.getFullYear()
+  const m = today.getMonth() - dob.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--
+  return age
+}
+
+function dobToAgeGroup(dob: Date): string {
+  const age = calculateAge(dob)
+  if (age < 13) return 'kids'
+  if (age < 18) return 'teen'
+  return 'adult'
+}
+
+function formatDob(dob: Date): string {
+  return dob.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+}
 
 export function PersonalizationFlow() {
   const router = useRouter()
@@ -70,8 +90,10 @@ export function PersonalizationFlow() {
   const [detectingLocation, setDetectingLocation] = useState(false)
 
   const [interests, setInterests] = useState<string[]>([])
-  const [ageGroup, setAgeGroup] = useState<string | null>(null)
-  const [shareFindings, setShareFindings] = useState(true)
+  const [dob, setDob] = useState<Date | null>(null)
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [gender, setGender] = useState<string | null>(null)
+  const [shareFindings, setShareFindings] = useState(false)
   const [showUsername, setShowUsername] = useState(true)
 
   const [bricolageLoaded] = useBricolageFonts({ BricolageGrotesque_800ExtraBold })
@@ -128,8 +150,8 @@ export function PersonalizationFlow() {
   }
 
   const handleFinish = async () => {
-    if (!ageGroup) {
-      setError('Please select an age group')
+    if (!dob) {
+      setError('Please enter your date of birth')
       return
     }
 
@@ -157,7 +179,7 @@ export function PersonalizationFlow() {
       longitude,
       timezone: timezone ?? deviceTimeZone(),
       interests,
-      age_group: ageGroup,
+      age_group: dobToAgeGroup(dob),
       onboarding_complete: true,
     })
 
@@ -183,8 +205,31 @@ export function PersonalizationFlow() {
     )
   }
 
+  const handleStepCta = () => {
+    if (step === 1) {
+      const usernameError = getUsernameValidationError(username)
+      if (usernameError) { setError(usernameError); return }
+      setError(null)
+      setStep(2)
+    } else if (step === 2) {
+      if (interests.length === 0) { setError('Pick at least one interest'); return }
+      setError(null)
+      setStep(3)
+    } else {
+      void handleFinish()
+    }
+  }
+
+  const canProceed =
+    step === 1 ? username.trim().length > 0 && !getUsernameValidationError(username) :
+    step === 2 ? interests.length > 0 :
+    dob !== null
+
+  const ctaLabel = step === 3 ? 'Start Exploring 🌿' : 'Continue'
+  const ctaA11y = step === 1 ? 'Continue to interests' : step === 2 ? 'Continue to age group' : 'Finish setup and start exploring'
+
   return (
-    <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.progress}>
         {[1, 2, 3].map((s) => (
           <View key={s} style={[styles.dot, step === s && styles.dotActive]} />
@@ -207,7 +252,10 @@ export function PersonalizationFlow() {
           </Text>
 
           <View style={styles.fieldGroup}>
-            <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Username</Text>
+            <View style={styles.labelRow}>
+              <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Username</Text>
+              <Text style={[styles.labelHint, { fontFamily: 'Nunito_400Regular' }]}>(no spaces, use any special characters)</Text>
+            </View>
             <TextInput
               style={[styles.input, { fontFamily: 'Nunito_400Regular' }]}
               placeholder="e.g. naturelover42"
@@ -240,10 +288,10 @@ export function PersonalizationFlow() {
                   pressed && !detectingLocation && styles.detectPressed,
                 ]}>
                 {detectingLocation ? (
-                  <ActivityIndicator size="small" color={colors.card} />
+                  <ActivityIndicator size="small" color={colors.green} />
                 ) : (
                   <>
-                    <Ionicons name="location" size={18} color={colors.card} />
+                    <Ionicons name="location" size={18} color={colors.green} />
                     <Text style={styles.detectLabel}>Detect my location</Text>
                   </>
                 )}
@@ -258,26 +306,6 @@ export function PersonalizationFlow() {
             onShowUsernameChange={setShowUsername}
             variant="onboarding"
           />
-
-          <View style={styles.ctaWrap}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Continue to interests"
-              onPress={() => {
-                const usernameError = getUsernameValidationError(username)
-                if (usernameError) {
-                  setError(usernameError)
-                  return
-                }
-                setError(null)
-                setStep(2)
-              }}
-              style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
-              <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
-                Continue
-              </Text>
-            </Pressable>
-          </View>
         </ScrollView>
       )}
 
@@ -315,30 +343,11 @@ export function PersonalizationFlow() {
               )
             })}
           </View>
-
-          <View style={styles.ctaWrap}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Continue to age group"
-              onPress={() => {
-                if (interests.length === 0) {
-                  setError('Pick at least one interest')
-                  return
-                }
-                setError(null)
-                setStep(3)
-              }}
-              style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
-              <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
-                Continue
-              </Text>
-            </Pressable>
-          </View>
         </ScrollView>
       )}
 
       {step === 3 && (
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <Text style={[styles.heading, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
             Who's exploring?
           </Text>
@@ -346,58 +355,93 @@ export function PersonalizationFlow() {
             We'll tailor your experience
           </Text>
 
-          <View style={styles.ageGrid}>
-            {AGE_GROUPS.map((item) => {
-              const selected = ageGroup === item.id
-              return (
-                <Pressable
-                  key={item.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${item.label} ${item.sub}`}
-                  onPress={() => setAgeGroup(item.id)}
-                  style={({ pressed }) => [
-                    styles.ageCard,
-                    selected && styles.ageCardSelected,
-                    pressed && { opacity: 0.8 },
-                  ]}>
-                  <Text style={styles.ageEmoji}>{item.label.split(' ')[0]}</Text>
-                  <Text style={[
-                    styles.ageLabel,
-                    { fontFamily: 'BricolageGrotesque_800ExtraBold' },
-                    selected && styles.ageLabelSelected,
-                  ]}>
-                    {item.label.split(' ').slice(1).join(' ')}
-                  </Text>
-                  <Text style={[
-                    styles.ageSub,
-                    { fontFamily: 'Nunito_400Regular' },
-                    selected && styles.ageSubSelected,
-                  ]}>
-                    {item.sub}
-                  </Text>
-                </Pressable>
-              )
-            })}
-          </View>
-
-          <View style={styles.ctaWrap}>
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Date of Birth</Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Finish setup and start exploring"
-              onPress={handleFinish}
-              disabled={loading}
-              style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed, loading && styles.ctaDisabled]}>
-              {loading
-                ? <ActivityIndicator color={colors.card} />
-                : (
-                  <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
-                    Start Exploring 🌿
-                  </Text>
-                )}
+              accessibilityLabel="Select date of birth"
+              onPress={() => setShowDatePicker((v) => !v)}
+              style={styles.dateField}>
+              <Text style={[
+                styles.dateText,
+                { fontFamily: 'Nunito_400Regular' },
+                !dob && styles.datePlaceholder,
+              ]}>
+                {dob
+                  ? `${formatDob(dob)}  ·  ${calculateAge(dob)} years old`
+                  : 'Select your birthday'}
+              </Text>
+              <Ionicons name="calendar-outline" size={20} color={colors.dim} />
             </Pressable>
+            {showDatePicker && (
+              <DateTimePicker
+                value={dob ?? new Date(2000, 0, 1)}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                maximumDate={new Date()}
+                minimumDate={new Date(1920, 0, 1)}
+                onChange={(_event: unknown, selected?: Date) => {
+                  if (Platform.OS === 'android') setShowDatePicker(false)
+                  if (selected) setDob(selected)
+                }}
+              />
+            )}
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <View style={styles.labelRow}>
+              <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Gender</Text>
+              <Text style={[styles.labelHint, { fontFamily: 'Nunito_400Regular' }]}>(optional)</Text>
+            </View>
+            <View style={styles.genderRow}>
+              {GENDER_OPTIONS.map((option) => {
+                const selected = gender === option.id
+                return (
+                  <Pressable
+                    key={option.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={option.label}
+                    onPress={() => setGender(selected ? null : option.id)}
+                    style={({ pressed }) => [
+                      styles.genderBtn,
+                      selected && styles.genderBtnSelected,
+                      pressed && { opacity: 0.8 },
+                    ]}>
+                    <Ionicons
+                      name={option.icon}
+                      size={22}
+                      color={selected ? colors.card : colors.ink2}
+                    />
+                    <Text style={[
+                      styles.genderLabel,
+                      { fontFamily: 'Nunito_700Bold' },
+                      selected && styles.genderLabelSelected,
+                    ]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+            </View>
           </View>
         </ScrollView>
       )}
+
+      <View style={[styles.stickyFooter, { paddingBottom: Math.max(insets.bottom, space[24]) }]}>
+        <View style={[styles.ctaWrap, (!canProceed || loading) && styles.ctaWrapDisabled]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={ctaA11y}
+            onPress={handleStepCta}
+            disabled={loading || !canProceed}
+            style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed, (loading || !canProceed) && styles.ctaDisabled]}>
+            {loading
+              ? <ActivityIndicator color={colors.dim} />
+              : <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }, (!canProceed || loading) && styles.ctaTextDisabled]}>{ctaLabel}</Text>
+            }
+          </Pressable>
+        </View>
+      </View>
     </View>
   )
 }
@@ -405,7 +449,7 @@ export function PersonalizationFlow() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   loader: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
-  scroll: { paddingHorizontal: space[24], paddingTop: space[16], paddingBottom: space[40] },
+  scroll: { paddingHorizontal: space[24], paddingTop: space[16], paddingBottom: space[16] },
   progress: { flexDirection: 'row', justifyContent: 'center', gap: space[8], paddingVertical: space[16] },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.hairline },
   dotActive: { width: 24, backgroundColor: colors.green },
@@ -418,9 +462,12 @@ const styles = StyleSheet.create({
   },
   errorText: { fontSize: typeTokens.size.bodySM, color: '#dc2626' },
   heading: { fontSize: typeTokens.size.displayLG, color: colors.ink, marginBottom: space[8] },
-  sub: { fontSize: typeTokens.size.bodyLG, color: colors.dim, marginBottom: space[32] },
+  sub: { fontSize: typeTokens.size.bodyLG, color: colors.dim, marginBottom: space[24] },
+  stickyFooter: { paddingHorizontal: space[24], paddingTop: space[16], backgroundColor: colors.bg },
   fieldGroup: { gap: space[8], marginBottom: space[24] },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: space[8] },
   label: { fontSize: typeTokens.size.label, color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.5 },
+  labelHint: { fontSize: typeTokens.size.caption, color: colors.dim },
   input: {
     backgroundColor: colors.card,
     borderWidth: 1.5,
@@ -433,7 +480,7 @@ const styles = StyleSheet.create({
   },
   detectShadow: {
     backgroundColor: colors.greenDeep,
-    borderRadius: radius.sm,
+    borderRadius: radius.lg,
     paddingBottom: 4,
     marginTop: space[4],
   },
@@ -442,8 +489,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: space[8],
-    backgroundColor: colors.green,
-    borderRadius: radius.sm,
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.green,
+    borderRadius: radius.lg,
     paddingVertical: space[16],
     paddingHorizontal: space[16],
   },
@@ -457,7 +506,7 @@ const styles = StyleSheet.create({
     fontFamily: typeTokens.body.family,
     fontSize: typeTokens.size.label,
     fontWeight: typeTokens.body.weights.extra,
-    color: colors.card,
+    color: colors.green,
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space[8], marginBottom: space[32] },
   chip: {
@@ -471,26 +520,42 @@ const styles = StyleSheet.create({
   chipSelected: { backgroundColor: colors.green, borderColor: colors.green },
   chipText: { fontSize: typeTokens.size.body, color: colors.ink },
   chipTextSelected: { color: colors.card },
-  ageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space[16], marginBottom: space[32] },
-  ageCard: {
-    width: '46%',
-    padding: space[24],
+  dateField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.hairline,
+    borderRadius: radius.md,
+    paddingHorizontal: space[16],
+    paddingVertical: space[16],
+  },
+  dateText: {
+    flex: 1,
+    fontSize: typeTokens.size.bodyLG,
+    color: colors.ink,
+  },
+  datePlaceholder: { color: colors.dim },
+  genderRow: { flexDirection: 'row', gap: space[8] },
+  genderBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space[8],
+    paddingVertical: space[16],
     borderRadius: radius.lg,
     borderWidth: 1.5,
     borderColor: colors.hairline,
     backgroundColor: colors.card,
-    alignItems: 'center',
-    gap: space[4],
   },
-  ageCardSelected: { backgroundColor: colors.green, borderColor: colors.green },
-  ageEmoji: { fontSize: 32 },
-  ageLabel: { fontSize: typeTokens.size.body, color: colors.ink },
-  ageLabelSelected: { color: colors.card },
-  ageSub: { fontSize: typeTokens.size.bodySM, color: colors.dim },
-  ageSubSelected: { color: colors.card },
+  genderBtnSelected: { backgroundColor: colors.green, borderColor: colors.green },
+  genderLabel: { fontSize: typeTokens.size.bodySM, color: colors.ink2 },
+  genderLabelSelected: { color: colors.card },
   ctaWrap: { backgroundColor: colors.greenDeep, borderRadius: radius.lg, paddingBottom: 4 },
+  ctaWrapDisabled: { backgroundColor: colors.hairline },
   cta: { backgroundColor: colors.green, borderRadius: radius.lg, paddingVertical: space[16], alignItems: 'center' },
   ctaPressed: { transform: [{ translateY: 2 }] },
-  ctaDisabled: { opacity: 0.6 },
+  ctaDisabled: { backgroundColor: '#E4E9EE' },
   ctaText: { color: colors.card, fontSize: typeTokens.size.displaySM, letterSpacing: 0.3, textTransform: 'uppercase' },
+  ctaTextDisabled: { color: colors.switchOff },
 })

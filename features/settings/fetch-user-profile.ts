@@ -23,6 +23,7 @@ import {
   savePhone,
   saveUsername,
 } from '@/features/settings/preferences'
+import { normalizeUsername } from '@/features/settings/username'
 import { isDemoSessionActive } from '@/lib/auth/demo-session'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { isTesterEmail } from '@/features/settings/tester-account'
@@ -76,12 +77,9 @@ function defaultUsernameFromEmail(email: string): string {
 }
 
 function formatUsernameAsName(username: string): string {
-  const cleaned = username.replace(/_/g, ' ').trim()
-  if (!cleaned) return cleaned
-  return cleaned
-    .split(/\s+/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ')
+  const trimmed = username.trim()
+  if (!trimmed) return trimmed
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
 }
 
 export function resolveDisplayName(user: User, profileUsername: string | null): string {
@@ -202,11 +200,15 @@ export async function buildUserProfileFromAuth(user: User): Promise<AccountProfi
 
 export async function buildHomeUserProfileFromAuth(user: User): Promise<HomeUserProfile> {
   const profileRow = await fetchSupabaseProfileRow(user.id)
-  const profileUsername = profileRow?.username?.trim() ?? null
+  const rawProfileUsername = profileRow?.username?.trim() ?? null
+  const profileUsername = rawProfileUsername ? normalizeUsername(rawProfileUsername) || null : null
+
+  const metaUsername = readMetadataString(user, 'username')
+  const sanitizedMetaUsername = metaUsername ? normalizeUsername(metaUsername) || null : null
 
   const username =
     profileUsername
-    ?? readMetadataString(user, 'username')
+    ?? sanitizedMetaUsername
     ?? (user.email ? defaultUsernameFromEmail(user.email) : 'wildr_explorer')
 
   const displayName = resolveDisplayName(user, profileUsername)

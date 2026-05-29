@@ -47,6 +47,7 @@ interface AuthActionResult {
   error: string | null
   needsEmailConfirmation?: boolean
   canceled?: boolean
+  isNewUser?: boolean
 }
 
 interface AuthContextValue {
@@ -78,6 +79,11 @@ async function syncLoggedInFlag(session: Session | null): Promise<void> {
 
 function formatAuthError(message: string): string {
   return message.replace(/^AuthApiError:\s*/i, '').trim()
+}
+
+function isNewSupabaseUser(createdAt: string | undefined): boolean {
+  if (!createdAt) return true
+  return Date.now() - new Date(createdAt).getTime() < 15_000
 }
 
 function isAppleSignInCanceled(error: unknown): boolean {
@@ -292,7 +298,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) return { error: formatAuthError(error.message) }
 
       await commitAuthenticatedSession(data.session)
-      return { error: null }
+      return { error: null, isNewUser: isNewSupabaseUser(data.user.created_at) }
     } catch (error: unknown) {
       if (isAppleSignInCanceled(error)) return { error: null, canceled: true }
       return { error: 'Apple Sign In failed.' }
@@ -340,6 +346,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (oauthSession) {
         await commitAuthenticatedSession(oauthSession)
+        return { error: null, isNewUser: isNewSupabaseUser(oauthSession.user.created_at) }
       }
 
       return { error: null }

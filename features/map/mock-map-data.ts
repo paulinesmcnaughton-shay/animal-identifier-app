@@ -30,6 +30,9 @@ const KINGDOM_KEYS: KingdomKey[] = [
   'insect',
   'arachnid',
   'mollusc',
+  'plant',
+  'tree',
+  'flower',
 ]
 
 export function parseKingdom(value: string | null): KingdomKey {

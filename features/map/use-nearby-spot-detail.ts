@@ -12,6 +12,7 @@ import { fetchAiFieldGuide } from '@/features/map/fetch-ai-field-guide'
 import { useNearbyHeroImage } from '@/features/map/use-nearby-hero-image'
 import { fetchWikipediaSummary } from '@/features/species/fetch-species-detail'
 import { useSpeciesDetail } from '@/features/species/use-species-detail'
+import { getSupabaseClient } from '@/lib/supabase/client'
 
 export function useNearbySpotDetail(sighting: NearbyMapSighting | null) {
   const lookupId = sighting ? resolveSpeciesLookupKey(sighting) : 'unknown'
@@ -39,6 +40,36 @@ export function useNearbySpotDetail(sighting: NearbyMapSighting | null) {
 
   const [wikiDescription, setWikiDescription] = useState<string | null>(null)
   const [aiGuide, setAiGuide] = useState<NearbyFieldGuide | null>(null)
+  const [userCapturedUrl, setUserCapturedUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    const supabase = getSupabaseClient()
+    if (!supabase || !sighting) {
+      setUserCapturedUrl(null)
+      return
+    }
+    const speciesId = sighting.speciesId?.trim() || slugifySpeciesName(sighting.name)
+    let cancelled = false
+    void (async () => {
+      try {
+        const { data: authData } = await supabase.auth.getUser()
+        const userId = authData.user?.id
+        if (!userId || cancelled) return
+        const { data } = await supabase
+          .from('user_sightings')
+          .select('photo_uri')
+          .eq('user_id', userId)
+          .eq('species_id', speciesId)
+          .not('photo_uri', 'is', null)
+          .order('spotted_at', { ascending: false })
+          .limit(1)
+        if (!cancelled) setUserCapturedUrl(data?.[0]?.photo_uri?.trim() || null)
+      } catch {
+        // image is optional — never surface this error
+      }
+    })()
+    return () => { cancelled = true }
+  }, [sighting?.speciesId, sighting?.name])
 
   useEffect(() => {
     if (!common) {
@@ -104,10 +135,7 @@ export function useNearbySpotDetail(sighting: NearbyMapSighting | null) {
     return resolveNearbyFieldGuide(sighting, description)
   }, [sighting, species.description, wikiDescription, aiGuide])
 
-  const remotePhotoUrl =
-    heroImageUrl?.trim()
-    || heroPhotoUrl
-    || null
+  const remotePhotoUrl = heroPhotoUrl || heroImageUrl?.trim() || userCapturedUrl || null
 
   return {
     species,

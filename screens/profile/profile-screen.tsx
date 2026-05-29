@@ -84,7 +84,7 @@ export function ProfileScreen() {
         <View style={[styles.hero, { paddingTop: contentTopInset(insets.top) }]}>
           <View style={styles.userRow}>
             <View style={styles.avatarWrap}>
-              <ProfileAvatar size={72} borderColor={colors.card} borderWidth={3} />
+              <ProfileAvatar size={72} />
             </View>
             <View style={styles.userInfo}>
               <View style={styles.nameRow}>

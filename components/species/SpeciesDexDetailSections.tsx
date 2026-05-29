@@ -36,16 +36,20 @@ export function SpeciesDexDetailSections({
         </View>
       ) : null}
 
-      <Text style={styles.sectionTitle}>VITALS</Text>
-      <View style={styles.vitalsRows}>
-        {chunkPairs(species.vitals).map((row, rowIndex) => (
-          <View key={`vital-row-${rowIndex}`} style={styles.vitalsRow}>
-            {row.map((vital) => (
-              <VitalCard key={vital.label} vital={vital} />
+      {species.vitals.length > 0 ? (
+        <>
+          <Text style={styles.sectionTitle}>VITALS</Text>
+          <View style={styles.vitalsRows}>
+            {chunkPairs(species.vitals).map((row, rowIndex) => (
+              <View key={`vital-row-${rowIndex}`} style={styles.vitalsRow}>
+                {row.map((vital) => (
+                  <VitalCard key={vital.label} vital={vital} />
+                ))}
+              </View>
             ))}
           </View>
-        ))}
-      </View>
+        </>
+      ) : null}
 
       <Text style={styles.sectionTitle}>TAXONOMY</Text>
       <View style={styles.taxonomyCard}>

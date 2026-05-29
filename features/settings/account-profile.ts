@@ -13,6 +13,7 @@
 import type { User } from '@supabase/supabase-js'
 
 import { mockUser } from '@/data/mock'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { notifyAccountProfileChanged } from './account-profile-events'
 import {
   buildUserProfileFromAuth,
@@ -73,5 +74,18 @@ export async function updateAccountProfile(input: UpdateAccountProfileInput): Pr
   await saveUsername(input.username)
   await saveEmail(input.email)
   await savePhone(input.phone)
+
+  const supabase = getSupabaseClient()
+  if (supabase) {
+    const { data: authData } = await supabase.auth.getUser()
+    const userId = authData.user?.id
+    if (userId) {
+      await supabase
+        .from('profiles')
+        .update({ username: input.username })
+        .eq('id', userId)
+    }
+  }
+
   notifyAccountProfileChanged()
 }

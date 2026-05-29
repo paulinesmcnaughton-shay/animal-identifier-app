@@ -259,7 +259,7 @@ export function SettingsScreenContent() {
           />
         </View>
 
-        <Text style={styles.sectionLabel}>Privacy & Data</Text>
+        <Text style={styles.sectionLabel}>Privacy & Legal</Text>
         <View style={styles.group}>
           <SettingsRow
             icon="eye"
@@ -267,6 +267,13 @@ export function SettingsScreenContent() {
             title="Nearby map sharing"
             subtitle={rowSubtitles.sightingsVisibility}
             action={{ type: 'chevron', onPress: () => router.push('/settings-sightings-visibility') }}
+          />
+          <SettingsRow
+            icon="document-text"
+            iconBg={colors.earth}
+            title="Privacy & Terms"
+            subtitle="Privacy policy and terms of use"
+            action={{ type: 'chevron', onPress: () => router.push('/settings-privacy-terms') }}
             isLast
           />
         </View>
