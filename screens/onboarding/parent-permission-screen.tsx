@@ -8,8 +8,6 @@ import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,7 +18,15 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { storage } from '@/util/storage'
+
+function generateToken(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+}
 
 export function ParentPermissionScreen() {
   const router = useRouter()
@@ -40,11 +46,32 @@ export function ParentPermissionScreen() {
   const handleContinue = async () => {
     if (!canSubmit || loading) return
     setLoading(true)
-    await storage.set('onboarding.parent_name', parentName.trim())
-    await storage.set('onboarding.parent_email', parentEmail.trim())
-    await storage.set('onboarding.parent_permission_confirmed', 'true')
+
+    const token = generateToken()
+    const childUsername = await storage.getString('onboarding.username')
+
+    await Promise.all([
+      storage.set('onboarding.parent_name', parentName.trim()),
+      storage.set('onboarding.parent_email', parentEmail.trim()),
+      storage.set('onboarding.parent_permission_confirmed', 'true'),
+      storage.set('onboarding.approval_token', token),
+    ])
+
+    const supabase = getSupabaseClient()
+    if (supabase) {
+      const { error: fnError } = await supabase.functions.invoke('send-parent-approval-email', {
+        body: {
+          parentEmail: parentEmail.trim(),
+          parentName: parentName.trim(),
+          childUsername: childUsername ?? undefined,
+          token,
+        },
+      })
+      if (fnError && __DEV__) console.error('[WildKind] parent approval email failed:', fnError)
+    }
+
     setLoading(false)
-    router.replace('/personalize')
+    router.push('/personalize')
   }
 
   if (!fontsReady) {
@@ -56,27 +83,22 @@ export function ParentPermissionScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <View style={styles.root}>
       <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingTop: insets.top + space[16], paddingBottom: Math.max(insets.bottom, space[40]) },
-        ]}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + space[16] }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel="Go back to Parent Setup Required"
           onPress={() => router.back()}
           style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={colors.ink} />
         </Pressable>
 
         <Text style={[styles.heading, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
-          Parent permission
+          Parent Permission
         </Text>
         <Text style={[styles.sub, { fontFamily: 'Nunito_400Regular' }]}>
           We'll send your parent or guardian a confirmation email so they can approve your account.
@@ -123,7 +145,9 @@ export function ParentPermissionScreen() {
             I confirm that I am the parent or legal guardian and agree to WildKind's Terms of Use and Privacy Policy.
           </Text>
         </Pressable>
+      </ScrollView>
 
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, space[24]) }]}>
         <View style={[styles.ctaWrap, !canSubmit && styles.ctaWrapDisabled]}>
           <Pressable
             accessibilityRole="button"
@@ -145,8 +169,8 @@ export function ParentPermissionScreen() {
             }
           </Pressable>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </View>
+    </View>
   )
 }
 
@@ -179,7 +203,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: space[8],
-    marginBottom: space[32],
   },
   checkbox: {
     width: 22,
@@ -202,11 +225,15 @@ const styles = StyleSheet.create({
     color: colors.ink2,
     lineHeight: 22,
   },
+  footer: {
+    paddingHorizontal: space[24],
+    paddingTop: space[16],
+    backgroundColor: colors.bg,
+  },
   ctaWrap: {
     backgroundColor: colors.greenDeep,
     borderRadius: radius.lg,
     paddingBottom: 4,
-    marginBottom: space[24],
   },
   ctaWrapDisabled: { backgroundColor: colors.hairline },
   cta: {

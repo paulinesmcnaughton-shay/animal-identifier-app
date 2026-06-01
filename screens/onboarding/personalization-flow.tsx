@@ -86,6 +86,7 @@ export function PersonalizationFlow() {
   const [interests, setInterests] = useState<string[]>([])
   const [dob, setDob] = useState<Date | null>(null)
   const [showUsername, setShowUsername] = useState(true)
+  const [isChildAccount, setIsChildAccount] = useState(false)
 
   const [bricolageLoaded] = useBricolageFonts({ BricolageGrotesque_800ExtraBold })
   const [nunitoLoaded] = useNunitoFonts({ Nunito_400Regular, Nunito_700Bold })
@@ -110,6 +111,9 @@ export function PersonalizationFlow() {
           setUsername((current) => current || sanitizeUsernameInput(metadataUsername))
         }
       }
+
+      const accountType = await storage.getString('onboarding.account_type')
+      if (accountType === 'child') setIsChildAccount(true)
 
       const stored = await storage.getString('onboarding.date_of_birth')
       if (stored) {
@@ -213,12 +217,13 @@ export function PersonalizationFlow() {
       return
     }
 
-    const [accountType, parentName, parentEmail, parentConfirmed, requiresParentSetup] = await Promise.all([
+    const [accountType, parentName, parentEmail, parentConfirmed, requiresParentSetup, approvalToken] = await Promise.all([
       storage.getString('onboarding.account_type'),
       storage.getString('onboarding.parent_name'),
       storage.getString('onboarding.parent_email'),
       storage.getString('onboarding.parent_permission_confirmed'),
       storage.getString('onboarding.requires_parent_setup'),
+      storage.getString('onboarding.approval_token'),
     ])
 
     const isChild = accountType === 'child'
@@ -245,7 +250,13 @@ export function PersonalizationFlow() {
       can_publish_to_nearby: canPublish,
       show_username_on_map: showUsernameOnMap,
       requires_parent_setup: requiresParentSetup === 'true',
-      onboarding_complete: true,
+      // Child accounts stay incomplete until parent approves
+      onboarding_complete: !isChild,
+      parent_approval_status: isChild ? 'pending' : null,
+      parent_approval_token: isChild && approvalToken ? approvalToken : null,
+      parent_approval_token_expires_at: isChild && approvalToken
+        ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        : null,
     })
 
     setLoading(false)
@@ -261,8 +272,14 @@ export function PersonalizationFlow() {
     ])
 
     await clearPendingOnboarding()
-    await storage.set('profile.onboarding_complete', 'true')
     await saveSightingsVisibility(sightingsVisibilityFromSharingPrefs(canPublish, showUsernameOnMap))
+
+    if (isChild) {
+      router.replace('/(onboarding)/waiting-approval')
+      return
+    }
+
+    await storage.set('profile.onboarding_complete', 'true')
     await syncAccountProfileFromAuth(activeUser)
     router.replace('/home')
   }
@@ -292,8 +309,8 @@ export function PersonalizationFlow() {
     step === 1 ? username.trim().length > 0 && !getUsernameValidationError(username) :
     interests.length > 0
 
-  const ctaLabel = step === 2 ? 'Start Exploring 🌿' : 'Continue'
-  const ctaA11y = step === 1 ? 'Continue to interests' : 'Finish setup and start exploring'
+  const ctaLabel = step === 1 ? 'Continue' : isChildAccount ? 'Continue' : 'Start Exploring 🌿'
+  const ctaA11y = step === 1 ? 'Continue to interests' : isChildAccount ? 'Continue to approval' : 'Finish setup and start exploring'
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>

@@ -197,6 +197,9 @@ export interface Database {
           can_publish_to_nearby: boolean
           show_username_on_map: boolean
           requires_parent_setup: boolean
+          parent_approval_status: 'pending' | 'approved' | 'declined' | null
+          parent_approval_token: string | null
+          parent_approval_token_expires_at: string | null
           created_at: string
           updated_at: string
         }
@@ -231,6 +234,9 @@ export interface Database {
           can_publish_to_nearby?: boolean
           show_username_on_map?: boolean
           requires_parent_setup?: boolean
+          parent_approval_status?: 'pending' | 'approved' | 'declined' | null
+          parent_approval_token?: string | null
+          parent_approval_token_expires_at?: string | null
           created_at?: string
           updated_at?: string
         }

@@ -47,6 +47,7 @@ export function SignupScreen() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
   const [showDobGate, setShowDobGate] = useState(false)
   const [dobGateIsSocial, setDobGateIsSocial] = useState(false)
   const [showPrivacy, setShowPrivacy] = useState(false)
@@ -214,14 +215,27 @@ export function SignupScreen() {
 
           <View style={styles.fieldGroup}>
             <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Password</Text>
-            <TextInput
-              style={[styles.input, { fontFamily: 'Nunito_400Regular' }]}
-              placeholder="Min. 8 characters"
-              placeholderTextColor={colors.dim}
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
+            <View style={styles.inputWrap}>
+              <TextInput
+                style={[styles.input, styles.inputWithIcon, { fontFamily: 'Nunito_400Regular' }]}
+                placeholder="Min. 8 characters"
+                placeholderTextColor={colors.dim}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                onPress={() => setShowPassword((v) => !v)}
+                style={styles.eyeBtn}>
+                <Ionicons
+                  name={showPassword ? 'eye-off' : 'eye'}
+                  size={20}
+                  color={colors.dim}
+                />
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -322,6 +336,15 @@ const styles = StyleSheet.create({
     paddingVertical: space[16],
     fontSize: typeTokens.size.bodyLG,
     color: colors.ink,
+  },
+  inputWrap: { position: 'relative' },
+  inputWithIcon: { paddingRight: space[48] },
+  eyeBtn: {
+    position: 'absolute',
+    right: space[16],
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
   },
   ctaWrap: { backgroundColor: colors.greenDeep, borderRadius: radius.lg, paddingBottom: 4, marginBottom: space[24] },
   ctaWrapDisabled: { backgroundColor: colors.hairline },

@@ -16,6 +16,7 @@ export default function RootIndex() {
   const { isAuthenticated, isLoading: authLoading, user } = useAuth()
   const [bootReady, setBootReady] = useState(false)
   const [pendingOnboarding, setPendingOnboarding] = useState(false)
+  const [waitingApproval, setWaitingApproval] = useState(false)
 
   useEffect(() => {
     if (authLoading) return
@@ -43,10 +44,26 @@ export default function RootIndex() {
         if (supabase) {
           const { data } = await supabase
             .from('profiles')
-            .select('onboarding_complete')
+            .select('onboarding_complete, account_type, parent_approval_status')
             .eq('id', user.id)
             .maybeSingle()
+
           isComplete = data?.onboarding_complete === true
+
+          if (!isComplete) {
+            // Child user waiting for parent approval — resume waiting screen
+            if (data?.account_type === 'child' && data?.parent_approval_status === 'pending') {
+              setWaitingApproval(true)
+              setBootReady(true)
+              return
+            }
+
+            // Child user whose parent approved while app was closed — finalize
+            if (data?.account_type === 'child' && data?.parent_approval_status === 'approved') {
+              await supabase.from('profiles').update({ onboarding_complete: true }).eq('id', user.id)
+              isComplete = true
+            }
+          }
         }
 
         if (!isComplete) {
@@ -74,6 +91,10 @@ export default function RootIndex() {
 
   if (authLoading || !bootReady || !rootNavigationState?.key) {
     return <View style={{ flex: 1, backgroundColor: colors.bg }} />
+  }
+
+  if (isAuthenticated && waitingApproval) {
+    return <Redirect href={'/(onboarding)/waiting-approval'} />
   }
 
   if (isAuthenticated && pendingOnboarding) {

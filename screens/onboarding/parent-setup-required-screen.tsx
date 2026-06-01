@@ -4,11 +4,11 @@ import {
 } from '@expo-google-fonts/bricolage-grotesque'
 import { Nunito_400Regular, Nunito_700Bold, useFonts as useNunitoFonts } from '@expo-google-fonts/nunito'
 import { useRouter } from 'expo-router'
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { storage } from '@/util/storage'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { storage } from '@/util/storage'
 
 export function ParentSetupRequiredScreen() {
   const router = useRouter()
@@ -20,7 +20,7 @@ export function ParentSetupRequiredScreen() {
 
   const handleContinue = async () => {
     await storage.set('onboarding.requires_parent_setup', 'true')
-    router.replace('/parent-permission')
+    router.push('/parent-permission')
   }
 
   if (!fontsReady) {
@@ -32,12 +32,10 @@ export function ParentSetupRequiredScreen() {
   }
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, space[32]) }]}>
-      <View style={styles.heroWrap}>
-        <Text style={styles.heroEmoji}>🌿</Text>
-      </View>
-
-      <View style={styles.content}>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}>
         <Text style={[styles.heading, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
           Parent Setup Required
         </Text>
@@ -47,27 +45,34 @@ export function ParentSetupRequiredScreen() {
         <Text style={[styles.body, { fontFamily: 'Nunito_400Regular' }]}>
           WildKind uses photos and location to help identify nature finds. A parent can manage privacy, family location, and map sharing.
         </Text>
-      </View>
 
-      <View style={styles.actions}>
+        <Image
+          source={require('@/assets/images/Parent_setup_required.png')}
+          style={styles.illustration}
+          resizeMode="contain"
+          accessibilityLabel="Parent setup illustration"
+        />
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, space[24]) }]}>
         <View style={styles.ctaWrap}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Continue with Parent Setup"
+            accessibilityLabel="Continue"
             onPress={handleContinue}
             style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
             <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
-              Continue with Parent Setup
+              Continue
             </Text>
           </Pressable>
         </View>
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel="Exit setup"
           onPress={() => router.back()}
-          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
-          <Text style={[styles.backText, { fontFamily: 'Nunito_700Bold' }]}>Back</Text>
+          style={({ pressed }) => [styles.exitBtn, pressed && { opacity: 0.6 }]}>
+          <Text style={[styles.exitText, { fontFamily: 'Nunito_700Bold' }]}>Exit Setup</Text>
         </Pressable>
       </View>
     </View>
@@ -75,52 +80,28 @@ export function ParentSetupRequiredScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.bg,
+  root: { flex: 1, backgroundColor: colors.bg },
+  loader: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  scroll: { paddingHorizontal: space[24], paddingTop: space[40] },
+  heading: { fontSize: typeTokens.size.displayLG, color: colors.ink, marginBottom: space[16] },
+  body: { fontSize: typeTokens.size.bodyLG, color: colors.ink2, lineHeight: 26, marginBottom: space[16] },
+  footer: {
     paddingHorizontal: space[24],
-  },
-  loader: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingTop: space[16],
     backgroundColor: colors.bg,
-  },
-  heroWrap: {
-    alignItems: 'center',
-    marginTop: space[48],
-    marginBottom: space[32],
-  },
-  heroEmoji: {
-    fontSize: 80,
-  },
-  content: {
-    flex: 1,
-  },
-  heading: {
-    fontSize: typeTokens.size.displayLG,
-    color: colors.ink,
-    marginBottom: space[16],
-  },
-  body: {
-    fontSize: typeTokens.size.bodyLG,
-    color: colors.ink2,
-    lineHeight: 26,
-    marginBottom: space[32],
-  },
-  actions: {
-    gap: space[16],
   },
   ctaWrap: {
     backgroundColor: colors.greenDeep,
     borderRadius: radius.lg,
     paddingBottom: 4,
+    marginBottom: space[16],
   },
   cta: {
     backgroundColor: colors.green,
     borderRadius: radius.lg,
     paddingVertical: space[16],
     alignItems: 'center',
+    justifyContent: 'center',
   },
   ctaPressed: { transform: [{ translateY: 2 }] },
   ctaText: {
@@ -129,12 +110,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
-  backBtn: {
-    alignItems: 'center',
-    paddingVertical: space[8],
+  illustration: {
+    width: '100%',
+    height: 240,
+    marginTop: space[32],
   },
-  backText: {
-    fontSize: typeTokens.size.body,
-    color: colors.dim,
-  },
+  exitBtn: { alignItems: 'center', paddingVertical: space[8] },
+  exitText: { fontSize: typeTokens.size.body, color: colors.dim },
 })

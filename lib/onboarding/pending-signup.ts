@@ -36,6 +36,7 @@ export async function clearPendingOnboarding(): Promise<void> {
     storage.delete('onboarding.parent_email'),
     storage.delete('onboarding.parent_permission_confirmed'),
     storage.delete('onboarding.requires_parent_setup'),
+    storage.delete('onboarding.approval_token'),
   ])
 }
 
