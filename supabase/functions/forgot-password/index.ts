@@ -16,69 +16,189 @@ function json(body: object) {
   })
 }
 
-function buildResetEmail(resetLink: string): string {
+function buildResetEmail(resetLink: string, displayName: string, username: string | null): string {
+  const greeting = `Hello ${displayName},`
+  const usernameClause = username
+    ? ` (username: <span style="color:#1F3B2D;">${username}</span>)`
+    : ''
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Reset your WildKind password</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #FFF8E7; margin: 0; padding: 0; }
-    .wrapper { max-width: 560px; margin: 40px auto; background: #ffffff; border-radius: 16px; overflow: hidden; }
-    .header { background: #1a3d2b; padding: 32px 40px; display: flex; align-items: center; gap: 12px; }
-    .logo-leaf {
-      width: 36px; height: 36px; background: #52b788;
-      border-radius: 50% 50% 50% 8px;
-      display: inline-flex; align-items: center; justify-content: center;
-    }
-    .logo-name { color: #ffffff; font-size: 22px; font-weight: 800; letter-spacing: -0.3px; margin: 0; }
-    .body { padding: 36px 40px; }
-    .body p { color: #33455A; font-size: 16px; line-height: 26px; margin: 0 0 16px; }
-    .cta-wrap { margin: 32px 0; }
-    .cta {
-      display: inline-block;
-      background: #1a3d2b;
-      color: #ffffff;
-      text-decoration: none;
-      font-size: 16px;
-      font-weight: 700;
-      padding: 16px 32px;
-      border-radius: 12px;
-      letter-spacing: 0.3px;
-    }
-    .divider { height: 1px; background: #E7EDF3; margin: 24px 0; }
-    .link-fallback { color: #7388A0; font-size: 13px; line-height: 20px; word-break: break-all; }
-    .link-fallback a { color: #52b788; }
-    .footer { padding: 24px 40px; border-top: 1px solid #E7EDF3; }
-    .footer p { color: #7388A0; font-size: 13px; line-height: 20px; margin: 0; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="x-apple-disable-message-reformatting">
+<title>WildKind — Reset Your Password</title>
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+  body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; display: block; }
+  body { margin: 0; padding: 0; width: 100% !important; background-color: #F4F2EC; }
+  a { color: #1F3B2D; }
+  .btn-primary:hover { background-color: #16301F !important; }
+  @media only screen and (max-width: 600px) {
+    .container { width: 100% !important; }
+    .px { padding-left: 28px !important; padding-right: 28px !important; }
+    .stack-btn { display: block !important; width: 100% !important; }
+    .stack-btn a { display: block !important; text-align: center !important; }
+  }
+</style>
 </head>
-<body>
-  <div class="wrapper">
-    <div class="header">
-      <div class="logo-leaf">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M10 3C6 3 3 6 3 10c0 2.5 1.5 4.5 3.5 5.5L10 17l3.5-1.5C15.5 14.5 17 12.5 17 10c0-4-3-7-7-7z" fill="#1a3d2b"/>
-          <path d="M10 7v6M7 10h6" stroke="#52b788" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <p class="logo-name">WildKind</p>
-    </div>
-    <div class="body">
-      <p>Hi Explorer,</p>
-      <p>We received a request to reset the password for your WildKind account. Click the button below to choose a new password.</p>
-      <div class="cta-wrap">
-        <a href="${resetLink}" class="cta">Reset Password</a>
-      </div>
-      <p>This link expires in 1 hour. If you didn't request a password reset, you can safely ignore this email — your account is still secure.</p>
-      <div class="divider"></div>
-      <p class="link-fallback">If the button above doesn't work, copy and paste this link into your browser:<br /><a href="${resetLink}">${resetLink}</a></p>
-    </div>
-    <div class="footer">
-      <p>Thank you,<br />The WildKind Team</p>
-    </div>
+<body style="margin:0; padding:0; background-color:#F4F2EC;">
+
+  <!-- Preheader -->
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all; font-size:1px; line-height:1px; color:#F4F2EC;">
+    Reset your WildKind password. This link expires in 30 minutes.
   </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4F2EC;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+
+        <!-- Card -->
+        <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0"
+          style="width:600px; max-width:600px; background-color:#FFFFFF; border-radius:14px; overflow:hidden; box-shadow:0 1px 3px rgba(20,48,31,0.08);">
+
+          <!-- Logo bar -->
+          <tr>
+            <td class="px" style="padding:34px 48px 22px 48px;" align="left">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding-right:10px;" valign="middle">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+                      style="width:32px; height:32px; background-color:#1F3B2D; border-radius:50% 50% 50% 6px;">
+                      <tr><td align="center" valign="middle" style="font-size:0; line-height:0;">&nbsp;</td></tr>
+                    </table>
+                  </td>
+                  <td valign="middle">
+                    <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                      font-size:20px; font-weight:800; color:#1F3B2D; letter-spacing:-0.4px;">WildKind</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Hairline rule -->
+          <tr>
+            <td style="padding:0 48px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="border-top:1px solid #E7E3D8; font-size:0; line-height:0;">&nbsp;</td></tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td class="px" style="padding:34px 48px 8px 48px;">
+              <p style="margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:18px; line-height:28px; color:#1F2A24;">
+                ${greeting}
+              </p>
+              <p style="margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:16px; line-height:26px; color:#3A463E;">
+                We received a request to reset the password for your WildKind account${usernameClause}.
+              </p>
+              <p style="margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:16px; line-height:26px; color:#3A463E;">
+                Tap the button below to choose a new password and get back to exploring the natural world.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Reset button -->
+          <tr>
+            <td class="px" style="padding:8px 48px 8px 48px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td class="stack-btn">
+                    <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+                      href="${resetLink}" style="height:50px;v-text-anchor:middle;width:240px;" arcsize="16%"
+                      fillcolor="#1F3B2D" stroke="f">
+                      <center style="color:#ffffff;font-family:sans-serif;font-size:15px;font-weight:bold;">Reset Password</center>
+                    </v:roundrect><![endif]-->
+                    <!--[if !mso]><!-->
+                    <a class="btn-primary" href="${resetLink}"
+                      style="display:inline-block; background-color:#1F3B2D; color:#FFFFFF;
+                      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                      font-size:15px; font-weight:700; text-align:center; text-decoration:none;
+                      padding:15px 44px; border-radius:8px;">Reset Password</a>
+                    <!--<![endif]-->
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Expiry panel -->
+          <tr>
+            <td class="px" style="padding:22px 48px 8px 48px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                style="background-color:#F4F6F2; border-radius:10px;">
+                <tr>
+                  <td style="padding:18px 26px;">
+                    <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                      font-size:15px; line-height:23px; color:#3A463E;">
+                      For your security, this link will expire in <strong style="color:#1F2A24;">30 minutes</strong> and can only be used once.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Fallback link -->
+          <tr>
+            <td class="px" style="padding:20px 48px 4px 48px;">
+              <p style="margin:0 0 8px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:14px; line-height:22px; color:#3A463E;">
+                If the button doesn&rsquo;t work, copy and paste this link into your browser:
+              </p>
+              <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:13px; line-height:20px; color:#1F3B2D; word-break:break-all;">
+                ${resetLink}
+              </p>
+            </td>
+          </tr>
+
+          <!-- Fine print -->
+          <tr>
+            <td class="px" style="padding:20px 48px 36px 48px;">
+              <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:13px; line-height:20px; color:#8A938B;">
+                If you didn&rsquo;t request a password reset, you can safely ignore this email &mdash; your password won&rsquo;t change.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+        <!-- Footer -->
+        <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0"
+          style="width:600px; max-width:600px;">
+          <tr>
+            <td class="px" style="padding:24px 48px; text-align:center;">
+              <p style="margin:0 0 6px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:12px; line-height:18px; color:#9AA29A;">
+                WildKind &middot; Explore the natural world, safely.
+              </p>
+              <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:12px; line-height:18px; color:#9AA29A;">
+                Sent because a password reset was requested for your account.
+                <a href="https://www.wildkind.app/privacy" style="color:#1F3B2D; text-decoration:underline;">Privacy</a>
+                &middot;
+                <a href="https://www.wildkind.app/help" style="color:#1F3B2D; text-decoration:underline;">Help</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`
 }
@@ -95,6 +215,8 @@ Deno.serve(async (req: Request) => {
 
   let userId: string | null = null
   let email: string | null = null
+  let username: string | null = null
+  let displayName = 'Explorer'
 
   if (trimmed.includes('@')) {
     email = trimmed.toLowerCase()
@@ -104,18 +226,33 @@ Deno.serve(async (req: Request) => {
   } else {
     const { data: profile } = await admin
       .from('profiles')
-      .select('id')
+      .select('id, username, full_name')
       .eq('username', trimmed.toLowerCase())
       .maybeSingle()
 
     if (profile?.id) {
       userId = profile.id
+      username = profile.username ?? null
+      displayName = profile.full_name ?? profile.username ?? 'Explorer'
       const { data: authUser } = await admin.auth.admin.getUserById(profile.id)
       email = authUser?.user?.email ?? null
     }
   }
 
   if (!userId || !email) return json({ success: true })
+
+  // Fetch profile for personalization if we came in via email
+  if (!username) {
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('username, full_name')
+      .eq('id', userId)
+      .maybeSingle()
+    if (profile) {
+      username = profile.username ?? null
+      displayName = profile.full_name ?? profile.username ?? 'Explorer'
+    }
+  }
 
   const { data: authUser } = await admin.auth.admin.getUserById(userId)
   const providers = (authUser?.user?.app_metadata?.providers ?? []) as string[]
@@ -128,7 +265,6 @@ Deno.serve(async (req: Request) => {
     return json({ success: true, provider })
   }
 
-  // Generate the reset link via Supabase (handles token creation)
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
     type: 'recovery',
     email,
@@ -142,7 +278,6 @@ Deno.serve(async (req: Request) => {
 
   const resetLink = linkData.properties.action_link
 
-  // Send branded email via Resend
   const emailRes = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -153,7 +288,7 @@ Deno.serve(async (req: Request) => {
       from: `WildKind <${RESEND_FROM_EMAIL}>`,
       to: [email],
       subject: 'Reset your WildKind password',
-      html: buildResetEmail(resetLink),
+      html: buildResetEmail(resetLink, displayName, username),
     }),
   })
 
