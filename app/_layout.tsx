@@ -1,7 +1,12 @@
 import 'react-native-gesture-handler'
 import 'react-native-reanimated'
 
+import { LogBox } from 'react-native'
 import Mapbox from '@rnmapbox/maps'
+
+// Supabase logs this via console.error when a stored refresh token has expired.
+// The library handles it correctly (signs the user out), so the overlay is noise.
+LogBox.ignoreLogs(['AuthApiError: Invalid Refresh Token'])
 import Constants from 'expo-constants'
 import { Stack } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'

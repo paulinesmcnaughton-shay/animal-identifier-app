@@ -87,7 +87,6 @@ export function PersonalizationFlow() {
   const [dob, setDob] = useState<Date | null>(null)
   const [showUsername, setShowUsername] = useState(true)
   const [isChildAccount, setIsChildAccount] = useState(false)
-  const [isTeenAccount, setIsTeenAccount] = useState(false)
   const [fullName, setFullName] = useState('')
 
   const [bricolageLoaded] = useBricolageFonts({ BricolageGrotesque_800ExtraBold })
@@ -116,7 +115,6 @@ export function PersonalizationFlow() {
 
       const accountType = await storage.getString('onboarding.account_type')
       if (accountType === 'child') setIsChildAccount(true)
-      if (accountType === 'teen') setIsTeenAccount(true)
 
       const storedFullName = await storage.getString('onboarding.full_name')
       if (storedFullName) setFullName(storedFullName)
@@ -298,6 +296,35 @@ export function PersonalizationFlow() {
     )
   }
 
+  const handleChildSave = async () => {
+    setLoading(true)
+    setError(null)
+
+    await Promise.all([
+      storage.set('onboarding.username', username.trim()),
+      storage.set('onboarding.full_name', fullName.trim()),
+      locationText.trim()
+        ? storage.set('onboarding.location_text', locationText.trim())
+        : storage.delete('onboarding.location_text'),
+      latitude !== null
+        ? storage.set('onboarding.latitude', String(latitude))
+        : storage.delete('onboarding.latitude'),
+      longitude !== null
+        ? storage.set('onboarding.longitude', String(longitude))
+        : storage.delete('onboarding.longitude'),
+      timezone
+        ? storage.set('onboarding.timezone', timezone)
+        : storage.delete('onboarding.timezone'),
+      interests.length > 0
+        ? storage.set('onboarding.interests', JSON.stringify(interests))
+        : storage.delete('onboarding.interests'),
+      storage.set('onboarding.show_username', showUsername ? 'true' : 'false'),
+    ])
+
+    setLoading(false)
+    router.push('/parent-permission')
+  }
+
   const handleStepCta = () => {
     if (step === 1) {
       const usernameError = getUsernameValidationError(username)
@@ -307,17 +334,17 @@ export function PersonalizationFlow() {
     } else {
       if (interests.length === 0) { setError('Pick at least one interest'); return }
       setError(null)
-      void handleFinish()
+      isChildAccount ? void handleChildSave() : void handleFinish()
     }
   }
 
   const canProceed =
     step === 1
-      ? username.trim().length > 0 && !getUsernameValidationError(username) && (isChildAccount || fullName.trim().length > 0)
+      ? username.trim().length > 0 && !getUsernameValidationError(username) && fullName.trim().length > 0
       : interests.length > 0
 
   const ctaLabel = step === 1 ? 'Continue' : isChildAccount ? 'Continue' : 'Start Exploring 🌿'
-  const ctaA11y = step === 1 ? 'Continue to interests' : isChildAccount ? 'Continue to approval' : 'Finish setup and start exploring'
+  const ctaA11y = step === 1 ? 'Continue to interests' : isChildAccount ? 'Continue to parent permission' : 'Finish setup and start exploring'
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -342,25 +369,21 @@ export function PersonalizationFlow() {
             This is how other explorers will see you
           </Text>
 
-          {!isChildAccount && (
-            <View style={styles.fieldGroup}>
-              <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Full Name</Text>
-              <TextInput
-                style={[styles.input, { fontFamily: 'Nunito_400Regular' }]}
-                placeholder="e.g. Alex Johnson"
-                placeholderTextColor={colors.dim}
-                autoCapitalize="words"
-                autoCorrect={false}
-                value={fullName}
-                onChangeText={setFullName}
-              />
-              {isTeenAccount && (
-                <Text style={[styles.labelHint, { fontFamily: 'Nunito_400Regular' }]}>
-                  Only used for parent permission requests. Never shown publicly.
-                </Text>
-              )}
-            </View>
-          )}
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Full Name</Text>
+            <TextInput
+              style={[styles.input, { fontFamily: 'Nunito_400Regular' }]}
+              placeholder="e.g. Alex Johnson"
+              placeholderTextColor={colors.dim}
+              autoCapitalize="words"
+              autoCorrect={false}
+              value={fullName}
+              onChangeText={setFullName}
+            />
+            <Text style={[styles.labelHint, { fontFamily: 'Nunito_400Regular' }]}>
+              Your name is private and never shown publicly.
+            </Text>
+          </View>
 
           <View style={styles.fieldGroup}>
             <View style={styles.labelRow}>

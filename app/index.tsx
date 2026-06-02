@@ -51,17 +51,11 @@ export default function RootIndex() {
           isComplete = data?.onboarding_complete === true
 
           if (!isComplete) {
-            // Child user waiting for parent approval — resume waiting screen
-            if (data?.account_type === 'child' && data?.parent_approval_status === 'pending') {
+            if (data?.account_type === 'child' && (data?.parent_approval_status === 'pending' || data?.parent_approval_status === 'approved')) {
+              // Resume waiting screen — approved children still need to tap Start Exploring to save their profile
               setWaitingApproval(true)
               setBootReady(true)
               return
-            }
-
-            // Child user whose parent approved while app was closed — finalize
-            if (data?.account_type === 'child' && data?.parent_approval_status === 'approved') {
-              await supabase.from('profiles').update({ onboarding_complete: true }).eq('id', user.id)
-              isComplete = true
             }
           }
         }

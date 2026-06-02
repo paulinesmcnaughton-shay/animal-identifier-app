@@ -20,7 +20,7 @@ export function ParentSetupRequiredScreen() {
 
   const handleContinue = async () => {
     await storage.set('onboarding.requires_parent_setup', 'true')
-    router.push('/parent-permission')
+    router.push('/personalize')
   }
 
   if (!fontsReady) {

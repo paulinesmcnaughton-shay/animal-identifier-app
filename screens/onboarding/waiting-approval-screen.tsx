@@ -18,8 +18,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { saveSightingsVisibility } from '@/features/settings/preferences'
+import { sightingsVisibilityFromSharingPrefs } from '@/features/settings/sightings-sharing-prefs'
 import { syncAccountProfileFromAuth } from '@/features/settings/sync-account-profile'
+import { normalizeUsername } from '@/features/settings/username'
+import { deviceTimeZone } from '@/features/profile/time-greeting'
 import { useAuth } from '@/lib/auth/auth-context'
+import { clearPendingOnboarding } from '@/lib/onboarding/pending-signup'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { storage } from '@/util/storage'
 
@@ -96,8 +101,41 @@ export function WaitingApprovalScreen() {
     setLoading(true)
     const supabase = getSupabaseClient()
     if (!supabase) { setLoading(false); return }
-    await supabase.from('profiles').update({ onboarding_complete: true }).eq('id', user.id)
+
+    const [username, fullName, locationText, latStr, lonStr, tzStr, interestsStr, showUsernameStr] = await Promise.all([
+      storage.getString('onboarding.username'),
+      storage.getString('onboarding.full_name'),
+      storage.getString('onboarding.location_text'),
+      storage.getString('onboarding.latitude'),
+      storage.getString('onboarding.longitude'),
+      storage.getString('onboarding.timezone'),
+      storage.getString('onboarding.interests'),
+      storage.getString('onboarding.show_username'),
+    ])
+
+    const interests = interestsStr ? (JSON.parse(interestsStr) as string[]) : []
+    const latitude = latStr ? parseFloat(latStr) : null
+    const longitude = lonStr ? parseFloat(lonStr) : null
+
+    await supabase.from('profiles').update({
+      username: username ? normalizeUsername(username) : null,
+      full_name: fullName ?? null,
+      location_text: locationText ?? null,
+      latitude,
+      longitude,
+      timezone: tzStr ?? deviceTimeZone(),
+      interests,
+      age_group: 'kids',
+      can_publish_to_nearby: false,
+      show_username_on_map: false,
+      family_account_enabled: true,
+      requires_parent_setup: false,
+      onboarding_complete: true,
+    }).eq('id', user.id)
+
     await storage.set('profile.onboarding_complete', 'true')
+    await saveSightingsVisibility(sightingsVisibilityFromSharingPrefs(false, showUsernameStr === 'true'))
+    await clearPendingOnboarding()
     await syncAccountProfileFromAuth(user)
     router.replace('/home')
   }
@@ -173,15 +211,11 @@ export function WaitingApprovalScreen() {
   const handleExit = async () => {
     const supabase = getSupabaseClient()
     if (supabase && user) {
-      await supabase.from('profiles').delete().eq('id', user.id)
+      await supabase.rpc('delete_current_user')
       await supabase.auth.signOut()
     }
-    await Promise.all([
-      storage.delete('profile.onboarding_complete'),
-      storage.delete('onboarding.pending'),
-      storage.delete('onboarding.method'),
-      storage.delete('onboarding.approval_token'),
-    ])
+    await clearPendingOnboarding()
+    await storage.delete('profile.onboarding_complete')
     router.replace('/(onboarding)/welcome')
   }
 

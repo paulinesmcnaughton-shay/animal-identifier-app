@@ -20,6 +20,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { useAuth } from '@/lib/auth/auth-context'
+import {
+  clearPendingPassword,
+  getPendingPassword,
+} from '@/lib/onboarding/pending-signup'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { storage } from '@/util/storage'
 
@@ -33,51 +38,103 @@ function generateToken(): string {
 export function ParentPermissionScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { signUp } = useAuth()
 
-  const [fullName, setFullName] = useState('')
   const [parentName, setParentName] = useState('')
   const [parentEmail, setParentEmail] = useState('')
   const [confirmed, setConfirmed] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const [bricolageLoaded] = useBricolageFonts({ BricolageGrotesque_800ExtraBold })
   const [nunitoLoaded] = useNunitoFonts({ Nunito_400Regular, Nunito_700Bold })
   const fontsReady = bricolageLoaded && nunitoLoaded
 
-  const canSubmit = fullName.trim().length > 0 && parentName.trim().length > 0 && parentEmail.trim().length > 0 && confirmed
+  const canSubmit = parentName.trim().length > 0 && parentEmail.trim().length > 0 && confirmed
 
   const handleContinue = async () => {
     if (!canSubmit || loading) return
     setLoading(true)
+    setError(null)
+
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      setLoading(false)
+      setError('Something went wrong. Please try again.')
+      return
+    }
+
+    const pendingEmail = await storage.getString('onboarding.email')
+    const pendingPassword = getPendingPassword()
+    const pendingUsername = await storage.getString('onboarding.username')
+
+    if (!pendingEmail || !pendingPassword) {
+      setLoading(false)
+      setError('Your session expired. Please start over.')
+      router.replace('/signup')
+      return
+    }
+
+    const result = await signUp({ email: pendingEmail, password: pendingPassword, username: pendingUsername ?? '' })
+    clearPendingPassword()
+
+    if (result.error) { setLoading(false); setError(result.error); return }
+
+    if (result.needsEmailConfirmation) {
+      setLoading(false)
+      setError('Please confirm your email first, then sign in to continue.')
+      return
+    }
+
+    const { data: { user: newUser } } = await supabase.auth.getUser()
+    if (!newUser) {
+      setLoading(false)
+      setError('Account created but could not verify. Please log in.')
+      return
+    }
 
     const token = generateToken()
-    const childUsername = await storage.getString('onboarding.username')
-    const childFullName = fullName.trim() || undefined
+    const childFullName = await storage.getString('onboarding.full_name')
+
+    const { error: profileError } = await supabase.from('profiles').upsert({
+      id: newUser.id,
+      account_type: 'child',
+      parent_name: parentName.trim() || null,
+      parent_email: parentEmail.trim(),
+      parent_permission_confirmed: true,
+      parent_approval_token: token,
+      parent_approval_token_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      parent_approval_status: 'pending',
+      onboarding_complete: false,
+    })
+
+    if (profileError) {
+      setLoading(false)
+      setError('Could not save account details. Please try again.')
+      return
+    }
 
     await Promise.all([
-      storage.set('onboarding.full_name', fullName.trim()),
       storage.set('onboarding.parent_name', parentName.trim()),
       storage.set('onboarding.parent_email', parentEmail.trim()),
       storage.set('onboarding.parent_permission_confirmed', 'true'),
       storage.set('onboarding.approval_token', token),
+      storage.delete('onboarding.pending'),
     ])
 
-    const supabase = getSupabaseClient()
-    if (supabase) {
-      const { error: fnError } = await supabase.functions.invoke('send-parent-approval-email', {
-        body: {
-          parentEmail: parentEmail.trim(),
-          parentName: parentName.trim(),
-          childUsername: childUsername ?? undefined,
-          childFullName: childFullName ?? undefined,
-          token,
-        },
-      })
-      if (fnError && __DEV__) console.error('[WildKind] parent approval email failed:', fnError)
-    }
+    const { error: fnError } = await supabase.functions.invoke('send-parent-approval-email', {
+      body: {
+        parentEmail: parentEmail.trim(),
+        parentName: parentName.trim() || undefined,
+        childUsername: pendingUsername ?? undefined,
+        childFullName: childFullName ?? undefined,
+        token,
+      },
+    })
+    if (fnError && __DEV__) console.error('[WildKind] parent approval email failed:', fnError)
 
     setLoading(false)
-    router.push('/personalize')
+    router.replace('/(onboarding)/waiting-approval')
   }
 
   if (!fontsReady) {
@@ -97,7 +154,7 @@ export function ParentPermissionScreen() {
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Go back to Parent Setup Required"
+          accessibilityLabel="Go back"
           onPress={() => router.back()}
           style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={colors.ink} />
@@ -110,23 +167,13 @@ export function ParentPermissionScreen() {
           We'll send your parent or guardian a confirmation email so they can approve your account.
         </Text>
 
-        <View style={styles.fields}>
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Your Full Name</Text>
-            <TextInput
-              style={[styles.input, { fontFamily: 'Nunito_400Regular' }]}
-              placeholder="e.g. Alex Johnson"
-              placeholderTextColor={colors.dim}
-              autoCapitalize="words"
-              autoCorrect={false}
-              value={fullName}
-              onChangeText={setFullName}
-            />
-            <Text style={[styles.fieldHint, { fontFamily: 'Nunito_400Regular' }]}>
-              Only used for account and parent permission. Never shown publicly.
-            </Text>
+        {error && (
+          <View style={styles.errorBox}>
+            <Text style={[styles.errorText, { fontFamily: 'Nunito_400Regular' }]}>{error}</Text>
           </View>
+        )}
 
+        <View style={styles.fields}>
           <View style={styles.fieldGroup}>
             <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Parent or Guardian Name</Text>
             <TextInput
@@ -176,7 +223,7 @@ export function ParentPermissionScreen() {
         <View style={[styles.ctaWrap, !canSubmit && styles.ctaWrapDisabled]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Continue"
+            accessibilityLabel="Send permission request"
             onPress={handleContinue}
             disabled={loading || !canSubmit}
             style={({ pressed }) => [
@@ -190,7 +237,7 @@ export function ParentPermissionScreen() {
                   styles.ctaText,
                   { fontFamily: 'BricolageGrotesque_800ExtraBold' },
                   !canSubmit && styles.ctaTextDisabled,
-                ]}>Continue</Text>
+                ]}>Send Request</Text>
             }
           </Pressable>
         </View>
@@ -205,7 +252,14 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: space[24] },
   backBtn: { alignSelf: 'flex-start', padding: space[4], marginBottom: space[32] },
   heading: { fontSize: typeTokens.size.displayLG, color: colors.ink, marginBottom: space[8] },
-  sub: { fontSize: typeTokens.size.bodyLG, color: colors.dim, lineHeight: 26, marginBottom: space[32] },
+  sub: { fontSize: typeTokens.size.bodyLG, color: colors.dim, lineHeight: 26, marginBottom: space[24] },
+  errorBox: {
+    backgroundColor: '#fee2e2',
+    borderRadius: radius.md,
+    padding: space[16],
+    marginBottom: space[16],
+  },
+  errorText: { fontSize: typeTokens.size.bodySM, color: '#dc2626' },
   fields: { gap: space[16], marginBottom: space[24] },
   fieldGroup: { gap: space[8] },
   label: {
@@ -233,6 +287,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: space[8],
+    marginBottom: space[32],
   },
   checkbox: {
     width: 22,

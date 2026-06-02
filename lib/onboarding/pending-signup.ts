@@ -38,6 +38,12 @@ export async function clearPendingOnboarding(): Promise<void> {
     storage.delete('onboarding.requires_parent_setup'),
     storage.delete('onboarding.approval_token'),
     storage.delete('onboarding.full_name'),
+    storage.delete('onboarding.location_text'),
+    storage.delete('onboarding.latitude'),
+    storage.delete('onboarding.longitude'),
+    storage.delete('onboarding.timezone'),
+    storage.delete('onboarding.interests'),
+    storage.delete('onboarding.show_username'),
   ])
 }
 
