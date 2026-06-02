@@ -132,7 +132,7 @@ Deno.serve(async (req: Request) => {
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
     type: 'recovery',
     email,
-    options: { redirectTo: 'https://wildkind.app/reset-password' },
+    options: { redirectTo: 'https://www.wildkind.app/reset-password' },
   })
 
   if (linkError || !linkData?.properties?.action_link) {

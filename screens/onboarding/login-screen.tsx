@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     marginBottom: space[16],
   },
   errorText: { fontSize: typeTokens.size.bodySM, color: '#dc2626' },
-  fields: { gap: space[16] },
+  fields: { gap: space[16], marginBottom: space[24] },
   fieldGroup: { gap: space[8] },
   label: { fontSize: typeTokens.size.label, color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.5 },
   input: {

@@ -22,65 +22,226 @@ serve(async (req) => {
   const approveUrl = `${SUPABASE_URL}/functions/v1/parent-approval?token=${token}&action=approve`
   const declineUrl = `${SUPABASE_URL}/functions/v1/parent-approval?token=${token}&action=decline`
   const displayName = childFullName ?? childUsername ?? 'your child'
-  const usernameNote = childUsername ? ` (username: ${childUsername})` : ''
+  const greeting = parentName ? `Hello ${parentName},` : 'Hello,'
+  const usernameDisplay = childUsername
+    ? `<span style="color:#1F3B2D;">${childUsername}</span>`
+    : ''
+  const usernameClause = childUsername
+    ? ` (username: ${usernameDisplay})`
+    : ''
 
-  const emailHtml = `
-<!DOCTYPE html>
-<html>
+  const emailHtml = `<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WildKind Parent Permission</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #FFF8E7; margin: 0; padding: 0; }
-    .wrapper { max-width: 560px; margin: 40px auto; background: #ffffff; border-radius: 16px; overflow: hidden; }
-    .header { background: #1a3d2b; padding: 32px 40px; }
-    .header h1 { color: #ffffff; font-size: 22px; margin: 0; letter-spacing: -0.3px; }
-    .body { padding: 32px 40px; }
-    .body p { color: #33455A; font-size: 16px; line-height: 26px; margin: 0 0 16px; }
-    .list { color: #33455A; font-size: 16px; line-height: 26px; padding-left: 20px; margin: 0 0 24px; }
-    .list li { margin-bottom: 6px; }
-    .actions { display: flex; flex-direction: column; gap: 12px; margin: 32px 0; }
-    .btn { display: block; text-align: center; padding: 16px 24px; border-radius: 12px; font-size: 16px; font-weight: 700; text-decoration: none; }
-    .btn-approve { background: #1a3d2b; color: #ffffff; }
-    .btn-decline { background: #f1f5f9; color: #33455A; border: 1.5px solid #E7EDF3; }
-    .footer { padding: 24px 40px; border-top: 1px solid #E7EDF3; }
-    .footer p { color: #7388A0; font-size: 13px; line-height: 20px; margin: 0; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="x-apple-disable-message-reformatting">
+<title>WildKind — Permission Request</title>
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+  body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; display: block; }
+  body { margin: 0; padding: 0; width: 100% !important; background-color: #F4F2EC; }
+  a { color: #1F3B2D; }
+  .btn-primary:hover { background-color: #16301F !important; }
+  @media only screen and (max-width: 600px) {
+    .container { width: 100% !important; }
+    .px { padding-left: 28px !important; padding-right: 28px !important; }
+    .stack-btn { display: block !important; width: 100% !important; }
+    .stack-btn a { display: block !important; text-align: center !important; }
+    .gap { height: 12px !important; }
+  }
+</style>
 </head>
-<body>
-  <div class="wrapper">
-    <div class="header">
-      <h1>WildKind</h1>
-    </div>
-    <div class="body">
-      <p>Hello${parentName ? ` ${parentName}` : ''},</p>
-      <p>
-        <strong>${displayName}</strong>${usernameNote} would like to use WildKind, a nature exploration app that helps identify animals, plants, and other discoveries using photos and location information.
-      </p>
-      <p>
-        Because your child is under 13 years old, WildKind requires permission from a parent or legal guardian before access can be granted.
-      </p>
-      <p>WildKind may use:</p>
-      <ul class="list">
-        <li>Photos uploaded by the user</li>
-        <li>Approximate location information</li>
-        <li>Account information necessary to provide the service</li>
-      </ul>
-      <p>
-        As the parent or guardian, you can review and manage privacy settings, location sharing preferences, and account permissions.
-      </p>
-      <p>Please choose one of the options below.</p>
-      <div class="actions">
-        <a href="${approveUrl}" class="btn btn-approve">Approve Access</a>
-        <a href="${declineUrl}" class="btn btn-decline">Decline Request</a>
-      </div>
-    </div>
-    <div class="footer">
-      <p>If you did not expect this request, you may safely ignore this email.</p>
-      <p style="margin-top: 8px;">Thank you,<br />The WildKind Team</p>
-    </div>
+<body style="margin:0; padding:0; background-color:#F4F2EC;">
+
+  <!-- Preheader -->
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all; font-size:1px; line-height:1px; color:#F4F2EC;">
+    ${displayName} is requesting your permission to use WildKind. Review and respond.
   </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4F2EC;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+
+        <!-- Card -->
+        <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0"
+          style="width:600px; max-width:600px; background-color:#FFFFFF; border-radius:14px; overflow:hidden; box-shadow:0 1px 3px rgba(20,48,31,0.08);">
+
+          <!-- Logo bar -->
+          <tr>
+            <td class="px" style="padding:34px 48px 22px 48px;" align="left">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding-right:10px;" valign="middle">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+                      style="width:32px; height:32px; background-color:#1F3B2D; border-radius:50% 50% 50% 6px;">
+                      <tr>
+                        <td align="center" valign="middle">
+                          <img src="https://www.wildkind.app/wildkind-icon.png" width="20" height="20"
+                            alt="" style="width:20px; height:20px;">
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td valign="middle">
+                    <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                      font-size:20px; font-weight:800; color:#1F3B2D; letter-spacing:-0.4px;">WildKind</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Hairline rule -->
+          <tr>
+            <td style="padding:0 48px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="border-top:1px solid #E7E3D8; font-size:0; line-height:0;">&nbsp;</td></tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td class="px" style="padding:34px 48px 8px 48px;">
+              <p style="margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:18px; line-height:28px; color:#1F2A24;">
+                ${greeting}
+              </p>
+              <p style="margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:16px; line-height:26px; color:#3A463E;">
+                <strong style="color:#1F2A24;">${displayName}</strong>${usernameClause} would like to use WildKind,
+                a nature exploration app that helps identify animals, plants, and other discoveries using photos and location.
+              </p>
+              <p style="margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:16px; line-height:26px; color:#3A463E;">
+                Because your child is under 13, WildKind needs permission from a parent or legal guardian before access can be granted.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Permissions panel -->
+          <tr>
+            <td class="px" style="padding:4px 48px 8px 48px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                style="background-color:#F4F6F2; border-radius:10px;">
+                <tr>
+                  <td style="padding:22px 26px;">
+                    <p style="margin:0 0 14px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                      font-size:13px; line-height:18px; letter-spacing:0.6px; text-transform:uppercase;
+                      color:#1F3B2D; font-weight:700;">
+                      WildKind may use
+                    </p>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                      style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                      font-size:15px; line-height:22px; color:#3A463E;">
+                      <tr>
+                        <td width="20" valign="top" style="padding:0 0 10px 0; color:#1F3B2D;">&bull;</td>
+                        <td style="padding:0 0 10px 0;">Photos uploaded by the user</td>
+                      </tr>
+                      <tr>
+                        <td width="20" valign="top" style="padding:0 0 10px 0; color:#1F3B2D;">&bull;</td>
+                        <td style="padding:0 0 10px 0;">Approximate location information</td>
+                      </tr>
+                      <tr>
+                        <td width="20" valign="top" style="color:#1F3B2D;">&bull;</td>
+                        <td>Account information necessary to provide the service</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Guardian note -->
+          <tr>
+            <td class="px" style="padding:18px 48px 4px 48px;">
+              <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:15px; line-height:24px; color:#3A463E;">
+                As the parent or guardian, you can review and manage privacy settings, location sharing, and account permissions at any time.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Buttons -->
+          <tr>
+            <td class="px" style="padding:28px 48px 8px 48px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td class="stack-btn" style="padding:0 8px 0 0;">
+                    <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+                      href="${approveUrl}" style="height:50px;v-text-anchor:middle;width:240px;" arcsize="16%"
+                      fillcolor="#1F3B2D" stroke="f">
+                      <center style="color:#ffffff;font-family:sans-serif;font-size:15px;font-weight:bold;">Approve Access</center>
+                    </v:roundrect><![endif]-->
+                    <!--[if !mso]><!-->
+                    <a class="btn-primary" href="${approveUrl}"
+                      style="display:block; background-color:#1F3B2D; color:#FFFFFF;
+                      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                      font-size:15px; font-weight:700; text-align:center; text-decoration:none;
+                      padding:15px 20px; border-radius:8px;">Approve Access</a>
+                    <!--<![endif]-->
+                  </td>
+                  <td class="gap" style="width:1px; font-size:0; line-height:0;">&nbsp;</td>
+                  <td class="stack-btn" style="padding:0 0 0 8px;">
+                    <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+                      href="${declineUrl}" style="height:50px;v-text-anchor:middle;width:240px;" arcsize="16%"
+                      fillcolor="#FFFFFF" strokecolor="#C9D2C8">
+                      <center style="color:#1F3B2D;font-family:sans-serif;font-size:15px;font-weight:bold;">Decline Request</center>
+                    </v:roundrect><![endif]-->
+                    <!--[if !mso]><!-->
+                    <a href="${declineUrl}"
+                      style="display:block; background-color:#FFFFFF; color:#1F3B2D;
+                      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                      font-size:15px; font-weight:700; text-align:center; text-decoration:none;
+                      padding:14px 20px; border-radius:8px; border:1px solid #C9D2C8;">Decline Request</a>
+                    <!--<![endif]-->
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Fine print -->
+          <tr>
+            <td class="px" style="padding:20px 48px 36px 48px;">
+              <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:13px; line-height:20px; color:#8A938B;">
+                If you weren&rsquo;t expecting this request, you can safely ignore this email and no access will be granted.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+        <!-- Footer -->
+        <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0"
+          style="width:600px; max-width:600px;">
+          <tr>
+            <td class="px" style="padding:24px 48px; text-align:center;">
+              <p style="margin:0 0 6px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:12px; line-height:18px; color:#9AA29A;">
+                WildKind &middot; Explore the natural world, safely.
+              </p>
+              <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                font-size:12px; line-height:18px; color:#9AA29A;">
+                Sent because someone requested guardian access.
+                <a href="https://www.wildkind.app/privacy" style="color:#1F3B2D; text-decoration:underline;">Privacy</a>
+                &middot;
+                <a href="https://www.wildkind.app/help" style="color:#1F3B2D; text-decoration:underline;">Help</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`
 
@@ -93,7 +254,7 @@ serve(async (req) => {
     body: JSON.stringify({
       from: `WildKind <${RESEND_FROM_EMAIL}>`,
       to: [parentEmail],
-      subject: `${displayName === 'your child' ? 'Your child' : displayName} would like to use WildKind — parent permission required`,
+      subject: `${displayName === 'your child' ? 'Your child' : displayName} is requesting permission to use WildKind`,
       html: emailHtml,
     }),
   })
