@@ -37,6 +37,8 @@ serve(async (req) => {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="x-apple-disable-message-reformatting">
 <title>WildKind — Permission Request</title>
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <!--[if mso]>
 <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
 <![endif]-->
@@ -54,12 +56,27 @@ serve(async (req) => {
     .stack-btn a { display: block !important; text-align: center !important; }
     .gap { height: 12px !important; }
   }
+  @media (prefers-color-scheme: dark) {
+    body, .body-bg { background-color: #14140F !important; }
+    .card { background-color: #1E1E18 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.45) !important; }
+    .panel { background-color: #26271F !important; }
+    .divider-rule { border-top-color: #33342B !important; }
+    .h1 { color: #F1EFE6 !important; }
+    .p { color: #C6CDC2 !important; }
+    .muted { color: #8C948A !important; }
+    .footer-text { color: #79806F !important; }
+    .accent { color: #7FB58E !important; }
+    .btn-primary { background-color: #3E7A57 !important; color: #0E1611 !important; }
+    .btn-secondary { border-color: #3C4A3E !important; color: #9FCBAC !important; }
+    .panel-label { color: #7FB58E !important; }
+    .preheader { color: #14140F !important; }
+  }
 </style>
 </head>
-<body style="margin:0; padding:0; background-color:#F4F2EC;">
+<body class="body-bg" style="margin:0; padding:0; background-color:#F4F2EC;">
 
   <!-- Preheader -->
-  <div style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all; font-size:1px; line-height:1px; color:#F4F2EC;">
+  <div class="preheader" style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all; font-size:1px; line-height:1px; color:#F4F2EC;">
     ${displayName} is requesting your permission to use WildKind. Review and respond.
   </div>
 
@@ -68,7 +85,7 @@ serve(async (req) => {
       <td align="center" style="padding:40px 16px;">
 
         <!-- Card -->
-        <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0"
+        <table role="presentation" class="container card" width="600" cellpadding="0" cellspacing="0" border="0"
           style="width:600px; max-width:600px; background-color:#FFFFFF; border-radius:14px; overflow:hidden; box-shadow:0 1px 3px rgba(20,48,31,0.08);">
 
           <!-- Logo bar -->
@@ -83,7 +100,7 @@ serve(async (req) => {
           <tr>
             <td style="padding:0 48px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr><td style="border-top:1px solid #E7E3D8; font-size:0; line-height:0;">&nbsp;</td></tr>
+                <tr><td class="divider-rule" style="border-top:1px solid #E7E3D8; font-size:0; line-height:0;">&nbsp;</td></tr>
               </table>
             </td>
           </tr>
@@ -91,16 +108,16 @@ serve(async (req) => {
           <!-- Body -->
           <tr>
             <td class="px" style="padding:34px 48px 8px 48px;">
-              <p style="margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+              <p class="h1" style="margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
                 font-size:18px; line-height:28px; color:#1F2A24;">
                 ${greeting}
               </p>
-              <p style="margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+              <p class="p" style="margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
                 font-size:16px; line-height:26px; color:#3A463E;">
-                <strong style="color:#1F2A24;">${displayName}</strong>${usernameClause} would like to use WildKind,
+                <strong class="h1" style="color:#1F2A24;">${displayName}</strong>${usernameClause} would like to use WildKind,
                 a nature exploration app that helps identify animals, plants, and other discoveries using photos and location.
               </p>
-              <p style="margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+              <p class="p" style="margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
                 font-size:16px; line-height:26px; color:#3A463E;">
                 Because your child is under 13, WildKind needs permission from a parent or legal guardian before access can be granted.
               </p>
@@ -110,11 +127,11 @@ serve(async (req) => {
           <!-- Permissions panel -->
           <tr>
             <td class="px" style="padding:4px 48px 8px 48px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+              <table role="presentation" class="panel" width="100%" cellpadding="0" cellspacing="0" border="0"
                 style="background-color:#F4F6F2; border-radius:10px;">
                 <tr>
                   <td style="padding:22px 26px;">
-                    <p style="margin:0 0 14px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                    <p class="panel-label" style="margin:0 0 14px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
                       font-size:13px; line-height:18px; letter-spacing:0.6px; text-transform:uppercase;
                       color:#1F3B2D; font-weight:700;">
                       WildKind may use
@@ -123,16 +140,16 @@ serve(async (req) => {
                       style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
                       font-size:15px; line-height:22px; color:#3A463E;">
                       <tr>
-                        <td width="20" valign="top" style="padding:0 0 10px 0; color:#1F3B2D;">&bull;</td>
-                        <td style="padding:0 0 10px 0;">Photos uploaded by the user</td>
+                        <td class="accent" width="20" valign="top" style="padding:0 0 10px 0; color:#1F3B2D;">&bull;</td>
+                        <td class="p" style="padding:0 0 10px 0;">Photos uploaded by the user</td>
                       </tr>
                       <tr>
-                        <td width="20" valign="top" style="padding:0 0 10px 0; color:#1F3B2D;">&bull;</td>
-                        <td style="padding:0 0 10px 0;">Approximate location information</td>
+                        <td class="accent" width="20" valign="top" style="padding:0 0 10px 0; color:#1F3B2D;">&bull;</td>
+                        <td class="p" style="padding:0 0 10px 0;">Approximate location information</td>
                       </tr>
                       <tr>
-                        <td width="20" valign="top" style="color:#1F3B2D;">&bull;</td>
-                        <td>Account information necessary to provide the service</td>
+                        <td class="accent" width="20" valign="top" style="color:#1F3B2D;">&bull;</td>
+                        <td class="p">Account information necessary to provide the service</td>
                       </tr>
                     </table>
                   </td>
@@ -144,7 +161,7 @@ serve(async (req) => {
           <!-- Guardian note -->
           <tr>
             <td class="px" style="padding:18px 48px 4px 48px;">
-              <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+              <p class="p" style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
                 font-size:15px; line-height:24px; color:#3A463E;">
                 As the parent or guardian, you can review and manage privacy settings, location sharing, and account permissions at any time.
               </p>
@@ -178,7 +195,7 @@ serve(async (req) => {
                       <center style="color:#1F3B2D;font-family:sans-serif;font-size:15px;font-weight:bold;">Decline Request</center>
                     </v:roundrect><![endif]-->
                     <!--[if !mso]><!-->
-                    <a href="${declineUrl}"
+                    <a class="btn-secondary" href="${declineUrl}"
                       style="display:block; background-color:#FFFFFF; color:#1F3B2D;
                       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
                       font-size:15px; font-weight:700; text-align:center; text-decoration:none;
@@ -193,7 +210,7 @@ serve(async (req) => {
           <!-- Fine print -->
           <tr>
             <td class="px" style="padding:20px 48px 36px 48px;">
-              <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+              <p class="muted" style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
                 font-size:13px; line-height:20px; color:#8A938B;">
                 If you weren&rsquo;t expecting this request, you can safely ignore this email and no access will be granted.
               </p>
@@ -207,16 +224,16 @@ serve(async (req) => {
           style="width:600px; max-width:600px;">
           <tr>
             <td class="px" style="padding:24px 48px; text-align:center;">
-              <p style="margin:0 0 6px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+              <p class="footer-text" style="margin:0 0 6px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
                 font-size:12px; line-height:18px; color:#9AA29A;">
                 WildKind &middot; Explore the natural world, safely.
               </p>
-              <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+              <p class="footer-text" style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
                 font-size:12px; line-height:18px; color:#9AA29A;">
                 Sent because someone requested guardian access.
-                <a href="https://www.wildkind.app/privacy" style="color:#1F3B2D; text-decoration:underline;">Privacy</a>
+                <a class="accent" href="https://www.wildkind.app/privacy" style="color:#1F3B2D; text-decoration:underline;">Privacy</a>
                 &middot;
-                <a href="https://www.wildkind.app/help" style="color:#1F3B2D; text-decoration:underline;">Help</a>
+                <a class="accent" href="https://www.wildkind.app/help" style="color:#1F3B2D; text-decoration:underline;">Help</a>
               </p>
             </td>
           </tr>
