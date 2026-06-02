@@ -8,6 +8,8 @@ import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -32,6 +34,7 @@ export function ParentPermissionScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
 
+  const [fullName, setFullName] = useState('')
   const [parentName, setParentName] = useState('')
   const [parentEmail, setParentEmail] = useState('')
   const [confirmed, setConfirmed] = useState(false)
@@ -41,7 +44,7 @@ export function ParentPermissionScreen() {
   const [nunitoLoaded] = useNunitoFonts({ Nunito_400Regular, Nunito_700Bold })
   const fontsReady = bricolageLoaded && nunitoLoaded
 
-  const canSubmit = parentName.trim().length > 0 && parentEmail.trim().length > 0 && confirmed
+  const canSubmit = fullName.trim().length > 0 && parentName.trim().length > 0 && parentEmail.trim().length > 0 && confirmed
 
   const handleContinue = async () => {
     if (!canSubmit || loading) return
@@ -49,8 +52,10 @@ export function ParentPermissionScreen() {
 
     const token = generateToken()
     const childUsername = await storage.getString('onboarding.username')
+    const childFullName = fullName.trim() || undefined
 
     await Promise.all([
+      storage.set('onboarding.full_name', fullName.trim()),
       storage.set('onboarding.parent_name', parentName.trim()),
       storage.set('onboarding.parent_email', parentEmail.trim()),
       storage.set('onboarding.parent_permission_confirmed', 'true'),
@@ -64,6 +69,7 @@ export function ParentPermissionScreen() {
           parentEmail: parentEmail.trim(),
           parentName: parentName.trim(),
           childUsername: childUsername ?? undefined,
+          childFullName: childFullName ?? undefined,
           token,
         },
       })
@@ -83,7 +89,7 @@ export function ParentPermissionScreen() {
   }
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + space[16] }]}
         keyboardShouldPersistTaps="handled"
@@ -105,6 +111,22 @@ export function ParentPermissionScreen() {
         </Text>
 
         <View style={styles.fields}>
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Your Full Name</Text>
+            <TextInput
+              style={[styles.input, { fontFamily: 'Nunito_400Regular' }]}
+              placeholder="e.g. Alex Johnson"
+              placeholderTextColor={colors.dim}
+              autoCapitalize="words"
+              autoCorrect={false}
+              value={fullName}
+              onChangeText={setFullName}
+            />
+            <Text style={[styles.fieldHint, { fontFamily: 'Nunito_400Regular' }]}>
+              Only used for account and parent permission. Never shown publicly.
+            </Text>
+          </View>
+
           <View style={styles.fieldGroup}>
             <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Parent or Guardian Name</Text>
             <TextInput
@@ -130,6 +152,9 @@ export function ParentPermissionScreen() {
               value={parentEmail}
               onChangeText={setParentEmail}
             />
+            <Text style={[styles.fieldHint, { fontFamily: 'Nunito_400Regular' }]}>
+              This can be the same email used to create the account.
+            </Text>
           </View>
         </View>
 
@@ -142,7 +167,7 @@ export function ParentPermissionScreen() {
             {confirmed && <Ionicons name="checkmark" size={14} color={colors.card} />}
           </View>
           <Text style={[styles.checkLabel, { fontFamily: 'Nunito_400Regular' }]}>
-            I confirm that I am the parent or legal guardian and agree to WildKind's Terms of Use and Privacy Policy.
+            My parent or guardian is aware of this request and agrees to WildKind's Terms of Use and Privacy Policy.
           </Text>
         </Pressable>
       </ScrollView>
@@ -170,7 +195,7 @@ export function ParentPermissionScreen() {
           </Pressable>
         </View>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 
@@ -198,6 +223,11 @@ const styles = StyleSheet.create({
     paddingVertical: space[16],
     fontSize: typeTokens.size.bodyLG,
     color: colors.ink,
+  },
+  fieldHint: {
+    fontSize: typeTokens.size.caption,
+    color: colors.dim,
+    lineHeight: 18,
   },
   checkRow: {
     flexDirection: 'row',

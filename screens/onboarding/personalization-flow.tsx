@@ -87,6 +87,8 @@ export function PersonalizationFlow() {
   const [dob, setDob] = useState<Date | null>(null)
   const [showUsername, setShowUsername] = useState(true)
   const [isChildAccount, setIsChildAccount] = useState(false)
+  const [isTeenAccount, setIsTeenAccount] = useState(false)
+  const [fullName, setFullName] = useState('')
 
   const [bricolageLoaded] = useBricolageFonts({ BricolageGrotesque_800ExtraBold })
   const [nunitoLoaded] = useNunitoFonts({ Nunito_400Regular, Nunito_700Bold })
@@ -114,6 +116,10 @@ export function PersonalizationFlow() {
 
       const accountType = await storage.getString('onboarding.account_type')
       if (accountType === 'child') setIsChildAccount(true)
+      if (accountType === 'teen') setIsTeenAccount(true)
+
+      const storedFullName = await storage.getString('onboarding.full_name')
+      if (storedFullName) setFullName(storedFullName)
 
       const stored = await storage.getString('onboarding.date_of_birth')
       if (stored) {
@@ -250,7 +256,7 @@ export function PersonalizationFlow() {
       can_publish_to_nearby: canPublish,
       show_username_on_map: showUsernameOnMap,
       requires_parent_setup: requiresParentSetup === 'true',
-      // Child accounts stay incomplete until parent approves
+      full_name: fullName.trim() || null,
       onboarding_complete: !isChild,
       parent_approval_status: isChild ? 'pending' : null,
       parent_approval_token: isChild && approvalToken ? approvalToken : null,
@@ -306,8 +312,9 @@ export function PersonalizationFlow() {
   }
 
   const canProceed =
-    step === 1 ? username.trim().length > 0 && !getUsernameValidationError(username) :
-    interests.length > 0
+    step === 1
+      ? username.trim().length > 0 && !getUsernameValidationError(username) && (isChildAccount || fullName.trim().length > 0)
+      : interests.length > 0
 
   const ctaLabel = step === 1 ? 'Continue' : isChildAccount ? 'Continue' : 'Start Exploring 🌿'
   const ctaA11y = step === 1 ? 'Continue to interests' : isChildAccount ? 'Continue to approval' : 'Finish setup and start exploring'
@@ -334,6 +341,26 @@ export function PersonalizationFlow() {
           <Text style={[styles.sub, { fontFamily: 'Nunito_400Regular' }]}>
             This is how other explorers will see you
           </Text>
+
+          {!isChildAccount && (
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Full Name</Text>
+              <TextInput
+                style={[styles.input, { fontFamily: 'Nunito_400Regular' }]}
+                placeholder="e.g. Alex Johnson"
+                placeholderTextColor={colors.dim}
+                autoCapitalize="words"
+                autoCorrect={false}
+                value={fullName}
+                onChangeText={setFullName}
+              />
+              {isTeenAccount && (
+                <Text style={[styles.labelHint, { fontFamily: 'Nunito_400Regular' }]}>
+                  Only used for parent permission requests. Never shown publicly.
+                </Text>
+              )}
+            </View>
+          )}
 
           <View style={styles.fieldGroup}>
             <View style={styles.labelRow}>

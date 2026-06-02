@@ -111,7 +111,7 @@ export function WaitingApprovalScreen() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('parent_email, parent_name, username, parent_approval_token')
+      .select('parent_email, parent_name, username, full_name, parent_approval_token')
       .eq('id', user.id)
       .maybeSingle()
 
@@ -121,6 +121,7 @@ export function WaitingApprovalScreen() {
           parentEmail: profile.parent_email,
           parentName: profile.parent_name,
           childUsername: profile.username,
+          childFullName: profile.full_name ?? undefined,
           token: profile.parent_approval_token,
         },
       })
@@ -140,7 +141,7 @@ export function WaitingApprovalScreen() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('username')
+      .select('username, full_name')
       .eq('id', user.id)
       .maybeSingle()
 
@@ -156,6 +157,7 @@ export function WaitingApprovalScreen() {
         parentEmail: newParentEmail.trim(),
         parentName: newParentName.trim() || undefined,
         childUsername: profile?.username,
+        childFullName: profile?.full_name ?? undefined,
         token: newToken,
       },
     })

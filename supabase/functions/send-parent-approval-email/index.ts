@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+const RESEND_FROM_EMAIL = Deno.env.get('RESEND_FROM_EMAIL') ?? 'noreply@wildkind.app'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,7 +13,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: corsHeaders })
 
-  const { parentEmail, parentName, childUsername, token } = await req.json()
+  const { parentEmail, parentName, childUsername, childFullName, token } = await req.json()
 
   if (!parentEmail || !token) {
     return new Response(JSON.stringify({ error: 'Missing parentEmail or token' }), { status: 400, headers: corsHeaders })
@@ -20,7 +21,8 @@ serve(async (req) => {
 
   const approveUrl = `${SUPABASE_URL}/functions/v1/parent-approval?token=${token}&action=approve`
   const declineUrl = `${SUPABASE_URL}/functions/v1/parent-approval?token=${token}&action=decline`
-  const displayName = childUsername ?? 'your child'
+  const displayName = childFullName ?? childUsername ?? 'your child'
+  const usernameNote = childUsername ? ` (username: ${childUsername})` : ''
 
   const emailHtml = `
 <!DOCTYPE html>
@@ -54,7 +56,7 @@ serve(async (req) => {
     <div class="body">
       <p>Hello${parentName ? ` ${parentName}` : ''},</p>
       <p>
-        Your child would like to use WildKind, a nature exploration app that helps identify animals, plants, and other discoveries using photos and location information.
+        <strong>${displayName}</strong>${usernameNote} would like to use WildKind, a nature exploration app that helps identify animals, plants, and other discoveries using photos and location information.
       </p>
       <p>
         Because your child is under 13 years old, WildKind requires permission from a parent or legal guardian before access can be granted.
@@ -89,7 +91,7 @@ serve(async (req) => {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: 'WildKind <noreply@wildkind.app>',
+      from: `WildKind <${RESEND_FROM_EMAIL}>`,
       to: [parentEmail],
       subject: `${displayName === 'your child' ? 'Your child' : displayName} would like to use WildKind — parent permission required`,
       html: emailHtml,

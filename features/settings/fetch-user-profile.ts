@@ -32,7 +32,7 @@ import { storage } from '@/util/storage'
 const AVATAR_PRESET_ID_KEY = 'settings.avatarPresetId'
 
 const PROFILE_SELECT =
-  'username, timezone, latitude, longitude, level, xp, streak_days, last_spotted_at, spots_captured, rare_spotted, badges_count, weekly_quest_title, weekly_quest_current, weekly_quest_total, weekly_quest_xp_reward, weekly_quest_started_at'
+  'username, full_name, timezone, latitude, longitude, level, xp, streak_days, last_spotted_at, spots_captured, rare_spotted, badges_count, weekly_quest_title, weekly_quest_current, weekly_quest_total, weekly_quest_xp_reward, weekly_quest_started_at'
 
 export interface HomeUserProfile extends AccountProfile {
   timeZone: string | null
@@ -46,6 +46,7 @@ export interface HomeUserProfile extends AccountProfile {
 
 interface SupabaseProfileRow {
   username: string | null
+  full_name: string | null
   timezone: string | null
   latitude: number | null
   longitude: number | null
@@ -212,7 +213,8 @@ export async function buildHomeUserProfileFromAuth(user: User): Promise<HomeUser
     ?? sanitizedMetaUsername
     ?? (user.email ? defaultUsernameFromEmail(user.email) : 'wildr_explorer')
 
-  const displayName = resolveDisplayName(user, profileUsername)
+  const fullNameFromDB = profileRow?.full_name?.trim() || null
+  const displayName = fullNameFromDB ?? resolveDisplayName(user, profileUsername)
   const stats = statsFromRow(profileRow)
 
   return {

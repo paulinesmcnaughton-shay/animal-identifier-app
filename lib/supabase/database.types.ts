@@ -200,6 +200,7 @@ export interface Database {
           parent_approval_status: 'pending' | 'approved' | 'declined' | null
           parent_approval_token: string | null
           parent_approval_token_expires_at: string | null
+          full_name: string | null
           created_at: string
           updated_at: string
         }
@@ -237,6 +238,7 @@ export interface Database {
           parent_approval_status?: 'pending' | 'approved' | 'declined' | null
           parent_approval_token?: string | null
           parent_approval_token_expires_at?: string | null
+          full_name?: string | null
           created_at?: string
           updated_at?: string
         }

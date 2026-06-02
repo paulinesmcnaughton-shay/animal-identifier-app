@@ -193,7 +193,7 @@ export function AccountSettingsScreenContent() {
       </View>
 
       <View style={styles.fieldGroup}>
-        <Text style={styles.fieldLabel}>Display name</Text>
+        <Text style={styles.fieldLabel}>Full name</Text>
         <TextInput
           value={displayName}
           onChangeText={(text) => {
@@ -209,7 +209,9 @@ export function AccountSettingsScreenContent() {
         />
         {displayNameError ? (
           <Text style={styles.fieldError}>{displayNameError}</Text>
-        ) : null}
+        ) : (
+          <Text style={styles.fieldHint}>Your name is private and never shown publicly.</Text>
+        )}
       </View>
 
       <View style={styles.fieldGroup}>
@@ -352,6 +354,11 @@ const styles = StyleSheet.create({
     fontSize: typeTokens.size.caption,
     fontWeight: typeTokens.body.weights.medium,
     color: colors.coral,
+    marginLeft: space[4],
+  },
+  fieldHint: {
+    fontSize: typeTokens.size.caption,
+    color: colors.dim,
     marginLeft: space[4],
   },
   atSign: {
