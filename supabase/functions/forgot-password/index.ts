@@ -65,7 +65,7 @@ function buildResetEmail(resetLink: string, displayName: string, username: strin
           <!-- Logo bar -->
           <tr>
             <td class="px" style="padding:34px 48px 22px 48px;" align="left">
-              <img src="https://wiysesftlprovkpouvqu.supabase.co/storage/v1/object/public/assets/wildkind-logo.png"
+              <img src="https://wiysesftlprovkpouvqu.supabase.co/storage/v1/object/public/assets/wildkind-logo@2x.png"
                 width="150" alt="WildKind" style="width:150px; height:auto; display:block;">
             </td>
           </tr>
