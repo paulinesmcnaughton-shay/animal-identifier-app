@@ -65,20 +65,8 @@ function buildResetEmail(resetLink: string, displayName: string, username: strin
           <!-- Logo bar -->
           <tr>
             <td class="px" style="padding:34px 48px 22px 48px;" align="left">
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td style="padding-right:10px;" valign="middle">
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0"
-                      style="width:32px; height:32px; background-color:#1F3B2D; border-radius:50% 50% 50% 6px;">
-                      <tr><td align="center" valign="middle" style="font-size:0; line-height:0;">&nbsp;</td></tr>
-                    </table>
-                  </td>
-                  <td valign="middle">
-                    <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
-                      font-size:20px; font-weight:800; color:#1F3B2D; letter-spacing:-0.4px;">WildKind</span>
-                  </td>
-                </tr>
-              </table>
+              <img src="https://wiysesftlprovkpouvqu.supabase.co/storage/v1/object/public/assets/wildkind-logo.png"
+                width="150" alt="WildKind" style="width:150px; height:auto; display:block;">
             </td>
           </tr>
 
