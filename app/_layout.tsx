@@ -41,7 +41,6 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={instantStackScreen} />
         <Stack.Screen name="(tabs)" options={instantStackScreen} />
         <Stack.Screen name="(onboarding)" options={instantStackScreen} />
-        <Stack.Screen name="(onboarding)/reset-password" options={{ headerShown: false, animation: 'slide_from_bottom' as const }} />
         <Stack.Screen name="capture/scan" options={captureScanScreen} />
         <Stack.Screen name="capture/result" />
         <Stack.Screen name="capture/upload" />

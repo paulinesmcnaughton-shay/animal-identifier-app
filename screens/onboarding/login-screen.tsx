@@ -179,7 +179,7 @@ export function LoginScreen() {
                   Check your email
                 </Text>
                 <Text style={[styles.sub, { fontFamily: 'Nunito_400Regular' }]}>
-                  If an account exists for that email or username, we've sent a reset link. Open the email and tap the button — it will bring you back to the app where you can set your new password.
+                  If an account exists for that email or username, we've sent a reset link. Open the email, tap the button, and set your new password on the website. Then come back here to log in.
                 </Text>
               </>
             ) : (
