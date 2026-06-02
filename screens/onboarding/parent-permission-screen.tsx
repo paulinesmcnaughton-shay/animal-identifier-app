@@ -38,7 +38,7 @@ function generateToken(): string {
 export function ParentPermissionScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { signUp } = useAuth()
+  const { signUp, user } = useAuth()
 
   const [parentName, setParentName] = useState('')
   const [parentEmail, setParentEmail] = useState('')
@@ -64,34 +64,49 @@ export function ParentPermissionScreen() {
       return
     }
 
-    const pendingEmail = await storage.getString('onboarding.email')
-    const pendingPassword = getPendingPassword()
+    const method = await storage.getString('onboarding.method')
     const pendingUsername = await storage.getString('onboarding.username')
+    let activeUser = user
 
-    if (!pendingEmail || !pendingPassword) {
+    if (method === 'email') {
+      const pendingEmail = await storage.getString('onboarding.email')
+      const pendingPassword = getPendingPassword()
+
+      if (!pendingEmail || !pendingPassword) {
+        setLoading(false)
+        setError('Your session expired. Please start over.')
+        router.replace('/signup')
+        return
+      }
+
+      const result = await signUp({ email: pendingEmail, password: pendingPassword, username: pendingUsername ?? '' })
+      clearPendingPassword()
+
+      if (result.error) { setLoading(false); setError(result.error); return }
+
+      if (result.needsEmailConfirmation) {
+        setLoading(false)
+        setError('Please confirm your email first, then sign in to continue.')
+        return
+      }
+
+      const { data: { user: newUser } } = await supabase.auth.getUser()
+      if (!newUser) {
+        setLoading(false)
+        setError('Account created but could not verify. Please log in.')
+        return
+      }
+      activeUser = newUser
+    }
+
+    if (!activeUser) {
       setLoading(false)
       setError('Your session expired. Please start over.')
       router.replace('/signup')
       return
     }
 
-    const result = await signUp({ email: pendingEmail, password: pendingPassword, username: pendingUsername ?? '' })
-    clearPendingPassword()
-
-    if (result.error) { setLoading(false); setError(result.error); return }
-
-    if (result.needsEmailConfirmation) {
-      setLoading(false)
-      setError('Please confirm your email first, then sign in to continue.')
-      return
-    }
-
-    const { data: { user: newUser } } = await supabase.auth.getUser()
-    if (!newUser) {
-      setLoading(false)
-      setError('Account created but could not verify. Please log in.')
-      return
-    }
+    const newUser = activeUser
 
     const token = generateToken()
     const childFullName = await storage.getString('onboarding.full_name')
@@ -99,6 +114,7 @@ export function ParentPermissionScreen() {
     const { error: profileError } = await supabase.from('profiles').upsert({
       id: newUser.id,
       account_type: 'child',
+      age_verified: true,
       parent_name: parentName.trim() || null,
       parent_email: parentEmail.trim(),
       parent_permission_confirmed: true,

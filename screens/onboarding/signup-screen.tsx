@@ -91,6 +91,16 @@ export function SignupScreen() {
 
     if (dobGateIsSocial) {
       setDobGateIsSocial(false)
+      const supabase = getSupabaseClient()
+      if (supabase) {
+        const { data: { user: authedUser } } = await supabase.auth.getUser()
+        if (authedUser) {
+          await supabase.from('profiles').upsert(
+            { id: authedUser.id, age_verified: true },
+            { onConflict: 'id' },
+          )
+        }
+      }
       await routeByAge(dob)
       return
     }
@@ -114,14 +124,35 @@ export function SignupScreen() {
     }
     const { data: profile } = await supabase
       .from('profiles')
-      .select('onboarding_complete')
+      .select('onboarding_complete, age_verified, account_type, parent_approval_status')
       .eq('id', authedUser.id)
       .maybeSingle()
+
+    // Returning user — already fully set up
     if (profile?.onboarding_complete) {
       await clearPendingOnboarding()
-      setError('You already have a WildKind account. Tap Log In below.')
+      router.replace('/(tabs)/home')
       return
     }
+
+    // Child waiting for or already received approval — resume waiting screen
+    if (
+      profile?.account_type === 'child' &&
+      (profile?.parent_approval_status === 'pending' || profile?.parent_approval_status === 'approved')
+    ) {
+      router.replace('/(onboarding)/waiting-approval')
+      return
+    }
+
+    // Age verified but onboarding not finished — resume correct path
+    if (profile?.age_verified) {
+      if (profile?.account_type === 'child') router.replace('/parent-setup-required')
+      else if (profile?.account_type === 'teen') router.replace('/teen-permission')
+      else router.replace('/personalize')
+      return
+    }
+
+    // New user — collect age first
     setDobGateIsSocial(true)
     setShowDobGate(true)
   }

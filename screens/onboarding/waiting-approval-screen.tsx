@@ -126,6 +126,7 @@ export function WaitingApprovalScreen() {
       timezone: tzStr ?? deviceTimeZone(),
       interests,
       age_group: 'kids',
+      age_verified: true,
       can_publish_to_nearby: false,
       show_username_on_map: false,
       family_account_enabled: true,

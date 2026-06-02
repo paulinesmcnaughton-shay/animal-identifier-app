@@ -255,6 +255,7 @@ export function PersonalizationFlow() {
       show_username_on_map: showUsernameOnMap,
       requires_parent_setup: requiresParentSetup === 'true',
       full_name: fullName.trim() || null,
+      age_verified: true,
       onboarding_complete: !isChild,
       parent_approval_status: isChild ? 'pending' : null,
       parent_approval_token: isChild && approvalToken ? approvalToken : null,

@@ -175,6 +175,7 @@ export interface Database {
           longitude: number | null
           interests: string[]
           age_group: string | null
+          age_verified: boolean | null
           onboarding_complete: boolean
           level: number
           xp: number
@@ -213,6 +214,7 @@ export interface Database {
           longitude?: number | null
           interests?: string[]
           age_group?: string | null
+          age_verified?: boolean | null
           onboarding_complete?: boolean
           level?: number
           xp?: number
