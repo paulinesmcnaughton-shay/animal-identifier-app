@@ -138,77 +138,65 @@ export function LoginScreen() {
   }
 
   if (showReset) {
+    const isDone = resetSent || !!resetOAuthProvider
     return (
       <KeyboardAvoidingView
         style={styles.root}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.resetRoot, { paddingTop: insets.top }]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={() => setShowReset(false)}
-            style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={colors.ink} />
-          </Pressable>
+          <ScrollView
+            style={styles.fill}
+            contentContainerStyle={styles.resetScroll}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
 
-          {resetOAuthProvider ? (
-            <>
-              <Text style={[styles.heading, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
-                {resetOAuthProvider === 'google' ? 'You signed up with Google'
-                  : resetOAuthProvider === 'apple' ? 'You signed up with Apple'
-                  : 'You used social sign-in'}
-              </Text>
-              <Text style={[styles.sub, { fontFamily: 'Nunito_400Regular' }]}>
-                {resetOAuthProvider === 'google'
-                  ? 'Your account is linked to Google. No separate password needed — tap Continue with Google on the login screen.'
-                  : resetOAuthProvider === 'apple'
-                  ? 'Your account is linked to Apple. No separate password needed — tap Continue with Apple on the login screen.'
-                  : 'Your account uses social sign-in. Use the Apple or Google button on the login screen.'}
-              </Text>
-              <View style={styles.ctaWrap}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Back to log in"
-                  onPress={() => setShowReset(false)}
-                  style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
-                  <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>Back to Log In</Text>
-                </Pressable>
-              </View>
-            </>
-          ) : resetSent ? (
-            <>
-              <Text style={[styles.heading, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
-                Check your email
-              </Text>
-              <Text style={[styles.sub, { fontFamily: 'Nunito_400Regular' }]}>
-                If an account exists for that email or username, we've sent a reset link. Check your inbox and follow the link to set a new password.
-              </Text>
-              <View style={styles.ctaWrap}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Back to log in"
-                  onPress={() => setShowReset(false)}
-                  style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
-                  <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>Back to Log In</Text>
-                </Pressable>
-              </View>
-            </>
-          ) : (
-            <>
-              <Text style={[styles.heading, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
-                Reset password
-              </Text>
-              <Text style={[styles.sub, { fontFamily: 'Nunito_400Regular' }]}>
-                Enter your email or username. We'll send a reset link to the email on your account.
-              </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              onPress={() => setShowReset(false)}
+              style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={24} color={colors.ink} />
+            </Pressable>
 
-              {resetError && (
-                <View style={styles.errorBox}>
-                  <Text style={[styles.errorText, { fontFamily: 'Nunito_400Regular' }]}>{resetError}</Text>
-                </View>
-              )}
+            {resetOAuthProvider ? (
+              <>
+                <Text style={[styles.heading, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
+                  {resetOAuthProvider === 'google' ? 'You signed up with Google'
+                    : resetOAuthProvider === 'apple' ? 'You signed up with Apple'
+                    : 'You used social sign-in'}
+                </Text>
+                <Text style={[styles.sub, { fontFamily: 'Nunito_400Regular' }]}>
+                  {resetOAuthProvider === 'google'
+                    ? 'Your account is linked to Google. No separate password needed — tap Continue with Google on the login screen.'
+                    : resetOAuthProvider === 'apple'
+                    ? 'Your account is linked to Apple. No separate password needed — tap Continue with Apple on the login screen.'
+                    : 'Your account uses social sign-in. Use the Apple or Google button on the login screen.'}
+                </Text>
+              </>
+            ) : resetSent ? (
+              <>
+                <Text style={[styles.heading, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
+                  Check your email
+                </Text>
+                <Text style={[styles.sub, { fontFamily: 'Nunito_400Regular' }]}>
+                  If an account exists for that email or username, we've sent a reset link. Open the email and tap the button — it will bring you back to the app where you can set your new password.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.heading, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
+                  Reset password
+                </Text>
+                <Text style={[styles.sub, { fontFamily: 'Nunito_400Regular' }]}>
+                  Enter your email or username. We'll send a reset link to the email on your account.
+                </Text>
 
-              <View style={[styles.fields, { marginBottom: space[24] }]}>
+                {resetError && (
+                  <View style={styles.errorBox}>
+                    <Text style={[styles.errorText, { fontFamily: 'Nunito_400Regular' }]}>{resetError}</Text>
+                  </View>
+                )}
+
                 <View style={styles.fieldGroup}>
                   <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>Email or Username</Text>
                   <TextInput
@@ -222,23 +210,27 @@ export function LoginScreen() {
                     autoFocus
                   />
                 </View>
-              </View>
+              </>
+            )}
+          </ScrollView>
 
-              <View style={styles.ctaWrap}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Send reset link"
-                  onPress={() => void handleSendReset()}
-                  disabled={resetLoading}
-                  style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed, resetLoading && styles.ctaDisabled]}>
-                  {resetLoading
-                    ? <ActivityIndicator color={colors.card} />
-                    : <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>Send Reset Link</Text>
-                  }
-                </Pressable>
-              </View>
-            </>
-          )}
+          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, space[24]) }]}>
+            <View style={styles.ctaWrap}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={isDone ? 'Back to log in' : 'Send reset link'}
+                onPress={isDone ? () => setShowReset(false) : () => void handleSendReset()}
+                disabled={resetLoading}
+                style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed, resetLoading && styles.ctaDisabled]}>
+                {resetLoading
+                  ? <ActivityIndicator color={colors.card} />
+                  : <Text style={[styles.ctaText, { fontFamily: 'BricolageGrotesque_800ExtraBold' }]}>
+                      {isDone ? 'Back to Log In' : 'Send Reset Link'}
+                    </Text>
+                }
+              </Pressable>
+            </View>
+          </View>
         </View>
       </KeyboardAvoidingView>
     )
@@ -356,7 +348,10 @@ export function LoginScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   loader: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
-  resetRoot: { flex: 1, paddingHorizontal: space[24] },
+  resetRoot: { flex: 1 },
+  fill: { flex: 1 },
+  resetScroll: { paddingHorizontal: space[24], paddingBottom: space[16] },
+  footer: { paddingHorizontal: space[24], paddingTop: space[16], backgroundColor: colors.bg },
   scroll: { paddingHorizontal: space[24] },
   backBtn: { alignSelf: 'flex-start', padding: space[4], marginBottom: space[32] },
   heading: { fontSize: typeTokens.size.displayLG, color: colors.ink, marginBottom: space[8] },
