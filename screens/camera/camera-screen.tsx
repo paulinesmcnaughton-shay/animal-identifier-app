@@ -27,6 +27,7 @@ import {
   CaptureResultSheet,
   type CaptureResultSheetPhase,
 } from '@/components/capture/CaptureResultSheet'
+import { LocationPickerModal } from '@/components/capture/LocationPickerModal'
 import { ScanFrameOverlay, type ScanFramePhase } from '@/components/capture/ScanFrameOverlay'
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { Button } from '@/design/atoms/Button'
@@ -38,6 +39,8 @@ import { identifyAnimalOrPlant } from '@/features/identify/identify-image'
 import { buildManualPickerRouteParams } from '@/features/identify/manual-picker-params'
 import type { IdentResult } from '@/features/identify/types'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
+import { loadSettingsPreferences } from '@/features/settings/preferences'
+import { sharingPrefsFromSightingsVisibility } from '@/features/settings/sightings-sharing-prefs'
 
 type Facing = 'back' | 'front'
 
@@ -80,6 +83,14 @@ export function CameraScreen() {
   useEffect(() => {
     isFocusedRef.current = isFocused
   }, [isFocused])
+
+  useEffect(() => {
+    void loadSettingsPreferences().then((prefs) => {
+      const sharing = sharingPrefsFromSightingsVisibility(prefs.sightingsVisibility)
+      setPublishToMap(sharing.shareFindings)
+      setShareAnonymously(!sharing.showUsername)
+    })
+  }, [])
 
   const [permission, requestPermission] = useCameraPermissions()
   const [facing, setFacing] = useState<Facing>('back')
@@ -124,6 +135,10 @@ export function CameraScreen() {
   const [captureSheetError, setCaptureSheetError] = useState<string | null>(null)
   const [manualOutcome, setManualOutcome] = useState<ManualIdentifyOutcome | null>(null)
   const [isSavingCollection, setIsSavingCollection] = useState(false)
+  const [publishToMap, setPublishToMap] = useState(false)
+  const [shareAnonymously, setShareAnonymously] = useState(true)
+  const [pinnedCoords, setPinnedCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [showLocationPicker, setShowLocationPicker] = useState(false)
 
   const clearLockTimer = useCallback(() => {
     if (lockTimerRef.current) {
@@ -226,6 +241,10 @@ export function CameraScreen() {
       confidence: captureResult.confidence,
       isDomestic: captureResult.isDomestic,
       photoUri: capturedPhotoUri,
+      manualLatitude: pinnedCoords?.lat ?? null,
+      manualLongitude: pinnedCoords?.lng ?? null,
+      publishToMap,
+      shareAnonymously: publishToMap ? shareAnonymously : undefined,
     })
     setIsSavingCollection(false)
 
@@ -622,10 +641,26 @@ export function CameraScreen() {
         }
         bottomInset={insets.bottom}
         isSavingCollection={isSavingCollection}
+        publishToMap={publishToMap}
+        shareAnonymously={shareAnonymously}
+        hasPinnedLocation={pinnedCoords !== null}
         onAddToCollection={() => void handleAddToCollection()}
         onChooseSpecies={handleChooseSpecies}
         onRetake={dismissResultSheet}
         onRetry={handleRetryIdentification}
+        onTogglePublishToMap={() => setPublishToMap(v => !v)}
+        onToggleShareAnonymously={() => setShareAnonymously(v => !v)}
+        onOpenLocationPicker={() => setShowLocationPicker(true)}
+      />
+
+      <LocationPickerModal
+        visible={showLocationPicker}
+        initialCoordinate={pinnedCoords ? [pinnedCoords.lng, pinnedCoords.lat] : null}
+        onClose={() => setShowLocationPicker(false)}
+        onConfirm={(lat, lng) => {
+          setPinnedCoords({ lat, lng })
+          setShowLocationPicker(false)
+        }}
       />
 
       <GalleryPickerModal

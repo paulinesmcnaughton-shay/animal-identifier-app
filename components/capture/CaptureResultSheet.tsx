@@ -27,10 +27,16 @@ interface CaptureResultSheetProps {
   manualHint?: string
   bottomInset: number
   isSavingCollection?: boolean
+  publishToMap: boolean
+  shareAnonymously: boolean
+  hasPinnedLocation: boolean
   onAddToCollection: () => void
   onChooseSpecies: () => void
   onRetake: () => void
   onRetry?: () => void
+  onTogglePublishToMap: () => void
+  onToggleShareAnonymously: () => void
+  onOpenLocationPicker: () => void
 }
 
 export function CaptureResultSheet({
@@ -40,10 +46,16 @@ export function CaptureResultSheet({
   manualHint,
   bottomInset,
   isSavingCollection = false,
+  publishToMap,
+  shareAnonymously,
+  hasPinnedLocation,
   onAddToCollection,
   onChooseSpecies,
   onRetake,
   onRetry,
+  onTogglePublishToMap,
+  onToggleShareAnonymously,
+  onOpenLocationPicker,
 }: CaptureResultSheetProps) {
   const [aiInfoVisible, setAiInfoVisible] = useState(false)
   const translateY = useSharedValue(OFF_SCREEN_Y)
@@ -111,7 +123,19 @@ export function CaptureResultSheet({
           <View style={styles.handleWrap}>
             <View style={styles.handle} />
           </View>
-          {showRetakeControl ? (
+          {phase === 'success' ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={hasPinnedLocation ? 'Edit pinned location' : 'Pin sighting location'}
+              onPress={onOpenLocationPicker}
+              style={({ pressed }) => [styles.retakeButton, pressed && styles.retakeButtonPressed]}>
+              <Ionicons
+                name={hasPinnedLocation ? 'location' : 'location-outline'}
+                size={22}
+                color={hasPinnedLocation ? colors.green : colors.ink2}
+              />
+            </Pressable>
+          ) : showRetakeControl ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Retake photo"
@@ -136,10 +160,10 @@ export function CaptureResultSheet({
             accessibilityLabel="Dismiss"
             onPress={() => setAiInfoVisible(false)}>
             <Pressable style={styles.modalCard} onPress={() => {}}>
-              <View style={styles.modalIconWrap}>
-                <Ionicons name="leaf-outline" size={24} color={colors.greenLight} />
+              <View style={styles.modalTitleRow}>
+                <Text style={styles.modalEmoji}>🤖</Text>
+                <Text style={styles.modalTitle}>AI-powered identification</Text>
               </View>
-              <Text style={styles.modalTitle}>AI-powered identification</Text>
               <Text style={styles.modalBody}>
                 This identification was made using AI trained on millions of wildlife observations. Results are a best guess and may not always be correct.
                 {'\n\n'}
@@ -198,6 +222,38 @@ export function CaptureResultSheet({
                 Not sure? You can pick a different species below.
               </Text>
             ) : null}
+
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: publishToMap }}
+              accessibilityLabel="Share on Nearby map"
+              onPress={onTogglePublishToMap}
+              style={styles.checkRow}>
+              <Ionicons
+                name={publishToMap ? 'checkbox' : 'square-outline'}
+                size={20}
+                color={publishToMap ? colors.green : colors.dim}
+              />
+              <Text style={styles.checkText}>
+                Your sighting is private — check to share on the Nearby map.
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: shareAnonymously, disabled: !publishToMap }}
+              accessibilityLabel="Share anonymously"
+              onPress={() => publishToMap && onToggleShareAnonymously()}
+              style={[styles.checkRow, !publishToMap && styles.checkRowDisabled]}>
+              <Ionicons
+                name={shareAnonymously ? 'checkbox' : 'square-outline'}
+                size={20}
+                color={!publishToMap ? colors.hairline : shareAnonymously ? colors.green : colors.dim}
+              />
+              <Text style={[styles.checkText, !publishToMap && styles.checkTextDisabled]}>
+                Share anonymously — uncheck to show your username publicly.
+              </Text>
+            </Pressable>
 
             <PopButton
               label={isSavingCollection ? 'Saving…' : 'Add to collection'}
@@ -329,6 +385,26 @@ const styles = StyleSheet.create({
     marginBottom: space[16],
     alignSelf: 'stretch',
   },
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space[8],
+    marginBottom: space[16],
+    alignSelf: 'stretch',
+  },
+  checkRowDisabled: {
+    opacity: 0.45,
+  },
+  checkText: {
+    flex: 1,
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.medium,
+    color: colors.ink2,
+    lineHeight: 20,
+  },
+  checkTextDisabled: {
+    color: colors.dim,
+  },
   secondaryAction: {
     alignSelf: 'stretch',
     alignItems: 'center',
@@ -378,15 +454,17 @@ const styles = StyleSheet.create({
     padding: space[24],
     gap: space[16],
   },
-  modalIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: `${colors.greenLight}18`,
+  modalTitleRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: space[8],
+  },
+  modalEmoji: {
+    fontSize: 28,
+    lineHeight: 34,
   },
   modalTitle: {
+    flex: 1,
     fontFamily: typeTokens.display.family,
     fontSize: typeTokens.size.title,
     fontWeight: typeTokens.display.weight,

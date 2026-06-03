@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { KingdomBadge } from '@/design/atoms/KingdomBadge'
 import { ProgressBar } from '@/components/ProgressBar'
+import { LocationPickerModal } from '@/components/capture/LocationPickerModal'
 import { contentTopInset } from '@/design/screen-layout'
 import { slideUpSheetHandle, slideUpSheetShell } from '@/design/slide-up-sheet'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
@@ -23,6 +24,10 @@ import type { IdentResult, PipelineCategory } from '@/features/identify/types'
 import { MANUAL_PICKER_CONFIDENCE_THRESHOLD } from '@/features/identify/types'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
+import {
+  loadSettingsPreferences,
+} from '@/features/settings/preferences'
+import { sharingPrefsFromSightingsVisibility } from '@/features/settings/sightings-sharing-prefs'
 
 export function ResultScreen() {
   const insets = useSafeAreaInsets()
@@ -68,8 +73,18 @@ export function ResultScreen() {
   const [isSaving, setIsSaving] = useState(false)
   const [showDisclaimer, setShowDisclaimer] = useState(false)
   const [publishToMap, setPublishToMap] = useState(false)
+  const [shareAnonymously, setShareAnonymously] = useState(true)
+  const [pinnedCoords, setPinnedCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [showLocationPicker, setShowLocationPicker] = useState(false)
 
   const pulseAnim = useRef(new Animated.Value(1)).current
+
+  useEffect(() => {
+    void loadSettingsPreferences().then((prefs) => {
+      const sharing = sharingPrefsFromSightingsVisibility(prefs.sightingsVisibility)
+      setShareAnonymously(!sharing.showUsername)
+    })
+  }, [])
 
   const runIdentification = useCallback(async (imageUri: string) => {
     setIsLoading(true)
@@ -158,6 +173,9 @@ export function ResultScreen() {
       confidence: result.confidence,
       isDomestic: result.isDomestic,
       photoUri: photoUri,
+      manualLatitude: pinnedCoords?.lat ?? null,
+      manualLongitude: pinnedCoords?.lng ?? null,
+      shareAnonymously: publishToMap ? shareAnonymously : undefined,
     })
     setIsSaving(false)
 
@@ -262,7 +280,18 @@ export function ResultScreen() {
               <Ionicons name="information-circle-outline" size={22} color={colors.dim} />
             </Pressable>
             <View style={styles.handle} />
-            <View style={styles.handleSpacer} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={pinnedCoords ? 'Edit pinned location' : 'Pin sighting location'}
+              onPress={() => setShowLocationPicker(true)}
+              style={styles.gpsBtn}
+              hitSlop={12}>
+              <Ionicons
+                name={pinnedCoords ? 'location' : 'location-outline'}
+                size={22}
+                color={pinnedCoords ? colors.green : colors.dim}
+              />
+            </Pressable>
           </View>
           <Text style={styles.speciesName}>{result.commonName}</Text>
 
@@ -298,6 +327,22 @@ export function ResultScreen() {
             />
             <Text style={styles.shareText}>
               Your sighting is private — check to share on the Nearby map.
+            </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: shareAnonymously, disabled: !publishToMap }}
+            accessibilityLabel="Share anonymously"
+            onPress={() => publishToMap && setShareAnonymously(v => !v)}
+            style={[styles.shareRow, !publishToMap && styles.shareRowDisabled]}>
+            <Ionicons
+              name={shareAnonymously ? 'checkbox' : 'square-outline'}
+              size={20}
+              color={!publishToMap ? colors.hairline : shareAnonymously ? colors.green : colors.dim}
+            />
+            <Text style={[styles.shareText, !publishToMap && styles.shareTextDisabled]}>
+              Share anonymously — uncheck to show your username publicly.
             </Text>
           </Pressable>
 
@@ -337,6 +382,18 @@ export function ResultScreen() {
           ) : null}
         </ReAnimated.View>
       ) : null}
+
+      <LocationPickerModal
+        visible={showLocationPicker}
+        initialCoordinate={
+          pinnedCoords ? [pinnedCoords.lng, pinnedCoords.lat] : null
+        }
+        onClose={() => setShowLocationPicker(false)}
+        onConfirm={(lat, lng) => {
+          setPinnedCoords({ lat, lng })
+          setShowLocationPicker(false)
+        }}
+      />
 
       <Modal
         visible={showDisclaimer}
@@ -476,6 +533,10 @@ const styles = StyleSheet.create({
     width: 22,
     alignItems: 'center',
   },
+  gpsBtn: {
+    width: 22,
+    alignItems: 'center',
+  },
   speciesName: {
     fontFamily: typeTokens.display.family,
     fontSize: typeTokens.size.displayMD,
@@ -529,12 +590,18 @@ const styles = StyleSheet.create({
     gap: space[8],
     marginBottom: space[16],
   },
+  shareRowDisabled: {
+    opacity: 0.45,
+  },
   shareText: {
     flex: 1,
     fontSize: typeTokens.size.bodySM,
     fontWeight: typeTokens.body.weights.medium,
     color: colors.ink2,
     lineHeight: 20,
+  },
+  shareTextDisabled: {
+    color: colors.dim,
   },
   notSureHint: {
     fontSize: typeTokens.size.caption,

@@ -34,7 +34,7 @@ interface KingdomBadgeProps {
 }
 
 export function KingdomBadge({ kind }: KingdomBadgeProps) {
-  const { bg, label, emoji } = KINGDOM[kind] ?? { bg: '#7388A0', label: kind, emoji: '🌿' }
+  const { bg, label, emoji } = KINGDOM[kind] ?? { bg: '#7388A0', label: kind, emoji: '👽' }
 
   return (
     <View style={[styles.wrap, { backgroundColor: bg }]}>

@@ -61,6 +61,7 @@ export interface SaveUserSightingInput {
   photoUri?: string | null
   manualLatitude?: number | null
   manualLongitude?: number | null
+  publishToMap?: boolean
   shareAnonymously?: boolean
 }
 
@@ -112,7 +113,10 @@ export async function saveUserSighting(
   let latitude: number | null = null
   let longitude: number | null = null
 
-  if (prefs.autoTagLocation) {
+  if (input.manualLatitude != null && input.manualLongitude != null) {
+    latitude = input.manualLatitude
+    longitude = input.manualLongitude
+  } else if (prefs.autoTagLocation) {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync()
       if (status === 'granted') {
@@ -199,7 +203,15 @@ export async function saveUserSighting(
     })
     .eq('id', userId)
 
-  const privacy = mapPrivacyFromSettings(prefs.sightingsVisibility)
+  const settingsPrivacy = mapPrivacyFromSettings(prefs.sightingsVisibility)
+  const privacy =
+    input.publishToMap === false
+      ? 'private'
+      : input.shareAnonymously === true
+        ? 'anonymous'
+        : input.shareAnonymously === false
+          ? 'public'
+          : settingsPrivacy
   if (privacy !== 'private' && latitude != null && longitude != null) {
     await supabase.from('community_sightings').insert({
       species_name: input.speciesName.trim(),
