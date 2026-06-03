@@ -36,38 +36,46 @@ export interface UserSightingRow {
   latitude: number | null
   longitude: number | null
   spotted_at: string
+  is_pinned: boolean
 }
 
-function rowToDexCard(row: UserSightingRow): DexCardSpecies {
-  const kingdom = parseKingdom(row.kingdom)
+function rowToDexCard(latest: UserSightingRow, photoRow: UserSightingRow): DexCardSpecies {
+  const kingdom = parseKingdom(latest.kingdom)
   const number =
-    row.dex_number?.trim() || getDexNumberForSpeciesId(row.species_id) || '#???'
+    latest.dex_number?.trim() || getDexNumberForSpeciesId(latest.species_id) || '#???'
 
   return {
-    id: row.species_id,
+    id: latest.species_id,
     number,
-    name: row.species_name,
-    date: formatSpottedAgo(row.spotted_at),
+    name: latest.species_name,
+    date: formatSpottedAgo(latest.spotted_at),
     kingdom,
     gradient: GRADIENT_BY_KINGDOM[kingdom],
-    photoUri: row.photo_uri ?? null,
+    photoUri: photoRow.photo_uri ?? null,
+    sightingId: photoRow.id,
+    isPinned: photoRow.is_pinned,
   }
 }
 
-/** Latest sighting per species for Wild Dex grid (newest first). */
+/** Latest sighting per species for Wild Dex grid (newest first). Pinned photo takes priority. */
 export function buildDexEntriesFromSightings(rows: UserSightingRow[]): DexCardSpecies[] {
-  const bySpecies = new Map<string, UserSightingRow>()
+  const bySpecies = new Map<string, { latest: UserSightingRow; pinned: UserSightingRow | null }>()
 
   for (const row of rows) {
     const existing = bySpecies.get(row.species_id)
-    if (!existing || new Date(row.spotted_at) > new Date(existing.spotted_at)) {
-      bySpecies.set(row.species_id, row)
+    if (!existing) {
+      bySpecies.set(row.species_id, { latest: row, pinned: row.is_pinned ? row : null })
+    } else {
+      if (new Date(row.spotted_at) > new Date(existing.latest.spotted_at)) {
+        existing.latest = row
+      }
+      if (row.is_pinned) existing.pinned = row
     }
   }
 
   return [...bySpecies.values()]
-    .sort((a, b) => new Date(b.spotted_at).getTime() - new Date(a.spotted_at).getTime())
-    .map(rowToDexCard)
+    .sort((a, b) => new Date(b.latest.spotted_at).getTime() - new Date(a.latest.spotted_at).getTime())
+    .map(({ latest, pinned }) => rowToDexCard(latest, pinned ?? latest))
 }
 
 export async function fetchUserSightings(): Promise<UserSightingRow[] | null> {
@@ -81,7 +89,7 @@ export async function fetchUserSightings(): Promise<UserSightingRow[] | null> {
   const { data, error } = await supabase
     .from('user_sightings')
     .select(
-      'id, species_id, species_name, kingdom, latin_name, dex_number, confidence, is_domestic, photo_uri, latitude, longitude, spotted_at',
+      'id, species_id, species_name, kingdom, latin_name, dex_number, confidence, is_domestic, photo_uri, latitude, longitude, spotted_at, is_pinned',
     )
     .eq('user_id', userId)
     .order('spotted_at', { ascending: false })

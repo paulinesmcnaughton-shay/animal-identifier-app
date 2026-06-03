@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons'
-import { useCallback, useEffect } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { useCallback, useEffect, useState } from 'react'
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { GestureDetector } from 'react-native-gesture-handler'
 import ReAnimated, {
   cancelAnimation,
@@ -45,6 +45,7 @@ export function CaptureResultSheet({
   onRetake,
   onRetry,
 }: CaptureResultSheetProps) {
+  const [aiInfoVisible, setAiInfoVisible] = useState(false)
   const translateY = useSharedValue(OFF_SCREEN_Y)
   const dragStartY = useSharedValue(0)
 
@@ -96,7 +97,17 @@ export function CaptureResultSheet({
           cardAnimatedStyle,
         ]}>
         <View style={styles.headerRow}>
-          <View style={styles.headerSide} />
+          {phase === 'success' ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="About AI identification"
+              onPress={() => setAiInfoVisible(true)}
+              style={({ pressed }) => [styles.retakeButton, pressed && styles.retakeButtonPressed]}>
+              <Ionicons name="information-circle-outline" size={22} color={colors.ink2} />
+            </Pressable>
+          ) : (
+            <View style={styles.headerSide} />
+          )}
           <View style={styles.handleWrap}>
             <View style={styles.handle} />
           </View>
@@ -112,6 +123,37 @@ export function CaptureResultSheet({
             <View style={styles.headerSide} />
           )}
         </View>
+
+        <Modal
+          visible={aiInfoVisible}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setAiInfoVisible(false)}>
+          <Pressable
+            style={styles.modalBackdrop}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
+            onPress={() => setAiInfoVisible(false)}>
+            <Pressable style={styles.modalCard} onPress={() => {}}>
+              <View style={styles.modalIconWrap}>
+                <Ionicons name="leaf-outline" size={24} color={colors.greenLight} />
+              </View>
+              <Text style={styles.modalTitle}>AI-powered identification</Text>
+              <Text style={styles.modalBody}>
+                This identification was made using AI trained on millions of wildlife observations. Results are a best guess and may not always be correct.
+                {'\n\n'}
+                Always verify with a field guide or expert before making decisions based on this identification, especially for safety-critical species.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setAiInfoVisible(false)}
+                style={({ pressed }) => [styles.modalDismiss, pressed && styles.modalDismissPressed]}>
+                <Text style={styles.modalDismissLabel}>Got it</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         {phase === 'error' ? (
           <>
@@ -321,5 +363,54 @@ const styles = StyleSheet.create({
     color: colors.card,
     fontSize: typeTokens.size.title,
     fontWeight: typeTokens.body.weights.extra,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(21,33,48,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: space[32],
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: space[24],
+    gap: space[16],
+  },
+  modalIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: `${colors.greenLight}18`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitle: {
+    fontFamily: typeTokens.display.family,
+    fontSize: typeTokens.size.title,
+    fontWeight: typeTokens.display.weight,
+    color: colors.ink,
+    letterSpacing: -0.3,
+  },
+  modalBody: {
+    fontSize: typeTokens.size.body,
+    color: colors.ink2,
+    lineHeight: 22,
+  },
+  modalDismiss: {
+    backgroundColor: colors.green,
+    borderRadius: radius.lg,
+    paddingVertical: space[16],
+    alignItems: 'center',
+    marginTop: space[8],
+  },
+  modalDismissPressed: {
+    opacity: 0.85,
+  },
+  modalDismissLabel: {
+    fontSize: typeTokens.size.body,
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.card,
   },
 })

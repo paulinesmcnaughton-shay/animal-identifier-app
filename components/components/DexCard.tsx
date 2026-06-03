@@ -30,6 +30,8 @@ export interface DexCardSpecies {
   cornerBadge?: 'NEW' | 'RARE'
   showFootprint?: boolean
   photoUri?: string | null
+  sightingId?: string | null
+  isPinned?: boolean
 }
 
 interface DexCardProps {
@@ -39,6 +41,7 @@ interface DexCardProps {
   onLongPress?: () => void
   isDeleteMode?: boolean
   onDeletePress?: () => void
+  onPinPress?: () => void
 }
 
 export function DexCard({
@@ -48,13 +51,19 @@ export function DexCard({
   onLongPress,
   isDeleteMode = false,
   onDeletePress,
+  onPinPress,
 }: DexCardProps) {
-  const { number, name, date, gradient, cornerBadge, kingdom, photoUri } = species
-  const { url: taxaUrl } = useTaxaPhoto(photoUri ? null : name, kingdom)
+  const { number, name, date, gradient, cornerBadge, kingdom, photoUri, sightingId, isPinned } = species
+  const [photoFailed, setPhotoFailed] = useState(false)
+  const { url: taxaUrl } = useTaxaPhoto((!photoUri || photoFailed) ? name : null, kingdom)
   const [wikiUrl, setWikiUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    if (photoUri) {
+    setPhotoFailed(false)
+  }, [photoUri])
+
+  useEffect(() => {
+    if (photoUri && !photoFailed) {
       setWikiUrl(null)
       return
     }
@@ -65,9 +74,9 @@ export function DexCard({
     return () => {
       cancelled = true
     }
-  }, [name, photoUri])
+  }, [name, photoUri, photoFailed])
 
-  const photoUrl = photoUri ?? taxaUrl ?? wikiUrl
+  const photoUrl = (photoUri && !photoFailed) ? photoUri : (taxaUrl ?? wikiUrl)
   const kingdomBg = KINGDOM[kingdom]?.bg ?? colors.dim
 
   // Jiggle — each card gets a phase offset so they don't all move in lockstep
@@ -103,7 +112,12 @@ export function DexCard({
       <View style={[styles.card, { width }]}>
         <View style={[styles.artWrap, { backgroundColor: kingdomBg }]}>
           {photoUrl ? (
-            <Image source={{ uri: photoUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
+            <Image
+              source={{ uri: photoUrl }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              onError={() => setPhotoFailed(true)}
+            />
           ) : (
             <LinearGradient
               colors={[...gradient]}
@@ -133,6 +147,21 @@ export function DexCard({
             <View style={[styles.cornerPill, cornerBadge === 'NEW' ? styles.pillNew : styles.pillRare]}>
               <Text style={styles.cornerPillText}>{cornerBadge}</Text>
             </View>
+          ) : null}
+
+          {sightingId && onPinPress && !isDeleteMode ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={isPinned ? 'Unpin photo' : 'Pin as lead photo'}
+              onPress={onPinPress}
+              hitSlop={8}
+              style={styles.starBtn}>
+              <Ionicons
+                name={isPinned ? 'star' : 'star-outline'}
+                size={14}
+                color={isPinned ? colors.sun : 'rgba(255,255,255,0.9)'}
+              />
+            </Pressable>
           ) : null}
         </View>
 
@@ -304,5 +333,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.card,
     zIndex: 10,
+  },
+  starBtn: {
+    position: 'absolute',
+    top: space[8],
+    right: space[8],
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 })

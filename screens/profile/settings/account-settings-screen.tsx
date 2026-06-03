@@ -66,7 +66,7 @@ export function AccountSettingsScreenContent() {
     if (!pickingPhoto) setPhotoSheetOpen(true)
   }
 
-  const handlePickPhoto = async (source: 'camera' | 'library' | 'random') => {
+  const handlePickPhoto = async (source: 'camera' | 'library') => {
     setPhotoSheetOpen(false)
     setPickingPhoto(true)
     try {
@@ -287,7 +287,6 @@ export function AccountSettingsScreenContent() {
       onClose={() => setPhotoSheetOpen(false)}
       onSelectCamera={() => void handlePickPhoto('camera')}
       onSelectLibrary={() => void handlePickPhoto('library')}
-      onSelectRandom={() => void handlePickPhoto('random')}
     />
     </>
   )

@@ -1,0 +1,38 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="WildKind avatar">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFE3C4"></stop>
+      <stop offset="1" stop-color="#FFC79A"></stop>
+    </linearGradient>
+  </defs>
+
+  
+  <circle cx="256" cy="256" r="256" fill="url(#bg)"></circle>
+
+  
+  <g transform="translate(256 222)">
+    
+    <path d="M-118 -78 L-58 -28 L-104 6 Z" fill="#E8743B"></path>
+    <path d="M118 -78 L58 -28 L104 6 Z" fill="#E8743B"></path>
+    <path d="M-104 -58 L-70 -28 L-96 -8 Z" fill="#3A2D27"></path>
+    <path d="M104 -58 L70 -28 L96 -8 Z" fill="#3A2D27"></path>
+
+    
+    <path d="M-104 -34 C-104 36 -58 96 0 96 C58 96 104 36 104 -34 C104 -64 68 -78 0 -78 C-68 -78 -104 -64 -104 -34 Z" fill="#F2823F"></path>
+
+    
+    <path d="M-72 6 C-72 56 -34 92 0 92 C34 92 72 56 72 6 C72 6 36 22 0 22 C-36 22 -72 6 -72 6 Z" fill="#FFF4E8"></path>
+
+    
+    <circle cx="-42" cy="2" r="13" fill="#3A2D27"></circle>
+    <circle cx="42" cy="2" r="13" fill="#3A2D27"></circle>
+    <circle cx="-38" cy="-2" r="4" fill="#FFFFFF"></circle>
+    <circle cx="46" cy="-2" r="4" fill="#FFFFFF"></circle>
+
+    
+    <path d="M-13 44 C-13 56 0 64 0 64 C0 64 13 56 13 44 C13 36 6 32 0 32 C-6 32 -13 36 -13 44 Z" fill="#3A2D27"></path>
+  </g>
+
+  
+  <text x="256" y="438" text-anchor="middle" font-family="&#39;Poppins&#39;,&#39;Nunito&#39;,&#39;Trebuchet MS&#39;,sans-serif" font-size="58" font-weight="700" letter-spacing="0.5" fill="#3A2D27">WildKind</text>
+</svg>

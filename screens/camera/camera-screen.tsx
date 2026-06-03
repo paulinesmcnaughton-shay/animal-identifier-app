@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import * as MediaLibrary from 'expo-media-library'
 import { type Href, router } from 'expo-router'
 import { useFocusEffect, useIsFocused } from '@react-navigation/native'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
@@ -44,6 +45,15 @@ const FRAME_WIDTH_RATIO = 0.65
 const TOP_BAR_HEIGHT = 44
 const SHUTTER_ROW_HEIGHT = 72
 
+const MAX_ZOOM_FACTOR = 10
+const MIN_ZOOM_FACTOR = 1
+const ZOOM_CYCLE = [1, 2, 3, 5] as const
+
+function formatZoom(factor: number): string {
+  const r = Math.round(factor * 10) / 10
+  return r % 1 === 0 ? `${r}×` : `${r.toFixed(1)}×`
+}
+
 function kingdomAccent(kingdom: KingdomKey | null): string {
   if (kingdom && kingdom in KINGDOM) return KINGDOM[kingdom].bg
   return colors.sun
@@ -74,6 +84,32 @@ export function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions()
   const [facing, setFacing] = useState<Facing>('back')
   const [flashOn, setFlashOn] = useState(false)
+  const [zoomFactor, setZoomFactor] = useState(MIN_ZOOM_FACTOR)
+  const baseZoomRef = useRef(MIN_ZOOM_FACTOR)
+  const lastHapticPreset = useRef(MIN_ZOOM_FACTOR)
+
+  const expoZoom = (zoomFactor - MIN_ZOOM_FACTOR) / (MAX_ZOOM_FACTOR - MIN_ZOOM_FACTOR)
+
+
+  const pinchGesture = Gesture.Pinch()
+    .onStart(() => {
+      baseZoomRef.current = zoomFactor
+    })
+    .onUpdate((e) => {
+      const next = Math.max(
+        MIN_ZOOM_FACTOR,
+        Math.min(MAX_ZOOM_FACTOR, baseZoomRef.current * e.scale),
+      )
+      setZoomFactor(next)
+      const nearest = ZOOM_CYCLE.reduce((n, f) =>
+        Math.abs(f - next) < Math.abs(n - next) ? f : n
+      )
+      if (nearest !== lastHapticPreset.current) {
+        lastHapticPreset.current = nearest
+        void Haptics.selectionAsync()
+      }
+    })
+    .runOnJS(true)
   const [cameraSessionKey, setCameraSessionKey] = useState(0)
   const [isCameraReady, setIsCameraReady] = useState(false)
   const [captureError, setCaptureError] = useState<string | null>(null)
@@ -118,6 +154,8 @@ export function CameraScreen() {
   const resetCameraSession = useCallback(() => {
     dismissResultSheet()
     setGalleryOpen(false)
+    setZoomFactor(MIN_ZOOM_FACTOR)
+    baseZoomRef.current = MIN_ZOOM_FACTOR
   }, [dismissResultSheet])
 
   useFocusEffect(
@@ -167,6 +205,8 @@ export function CameraScreen() {
     setIsCameraReady(false)
     setCameraSessionKey((key) => key + 1)
     setFacing((current) => (current === 'back' ? 'front' : 'back'))
+    setZoomFactor(MIN_ZOOM_FACTOR)
+    baseZoomRef.current = MIN_ZOOM_FACTOR
   }, [])
 
   const handleAddToCollection = useCallback(async () => {
@@ -415,6 +455,7 @@ export function CameraScreen() {
   }
 
   return (
+    <GestureDetector gesture={pinchGesture}>
     <View style={styles.root}>
       <StatusBar style="light" />
       <CameraView
@@ -425,6 +466,7 @@ export function CameraScreen() {
         mode="picture"
         active={isFocused}
         flash={flashOn ? 'on' : 'off'}
+        zoom={expoZoom}
         onCameraReady={handleCameraReady}
         onMountError={handleCameraMountError}
       />
@@ -478,6 +520,43 @@ export function CameraScreen() {
             <Text style={styles.captureError} accessibilityLiveRegion="polite">
               {captureError}
             </Text>
+          ) : null}
+
+          {facing === 'back' && zoomFactor > ZOOM_CYCLE[ZOOM_CYCLE.length - 1] ? (
+            <View style={styles.zoomLevelWrap} pointerEvents="none">
+              <Text style={styles.zoomLevelText}>{formatZoom(zoomFactor)}</Text>
+            </View>
+          ) : null}
+
+          {facing === 'back' ? (
+            <View style={styles.zoomRow}>
+              {ZOOM_CYCLE.map((factor) => {
+                const isActive = Math.abs(zoomFactor - factor) < 0.5 &&
+                  ZOOM_CYCLE.every(f => f === factor || Math.abs(zoomFactor - factor) <= Math.abs(zoomFactor - f))
+                return (
+                  <Pressable
+                    key={factor}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Zoom ${factor}x`}
+                    accessibilityState={{ selected: isActive }}
+                    onPress={() => {
+                      setZoomFactor(factor)
+                      baseZoomRef.current = factor
+                      lastHapticPreset.current = factor
+                      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                    }}
+                    style={({ pressed }) => [
+                      styles.zoomPill,
+                      isActive && styles.zoomPillActive,
+                      pressed && styles.zoomPillPressed,
+                    ]}>
+                    <Text style={[styles.zoomLabel, isActive && styles.zoomLabelActive]}>
+                      {isActive ? formatZoom(zoomFactor) : `${factor}×`}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+            </View>
           ) : null}
 
           <View style={styles.bottomBar}>
@@ -556,6 +635,7 @@ export function CameraScreen() {
         onSelect={handleSelectGalleryAsset}
       />
     </View>
+    </GestureDetector>
   )
 }
 
@@ -716,6 +796,46 @@ const styles = StyleSheet.create({
     fontWeight: typeTokens.body.weights.bold,
     color: colors.card,
     textAlign: 'center',
+  },
+  zoomLevelWrap: {
+    alignItems: 'center',
+    marginBottom: space[8],
+  },
+  zoomLevelText: {
+    fontSize: typeTokens.size.displayMD,
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.card,
+    letterSpacing: -0.5,
+  },
+  zoomRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: space[8],
+    marginBottom: space[16],
+  },
+  zoomPill: {
+    paddingHorizontal: space[16],
+    paddingVertical: space[8],
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    minWidth: 48,
+    alignItems: 'center',
+  },
+  zoomPillActive: {
+    backgroundColor: 'rgba(0,0,0,0.75)',
+  },
+  zoomPillPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.93 }],
+  },
+  zoomLabel: {
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.bold,
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 0.2,
+  },
+  zoomLabelActive: {
+    color: colors.sun,
   },
   bottomBar: {
     flexDirection: 'row',

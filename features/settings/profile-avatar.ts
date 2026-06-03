@@ -4,12 +4,9 @@ import {
   getInfoAsync,
 } from 'expo-file-system/legacy'
 import { Alert } from 'react-native'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { notifyAccountProfileChanged } from '@/features/settings/account-profile-events'
-import {
-  getBundledShufflePresetIds,
-  getOfflineShufflePresetIds,
-} from '@/features/settings/avatar-preset-cache'
 import {
   type AvatarPresetId,
   type ShuffleAvatarPresetId,
@@ -21,6 +18,8 @@ import {
 } from '@/features/settings/avatar-presets'
 import { resolveAvatarPresetImage } from '@/features/settings/resolve-avatar-preset-image'
 import { isTesterAccount, syncTesterAccountFromEmail } from '@/features/settings/tester-account'
+import { getSupabaseClient } from '@/lib/supabase/client'
+import type { Database } from '@/lib/supabase/database.types'
 import { storage } from '@/util/storage'
 
 const PROFILE_PHOTO_PATH_KEY = 'settings.profilePhotoPath'
@@ -47,10 +46,6 @@ async function readAvatarKind(): Promise<AvatarKind | null> {
   const raw = await storage.getString(AVATAR_KIND_KEY)
   if (raw === 'photo' || raw === 'preset') return raw
   return null
-}
-
-async function isAvatarInitialized(): Promise<boolean> {
-  return (await storage.getString(AVATAR_INITIALIZED_KEY)) === 'true'
 }
 
 async function markAvatarInitialized(): Promise<void> {
@@ -96,12 +91,6 @@ async function loadSavedAvatarSource(): Promise<ProfileAvatarSource | null> {
     if (uri) return { uri }
   }
 
-  if (kind === 'preset') {
-    const presetId = await storage.getString(AVATAR_PRESET_ID_KEY)
-    const preset = getAvatarPreset(presetId)
-    if (preset) return await resolveAvatarPresetImage(preset)
-  }
-
   const legacyPhoto = await loadProfilePhotoUri()
   if (legacyPhoto) {
     await storage.set(AVATAR_KIND_KEY, 'photo')
@@ -112,21 +101,14 @@ async function loadSavedAvatarSource(): Promise<ProfileAvatarSource | null> {
   return null
 }
 
-async function recoverStoredPresetAvatar(): Promise<ProfileAvatarSource> {
-  const presetId = await storage.getString(AVATAR_PRESET_ID_KEY)
-  if (presetId && getAvatarPreset(presetId)) {
-    return assignPresetAvatar(presetId as AvatarPresetId)
-  }
-  return assignPresetAvatar(SHUFFLE_AVATAR_PRESETS[0].id)
-}
 
 async function resolveTesterAvatarSource(): Promise<ProfileAvatarSource> {
   if (testerSessionAvatar) return testerSessionAvatar
   return resolveAlexAvatarSource()
 }
 
-/** App launch — tester always resets to Alex; real users keep their saved avatar. */
-export async function ensureUserAvatar(userEmail?: string | null): Promise<ProfileAvatarSource> {
+/** App launch — tester always resets to Alex; real users use their saved photo or WildKind default. */
+export async function ensureUserAvatar(userEmail?: string | null): Promise<ProfileAvatarSource | null> {
   await syncTesterAccountFromEmail(userEmail)
 
   if (await isTesterAccount()) {
@@ -134,46 +116,22 @@ export async function ensureUserAvatar(userEmail?: string | null): Promise<Profi
     return assignTesterAvatar()
   }
 
-  const saved = await loadSavedAvatarSource()
-  if (saved) return saved
-
-  if (await isAvatarInitialized()) {
-    return recoverStoredPresetAvatar()
-  }
-
-  const assigned = await assignRandomPresetAvatar()
-  await markAvatarInitialized()
-  return assigned
+  return loadSavedAvatarSource()
 }
 
-/** Profile UI — real users keep saved avatar; tester uses session preview or Alex. */
-export async function resolveProfileAvatarSource(): Promise<ProfileAvatarSource> {
+/** Profile UI — real users use saved photo or WildKind default; tester uses session preview or Alex. */
+export async function resolveProfileAvatarSource(): Promise<ProfileAvatarSource | null> {
   if (await isTesterAccount()) {
     return resolveTesterAvatarSource()
   }
 
-  const saved = await loadSavedAvatarSource()
-  if (saved) return saved
-
-  if (await isAvatarInitialized()) {
-    return recoverStoredPresetAvatar()
-  }
-
-  const assigned = await assignRandomPresetAvatar()
-  await markAvatarInitialized()
-  return assigned
+  return loadSavedAvatarSource()
 }
 
-/** New signup — one random animal avatar, then frozen until the user changes it. */
-export async function assignNewUserAvatar(): Promise<ProfileAvatarSource> {
-  const offlineIds = await getOfflineShufflePresetIds()
-  const allCount = SHUFFLE_AVATAR_PRESETS.length
-  if (offlineIds.length >= allCount) {
-    return assignRandomPresetAvatar()
-  }
-  const bundled = getBundledShufflePresetIds()
-  const presetId = pickRandomAvatarPresetId(undefined, bundled)
-  return assignPresetAvatar(presetId)
+/** New signup — mark initialized so the WildKind default shows. */
+export async function assignNewUserAvatar(): Promise<void> {
+  await markAvatarInitialized()
+  notifyAccountProfileChanged()
 }
 
 export async function assignTesterAvatar(): Promise<ProfileAvatarSource> {
@@ -228,11 +186,54 @@ async function assignTesterSessionRandomAvatar(): Promise<ProfileAvatarSource> {
   return applyTesterSessionAvatar(await resolveAvatarPresetImage(preset))
 }
 
-export async function getProfileAvatarSource(): Promise<ProfileAvatarSource> {
+export async function getProfileAvatarSource(): Promise<ProfileAvatarSource | null> {
   return resolveProfileAvatarSource()
 }
 
+async function uploadProfilePhotoToStorage(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  uri: string,
+): Promise<string | null> {
+  try {
+    const response = await fetch(uri)
+    const blob = await response.blob()
+    const path = `${userId}/avatar.jpg`
+
+    const { error } = await supabase.storage
+      .from('profile-photos')
+      .upload(path, blob, { contentType: 'image/jpeg', upsert: true })
+
+    if (error) {
+      if (__DEV__) console.warn('[WildKind] profile photo upload failed:', error.message)
+      return null
+    }
+
+    const { data } = supabase.storage.from('profile-photos').getPublicUrl(path)
+    return data.publicUrl
+  } catch (err) {
+    if (__DEV__) console.warn('[WildKind] profile photo upload error:', err)
+    return null
+  }
+}
+
 export async function saveProfilePhotoFromPickerUri(sourceUri: string): Promise<string> {
+  const supabase = getSupabaseClient()
+  if (supabase) {
+    const { data: authData } = await supabase.auth.getUser()
+    const userId = authData.user?.id
+    if (userId) {
+      const remoteUrl = await uploadProfilePhotoToStorage(supabase, userId, sourceUri)
+      if (remoteUrl) {
+        await storage.set(PROFILE_PHOTO_PATH_KEY, remoteUrl)
+        await storage.set(AVATAR_KIND_KEY, 'photo')
+        await markAvatarInitialized()
+        await supabase.from('profiles').update({ avatar_url: remoteUrl }).eq('id', userId)
+        return remoteUrl
+      }
+    }
+  }
+
   const destination = profilePhotoFilePath()
   await copyAsync({ from: sourceUri, to: destination })
   await storage.set(PROFILE_PHOTO_PATH_KEY, destination)

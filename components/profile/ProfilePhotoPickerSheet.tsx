@@ -9,7 +9,6 @@ interface ProfilePhotoPickerSheetProps {
   onClose: () => void
   onSelectCamera: () => void
   onSelectLibrary: () => void
-  onSelectRandom: () => void
 }
 
 const SHEET = {
@@ -51,7 +50,6 @@ export function ProfilePhotoPickerSheet({
   onClose,
   onSelectCamera,
   onSelectLibrary,
-  onSelectRandom,
 }: ProfilePhotoPickerSheetProps) {
   const insets = useSafeAreaInsets()
   const { width: screenWidth } = useWindowDimensions()
@@ -81,8 +79,7 @@ export function ProfilePhotoPickerSheet({
           ]}>
           <View style={styles.actionsBlock}>
             <SheetRow label="Take Photo" onPress={onSelectCamera} showSeparator />
-            <SheetRow label="Photo Library" onPress={onSelectLibrary} showSeparator />
-            <SheetRow label="Avatar Shuffle" onPress={onSelectRandom} />
+            <SheetRow label="Photo Library" onPress={onSelectLibrary} />
           </View>
           <View style={styles.gap} />
           <View style={styles.cancelBlock}>

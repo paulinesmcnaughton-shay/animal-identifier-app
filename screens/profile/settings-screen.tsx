@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useCallback, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ScreenHeader } from '@/design/atoms/ScreenHeader'
 import { ToggleSwitch } from '@/design/atoms/ToggleSwitch'
 import { screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { requestAccountDeletion } from '@/features/settings/account-deletion'
 import {
   formatAccountSubtitle,
   useAccountProfile,
@@ -126,6 +127,29 @@ export function SettingsScreenContent() {
   const handleLogout = async () => {
     await signOut()
     router.replace('/welcome')
+  }
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete account',
+      'Your account will be scheduled for deletion. You have 90 days to restore it by signing back in with the same email. Your sighting photos are kept safe during that window.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Schedule deletion',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await requestAccountDeletion()
+            if (error) {
+              Alert.alert('Something went wrong', error)
+              return
+            }
+            await signOut()
+            router.replace('/(onboarding)/welcome')
+          },
+        },
+      ],
+    )
   }
 
   return (
@@ -288,6 +312,14 @@ export function SettingsScreenContent() {
           </Pressable>
         </View>
 
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Delete account"
+          onPress={handleDeleteAccount}
+          style={({ pressed }) => [styles.deleteBtn, pressed && styles.deleteBtnPressed]}>
+          <Text style={styles.deleteText}>Delete Account</Text>
+        </Pressable>
+
       </ScrollView>
     </View>
   )
@@ -372,5 +404,18 @@ const styles = StyleSheet.create({
     fontWeight: typeTokens.body.weights.bold,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
+  },
+  deleteBtn: {
+    paddingVertical: space[16],
+    alignItems: 'center',
+  },
+  deleteBtnPressed: {
+    opacity: 0.6,
+  },
+  deleteText: {
+    color: colors.dim,
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.medium,
+    textDecorationLine: 'underline',
   },
 })

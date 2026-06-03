@@ -192,8 +192,6 @@ function buildResetEmail(resetLink: string, displayName: string, username: strin
                 font-size:12px; line-height:18px; color:#9AA29A;">
                 Sent because a password reset was requested for your account.
                 <a class="accent" href="https://www.wildkind.app/privacy" style="color:#1F3B2D; text-decoration:underline;">Privacy</a>
-                &middot;
-                <a class="accent" href="https://www.wildkind.app/help" style="color:#1F3B2D; text-decoration:underline;">Help</a>
               </p>
             </td>
           </tr>
@@ -223,7 +221,7 @@ Deno.serve(async (req: Request) => {
 
   if (trimmed.includes('@')) {
     email = trimmed.toLowerCase()
-    const { data } = await admin.auth.admin.listUsers()
+    const { data } = await admin.auth.admin.listUsers({ perPage: 10000 })
     const match = data?.users?.find((u: { email?: string; id: string }) => u.email?.toLowerCase() === email)
     if (match) userId = match.id
   } else {

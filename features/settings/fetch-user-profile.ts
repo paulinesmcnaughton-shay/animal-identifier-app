@@ -32,7 +32,7 @@ import { storage } from '@/util/storage'
 const AVATAR_PRESET_ID_KEY = 'settings.avatarPresetId'
 
 const PROFILE_SELECT =
-  'username, full_name, timezone, latitude, longitude, level, xp, streak_days, last_spotted_at, spots_captured, rare_spotted, badges_count, weekly_quest_title, weekly_quest_current, weekly_quest_total, weekly_quest_xp_reward, weekly_quest_started_at'
+  'username, full_name, timezone, latitude, longitude, level, xp, streak_days, last_spotted_at, spots_captured, rare_spotted, badges_count, weekly_quest_title, weekly_quest_current, weekly_quest_total, weekly_quest_xp_reward, weekly_quest_started_at, avatar_url'
 
 export interface HomeUserProfile extends AccountProfile {
   timeZone: string | null
@@ -62,6 +62,7 @@ interface SupabaseProfileRow {
   weekly_quest_total: number | null
   weekly_quest_xp_reward: number | null
   weekly_quest_started_at: string | null
+  avatar_url: string | null
 }
 
 function readMetadataString(user: User, key: string): string | null {
@@ -266,6 +267,23 @@ export function demoHomeUserProfile(
 
 async function ensureRealUserAvatar(user: User): Promise<void> {
   if (isTesterEmail(user.email)) return
+
+  // Restore cloud profile photo on new device / reinstall
+  const supabase = getSupabaseClient()
+  if (supabase) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (data?.avatar_url) {
+      await storage.set('settings.profilePhotoPath', data.avatar_url)
+      await storage.set('settings.avatarKind', 'photo')
+      await storage.set('settings.avatarInitialized', 'true')
+      return
+    }
+  }
 
   const existingPhoto = await loadProfilePhotoUri()
   if (existingPhoto) return

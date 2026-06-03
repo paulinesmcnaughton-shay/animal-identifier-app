@@ -17,6 +17,7 @@ export default function RootIndex() {
   const [bootReady, setBootReady] = useState(false)
   const [pendingOnboarding, setPendingOnboarding] = useState(false)
   const [waitingApproval, setWaitingApproval] = useState(false)
+  const [pendingDeletion, setPendingDeletion] = useState(false)
 
   useEffect(() => {
     if (authLoading) return
@@ -44,15 +45,20 @@ export default function RootIndex() {
         if (supabase) {
           const { data } = await supabase
             .from('profiles')
-            .select('onboarding_complete, account_type, parent_approval_status')
+            .select('onboarding_complete, account_type, parent_approval_status, deleted_at')
             .eq('id', user.id)
             .maybeSingle()
 
           isComplete = data?.onboarding_complete === true
 
+          if (data?.deleted_at) {
+            setPendingDeletion(true)
+            setBootReady(true)
+            return
+          }
+
           if (!isComplete) {
             if (data?.account_type === 'child' && (data?.parent_approval_status === 'pending' || data?.parent_approval_status === 'approved')) {
-              // Resume waiting screen — approved children still need to tap Start Exploring to save their profile
               setWaitingApproval(true)
               setBootReady(true)
               return
@@ -85,6 +91,10 @@ export default function RootIndex() {
 
   if (authLoading || !bootReady || !rootNavigationState?.key) {
     return <View style={{ flex: 1, backgroundColor: colors.bg }} />
+  }
+
+  if (isAuthenticated && pendingDeletion) {
+    return <Redirect href="/(onboarding)/account-recovery" />
   }
 
   if (isAuthenticated && waitingApproval) {

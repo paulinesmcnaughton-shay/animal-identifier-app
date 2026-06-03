@@ -8,6 +8,8 @@ import { STREAK_WINDOW_MS } from '@/features/profile/streak'
 import { notifyAccountProfileChanged } from '@/features/settings/account-profile-events'
 import { loadSettingsPreferences } from '@/features/settings/preferences'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/lib/supabase/database.types'
 
 const XP_NEW_SPECIES = 25
 const XP_REPEAT_SPECIES = 5
@@ -21,6 +23,33 @@ async function persistCapturePhoto(uri: string): Promise<string> {
   return dest
 }
 
+async function uploadPhotoToStorage(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  uri: string,
+): Promise<string | null> {
+  try {
+    const response = await fetch(uri)
+    const blob = await response.blob()
+    const path = `${userId}/${Date.now()}.jpg`
+
+    const { error } = await supabase.storage
+      .from('sighting-photos')
+      .upload(path, blob, { contentType: 'image/jpeg', upsert: false })
+
+    if (error) {
+      if (__DEV__) console.warn('[WildKind] photo upload failed:', error.message)
+      return null
+    }
+
+    const { data } = supabase.storage.from('sighting-photos').getPublicUrl(path)
+    return data.publicUrl
+  } catch (err) {
+    if (__DEV__) console.warn('[WildKind] photo upload error:', err)
+    return null
+  }
+}
+
 export interface SaveUserSightingInput {
   speciesId: string
   speciesName: string
@@ -30,6 +59,9 @@ export interface SaveUserSightingInput {
   confidence?: number | null
   isDomestic?: boolean
   photoUri?: string | null
+  manualLatitude?: number | null
+  manualLongitude?: number | null
+  shareAnonymously?: boolean
 }
 
 export interface SaveUserSightingResult {
@@ -99,10 +131,15 @@ export async function saveUserSighting(
 
   let savedPhotoUri = input.photoUri?.trim() || null
   if (savedPhotoUri) {
-    try {
-      savedPhotoUri = await persistCapturePhoto(savedPhotoUri)
-    } catch {
-      // keep original URI if copy fails
+    const remoteUrl = await uploadPhotoToStorage(supabase, userId, savedPhotoUri)
+    if (remoteUrl) {
+      savedPhotoUri = remoteUrl
+    } else {
+      try {
+        savedPhotoUri = await persistCapturePhoto(savedPhotoUri)
+      } catch {
+        savedPhotoUri = null
+      }
     }
   }
 
