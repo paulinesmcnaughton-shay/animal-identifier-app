@@ -45,13 +45,14 @@ export async function deleteUserSighting(speciesId: string): Promise<{ ok: boole
     console.log('DELETE RESULT: soft-deleted', affected?.length, 'sightings for species', speciesId)
   }
 
-  // Remove the user's own community_sightings rows for this species so they
-  // no longer appear in Nearby Sightings on the map.
+  // Soft-delete the user's community_sightings rows so they are filtered out
+  // of Nearby Sightings without permanently removing the data.
   const { data: communityRemoved, error: communityError } = await supabase
     .from('community_sightings')
-    .delete()
+    .update({ is_deleted: true, deleted_at: new Date().toISOString() })
     .eq('user_id', userId)
     .eq('species_id', speciesId)
+    .eq('is_deleted', false)
     .select('id')
 
   if (communityError) {

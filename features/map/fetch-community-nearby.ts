@@ -18,6 +18,8 @@ interface CommunitySightingRow {
   spotted_at: string
   report_count: number
   privacy: SightingMapPrivacy
+  is_deleted: boolean
+  deleted_at: string | null
   profiles?: { username: string | null } | null
 }
 
@@ -90,10 +92,14 @@ export async function fetchCommunityMapSightings(
       spotted_at,
       report_count,
       privacy,
+      is_deleted,
+      deleted_at,
       profiles ( username )
     `,
     )
     .in('privacy', ['anonymous', 'public'])
+    .eq('is_deleted', false)
+    .is('deleted_at', null)
     .gte('latitude', box.minLat)
     .lte('latitude', box.maxLat)
     .gte('longitude', box.minLng)
@@ -123,6 +129,10 @@ export async function fetchCommunityMapSightings(
   const maxDistanceM = radiusKm * 1000
 
   const mapped = (data ?? [])
+    .filter((row) => {
+      const r = row as CommunitySightingRow
+      return r.is_deleted !== true && !r.deleted_at
+    })
     .map((row) => rowToSighting(row as CommunitySightingRow, userCoord, maxDistanceM))
     .filter((item): item is NearbyMapSighting => item !== null)
     .sort((a, b) => a.distanceM - b.distanceM)
