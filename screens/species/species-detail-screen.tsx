@@ -103,7 +103,7 @@ export function SpeciesDetailScreen() {
     [id, paramName, species.commonName],
   )
 
-  const { url: taxaPhotoUrl } = useTaxaPhoto(species.commonName || species.latinName, species.kingdom)
+  const { url: taxaPhotoUrl } = useTaxaPhoto(species.commonName, species.kingdom, species.latinName)
   const officialPhotoUrl = heroImageUrl?.trim() || taxaPhotoUrl || null
 
   const userSightings = useSpeciesUserSightings(id)
@@ -112,9 +112,13 @@ export function SpeciesDetailScreen() {
   const photoUrls = useMemo(() => {
     const seen = new Set<string>()
     const all: string[] = []
+
+    // User's capture shows first — instant display while reference image loads
     for (const uri of [capturePhotoUri, ...userSightings.map((s) => s.photoUri)]) {
       if (uri && !seen.has(uri)) { seen.add(uri); all.push(uri) }
     }
+
+    // Reference image appended once resolved — user can swipe to see it
     const officialSource = localHeroImage ? null : officialPhotoUrl
     if (officialSource && !seen.has(officialSource)) all.push(officialSource)
     return all

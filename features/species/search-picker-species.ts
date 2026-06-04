@@ -93,6 +93,46 @@ function filterByKingdom(items: PickerSpeciesItem[], kingdom: PickerKingdomFilte
   return items.filter((item) => matchesPickerKingdom(kingdom, item.kingdom, item.taxonomyKingdom))
 }
 
+const BROWSE_ICONIC: Record<PickerKingdomFilter, string | null> = {
+  all:       null,
+  mammal:    'Mammalia',
+  bird:      'Aves',
+  reptile:   'Reptilia',
+  amphibian: 'Amphibia',
+  fish:      'Actinopterygii',
+  insect:    'Insecta',
+  arachnid:  'Arachnida',
+  mollusc:   'Mollusca',
+  plant:     'Plantae',
+  tree:      'Plantae',
+  flower:    'Plantae',
+  fungi:     'Fungi',
+}
+
+const BROWSE_KEYWORD: Partial<Record<PickerKingdomFilter, string>> = {
+  tree:   'tree',
+  flower: 'wildflower',
+  fungi:  'mushroom',
+}
+
+async function searchInatBrowse(kingdom: PickerKingdomFilter): Promise<PickerSpeciesItem[]> {
+  const iconic = BROWSE_ICONIC[kingdom]
+  const keyword = BROWSE_KEYWORD[kingdom]
+
+  let url = `https://api.inaturalist.org/v1/taxa?order_by=observations_count&order=desc&rank=species&per_page=30`
+  if (iconic) url += `&iconic_taxa=${iconic}`
+  if (keyword) url += `&q=${encodeURIComponent(keyword)}`
+
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return []
+    const json = (await res.json()) as { results?: InatTaxon[] }
+    return (json.results ?? []).map(mapInatTaxon)
+  } catch {
+    return []
+  }
+}
+
 async function searchDomestic(query: string): Promise<PickerSpeciesItem[]> {
   const supabase = getSupabaseClient()
   if (!supabase) return []
@@ -130,9 +170,12 @@ export async function searchPickerSpecies(
   query: string,
   kingdomFilter: PickerKingdomFilter,
 ): Promise<PickerSpeciesItem[]> {
+  const trimmed = query.trim()
   const [domestic, wild] = await Promise.all([
-    searchDomestic(query),
-    searchInaturalist(query),
+    searchDomestic(trimmed),
+    trimmed.length >= 2
+      ? searchInaturalist(trimmed)
+      : searchInatBrowse(kingdomFilter),
   ])
 
   const merged = dedupeItems([...domestic, ...wild])

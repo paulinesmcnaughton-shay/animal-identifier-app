@@ -21,6 +21,7 @@ export interface IdentResult {
   isDomestic?: boolean
   lookupId?: string
   dexNumber?: string
+  isUserCorrected?: boolean
 }
 
 export type IdentifyOutcome =

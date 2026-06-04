@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useCallback, useEffect, useState } from 'react'
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { GestureDetector } from 'react-native-gesture-handler'
 import ReAnimated, {
   cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
+  withTiming,
 } from 'react-native-reanimated'
 
 import { ProgressBar } from '@/components/ProgressBar'
@@ -14,11 +14,9 @@ import { KingdomBadge } from '@/design/atoms/KingdomBadge'
 import { slideUpSheetHandle, slideUpSheetShell } from '@/design/slide-up-sheet'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import type { IdentResult } from '@/features/identify/types'
-import { createSheetPanGesture, SHEET_SPRING } from '@/lib/draggable-sheet'
+import { createSheetPanGesture, SHEET_ENTER_TIMING } from '@/lib/draggable-sheet'
 
 export type CaptureResultSheetPhase = 'hidden' | 'loading' | 'success' | 'error' | 'manual'
-
-const OFF_SCREEN_Y = 400
 
 interface CaptureResultSheetProps {
   phase: CaptureResultSheetPhase
@@ -27,15 +25,11 @@ interface CaptureResultSheetProps {
   manualHint?: string
   bottomInset: number
   isSavingCollection?: boolean
-  publishToMap: boolean
-  shareAnonymously: boolean
-  hasPinnedLocation: boolean
+  isPublished: boolean
   onAddToCollection: () => void
   onChooseSpecies: () => void
   onRetake: () => void
   onRetry?: () => void
-  onTogglePublishToMap: () => void
-  onToggleShareAnonymously: () => void
   onOpenLocationPicker: () => void
 }
 
@@ -46,19 +40,16 @@ export function CaptureResultSheet({
   manualHint,
   bottomInset,
   isSavingCollection = false,
-  publishToMap,
-  shareAnonymously,
-  hasPinnedLocation,
+  isPublished,
   onAddToCollection,
   onChooseSpecies,
   onRetake,
   onRetry,
-  onTogglePublishToMap,
-  onToggleShareAnonymously,
   onOpenLocationPicker,
 }: CaptureResultSheetProps) {
+  const { height: windowHeight } = useWindowDimensions()
   const [aiInfoVisible, setAiInfoVisible] = useState(false)
-  const translateY = useSharedValue(OFF_SCREEN_Y)
+  const translateY = useSharedValue(windowHeight)
   const dragStartY = useSharedValue(0)
 
   const finishRetake = useCallback(() => {
@@ -73,22 +64,26 @@ export function CaptureResultSheet({
   useEffect(() => {
     if (phase === 'hidden' || phase === 'loading') {
       cancelAnimation(translateY)
-      translateY.value = OFF_SCREEN_Y
+      translateY.value = windowHeight
       return
     }
-    translateY.value = withSpring(0, SHEET_SPRING)
-  }, [phase, translateY])
+    translateY.value = withTiming(0, SHEET_ENTER_TIMING)
+  }, [phase, translateY, windowHeight])
 
   const panGesture = createSheetPanGesture({
     translateY,
     dragStartY,
     enabled: phase !== 'loading' && phase !== 'hidden',
     minY: 0,
-    maxY: OFF_SCREEN_Y,
+    maxY: windowHeight,
     restY: 0,
-    dismissY: OFF_SCREEN_Y,
+    dismissY: windowHeight,
     onDismiss: finishRetake,
   })
+
+  const overlayStyle = useAnimatedStyle(() => ({
+    opacity: Math.max(0, 1 - translateY.value / windowHeight) * 0.55,
+  }))
 
   const cardAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -97,17 +92,18 @@ export function CaptureResultSheet({
   if (phase === 'hidden') return null
 
   const confidencePercent = result ? Math.round(result.confidence * 100) : 0
-  const showLowConfidenceHint = result != null && result.confidence < 0.7
   const showRetakeControl = phase !== 'loading'
 
   return (
-    <GestureDetector gesture={panGesture}>
-      <ReAnimated.View
-        style={[
-          styles.card,
-          { paddingBottom: bottomInset + space[16] },
-          cardAnimatedStyle,
-        ]}>
+    <>
+      <ReAnimated.View style={[styles.overlay, overlayStyle]} pointerEvents="none" />
+      <GestureDetector gesture={panGesture}>
+        <ReAnimated.View
+          style={[
+            styles.card,
+            { paddingBottom: bottomInset + space[16] },
+            cardAnimatedStyle,
+          ]}>
         <View style={styles.headerRow}>
           {phase === 'success' ? (
             <Pressable
@@ -126,13 +122,13 @@ export function CaptureResultSheet({
           {phase === 'success' ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={hasPinnedLocation ? 'Edit pinned location' : 'Pin sighting location'}
+              accessibilityLabel={isPublished ? 'Edit sighting location' : 'Pin and share sighting location'}
               onPress={onOpenLocationPicker}
               style={({ pressed }) => [styles.retakeButton, pressed && styles.retakeButtonPressed]}>
               <Ionicons
-                name={hasPinnedLocation ? 'location' : 'location-outline'}
+                name={isPublished ? 'location' : 'location-outline'}
                 size={22}
-                color={hasPinnedLocation ? colors.green : colors.ink2}
+                color={isPublished ? colors.green : colors.ink2}
               />
             </Pressable>
           ) : showRetakeControl ? (
@@ -217,43 +213,9 @@ export function CaptureResultSheet({
               <ProgressBar progress={result.confidence} />
             </View>
 
-            {showLowConfidenceHint ? (
-              <Text style={styles.lowConfidenceHint}>
-                Not sure? You can pick a different species below.
-              </Text>
-            ) : null}
-
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: publishToMap }}
-              accessibilityLabel="Share on Nearby map"
-              onPress={onTogglePublishToMap}
-              style={styles.checkRow}>
-              <Ionicons
-                name={publishToMap ? 'checkbox' : 'square-outline'}
-                size={20}
-                color={publishToMap ? colors.green : colors.dim}
-              />
-              <Text style={styles.checkText}>
-                Your sighting is private — check to share on the Nearby map.
-              </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: shareAnonymously, disabled: !publishToMap }}
-              accessibilityLabel="Share anonymously"
-              onPress={() => publishToMap && onToggleShareAnonymously()}
-              style={[styles.checkRow, !publishToMap && styles.checkRowDisabled]}>
-              <Ionicons
-                name={shareAnonymously ? 'checkbox' : 'square-outline'}
-                size={20}
-                color={!publishToMap ? colors.hairline : shareAnonymously ? colors.green : colors.dim}
-              />
-              <Text style={[styles.checkText, !publishToMap && styles.checkTextDisabled]}>
-                Share anonymously — uncheck to show your username publicly.
-              </Text>
-            </Pressable>
+            <Text style={styles.privacyHint}>
+              Your sighting is private.{'\n'}Tap the GPS icon to share on the Nearby map.
+            </Text>
 
             <PopButton
               label={isSavingCollection ? 'Saving…' : 'Add to collection'}
@@ -269,8 +231,9 @@ export function CaptureResultSheet({
             </Pressable>
           </>
         ) : null}
-      </ReAnimated.View>
-    </GestureDetector>
+        </ReAnimated.View>
+      </GestureDetector>
+    </>
   )
 }
 
@@ -299,6 +262,11 @@ function PopButton({ label, onPress, disabled }: PopButtonProps) {
 }
 
 const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+    zIndex: 19,
+  },
   card: {
     position: 'absolute',
     left: 0,
@@ -382,8 +350,16 @@ const styles = StyleSheet.create({
     color: colors.green,
   },
   confidenceBar: {
-    marginBottom: space[16],
+    marginBottom: space[40],
     alignSelf: 'stretch',
+  },
+  privacyHint: {
+    fontSize: typeTokens.size.caption,
+    fontWeight: typeTokens.body.weights.medium,
+    color: colors.dim,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: space[16],
   },
   checkRow: {
     flexDirection: 'row',

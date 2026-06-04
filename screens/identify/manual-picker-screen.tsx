@@ -18,7 +18,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { KingdomBadge, type KingdomKey } from '@/design/atoms/KingdomBadge'
-import { ScreenHeader } from '@/design/atoms/ScreenHeader'
 import { dexCardHairline } from '@/design/dex-card-shell'
 import { screenLayout } from '@/design/screen-layout'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
@@ -59,7 +58,7 @@ export function ManualPickerScreen() {
 
   const [kingdomFilter, setKingdomFilter] = useState<PickerKingdomFilter>(initialKingdomFilter)
   const [query, setQuery] = useState(hintName ?? '')
-  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState(hintName ?? '')
   const [items, setItems] = useState<PickerSpeciesItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSavingUnknown, setIsSavingUnknown] = useState(false)
@@ -187,7 +186,7 @@ export function ManualPickerScreen() {
                   { backgroundColor: active ? tab.color : tab.tint },
                   active && styles.tabPillActive,
                 ]}>
-                <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{tab.label}</Text>
+                <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{tab.emoji} {tab.label}</Text>
               </Pressable>
             )
           })}
@@ -212,13 +211,18 @@ export function ManualPickerScreen() {
   )
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <ScreenHeader
-        onBack={handleBack}
-        center={<Text style={styles.headerTitle}>Identify</Text>}
-        right={<View style={styles.headerSpacer} />}
-        style={styles.header}
-      />
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <View style={styles.headerSpacer} />
+        <Text style={styles.headerTitle}>Identify</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          onPress={handleBack}
+          style={({ pressed }) => [styles.closeBtn, pressed && styles.closeBtnPressed]}>
+          <Ionicons name="close" size={screenLayout.iconSize} color={colors.ink} />
+        </Pressable>
+      </View>
 
       <FlatList
         data={items}
@@ -273,7 +277,11 @@ interface PickerSpeciesCardProps {
 }
 
 function PickerSpeciesCard({ item, width, onPress }: PickerSpeciesCardProps) {
-  const { url: taxaUrl } = useTaxaPhoto(item.imageUrl ? null : item.commonName, item.kingdom)
+  const { url: taxaUrl } = useTaxaPhoto(
+    item.imageUrl ? null : item.commonName,
+    item.kingdom,
+    item.imageUrl ? null : item.latinName,
+  )
   const imageUrl = item.imageUrl ?? taxaUrl
 
   return (
@@ -313,10 +321,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   header: {
-    marginHorizontal: -screenLayout.padH,
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: screenLayout.padH,
+    paddingTop: space[24],
+    paddingBottom: space[16],
   },
   headerTitle: {
+    flex: 1,
+    textAlign: 'center',
     fontFamily: typeTokens.display.family,
     fontSize: typeTokens.size.title,
     fontWeight: typeTokens.display.weight,
@@ -325,6 +338,15 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: screenLayout.iconBtnSize,
     height: screenLayout.iconBtnSize,
+  },
+  closeBtn: {
+    width: screenLayout.iconBtnSize,
+    height: screenLayout.iconBtnSize,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeBtnPressed: {
+    opacity: screenLayout.iconPressedOpacity,
   },
   listContent: {
     paddingHorizontal: screenLayout.padH,

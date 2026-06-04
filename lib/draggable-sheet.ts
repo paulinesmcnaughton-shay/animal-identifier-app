@@ -1,14 +1,31 @@
 import { Gesture } from 'react-native-gesture-handler'
 import {
   cancelAnimation,
+  Easing,
   runOnJS,
   withSpring,
   withTiming,
   type SharedValue,
   type WithSpringConfig,
+  type WithTimingConfig,
 } from 'react-native-reanimated'
 
 export const SHEET_SPRING = { damping: 22, stiffness: 180 } as const
+
+/** Standard enter — easing curve, zero bounce, card locks flush to bottom edge. */
+export const SHEET_ENTER_TIMING: WithTimingConfig = {
+  duration: 380,
+  easing: Easing.out(Easing.cubic),
+}
+
+/** Standard exit — ease-in slide back below the screen. */
+export const SHEET_EXIT_TIMING: WithTimingConfig = {
+  duration: 200,
+  easing: Easing.in(Easing.ease),
+}
+
+/** @deprecated use SHEET_ENTER_TIMING */
+export const SHEET_EXIT_MS = 200
 export const SHEET_SPRING_SOFT = {
   damping: 24,
   stiffness: 62,

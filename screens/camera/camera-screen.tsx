@@ -28,6 +28,7 @@ import {
   type CaptureResultSheetPhase,
 } from '@/components/capture/CaptureResultSheet'
 import { LocationPickerModal } from '@/components/capture/LocationPickerModal'
+import { buildManualPickerRouteParams } from '@/features/identify/manual-picker-params'
 import { ScanFrameOverlay, type ScanFramePhase } from '@/components/capture/ScanFrameOverlay'
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { Button } from '@/design/atoms/Button'
@@ -36,7 +37,6 @@ import { slideUpSheetShell } from '@/design/slide-up-sheet'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
 import { slugifySpeciesName } from '@/data/species-catalog'
 import { identifyAnimalOrPlant } from '@/features/identify/identify-image'
-import { buildManualPickerRouteParams } from '@/features/identify/manual-picker-params'
 import type { IdentResult } from '@/features/identify/types'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
 import { loadSettingsPreferences } from '@/features/settings/preferences'
@@ -78,6 +78,7 @@ export function CameraScreen() {
   const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const captureSessionRef = useRef(0)
   const isFocusedRef = useRef(true)
+  const resultSheetPhaseRef = useRef<CaptureResultSheetPhase>('hidden')
   const isFocused = useIsFocused()
 
   useEffect(() => {
@@ -137,6 +138,7 @@ export function CameraScreen() {
   const [isSavingCollection, setIsSavingCollection] = useState(false)
   const [publishToMap, setPublishToMap] = useState(false)
   const [shareAnonymously, setShareAnonymously] = useState(true)
+  const [isPublished, setIsPublished] = useState(false)
   const [pinnedCoords, setPinnedCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [showLocationPicker, setShowLocationPicker] = useState(false)
 
@@ -149,6 +151,10 @@ export function CameraScreen() {
 
   useEffect(() => () => clearLockTimer(), [clearLockTimer])
 
+  useEffect(() => {
+    resultSheetPhaseRef.current = resultSheetPhase
+  }, [resultSheetPhase])
+
   const dismissResultSheet = useCallback(() => {
     captureSessionRef.current += 1
     clearLockTimer()
@@ -160,6 +166,8 @@ export function CameraScreen() {
     setOverlayPhase('idle')
     setAccentColor(colors.sun)
     setCaptureError(null)
+    setPinnedCoords(null)
+    setIsPublished(false)
   }, [clearLockTimer])
 
   const cancelActiveCapture = useCallback(() => {
@@ -167,6 +175,7 @@ export function CameraScreen() {
   }, [dismissResultSheet])
 
   const resetCameraSession = useCallback(() => {
+    if (resultSheetPhaseRef.current !== 'hidden') return
     dismissResultSheet()
     setGalleryOpen(false)
     setZoomFactor(MIN_ZOOM_FACTOR)
@@ -641,24 +650,25 @@ export function CameraScreen() {
         }
         bottomInset={insets.bottom}
         isSavingCollection={isSavingCollection}
-        publishToMap={publishToMap}
-        shareAnonymously={shareAnonymously}
-        hasPinnedLocation={pinnedCoords !== null}
+        isPublished={isPublished}
         onAddToCollection={() => void handleAddToCollection()}
         onChooseSpecies={handleChooseSpecies}
         onRetake={dismissResultSheet}
         onRetry={handleRetryIdentification}
-        onTogglePublishToMap={() => setPublishToMap(v => !v)}
-        onToggleShareAnonymously={() => setShareAnonymously(v => !v)}
         onOpenLocationPicker={() => setShowLocationPicker(true)}
       />
 
       <LocationPickerModal
         visible={showLocationPicker}
         initialCoordinate={pinnedCoords ? [pinnedCoords.lng, pinnedCoords.lat] : null}
+        defaultPublishToMap={publishToMap}
+        defaultShareAnonymously={shareAnonymously}
         onClose={() => setShowLocationPicker(false)}
-        onConfirm={(lat, lng) => {
+        onConfirm={(lat, lng, publish, anonymous) => {
           setPinnedCoords({ lat, lng })
+          setPublishToMap(publish)
+          setShareAnonymously(anonymous)
+          setIsPublished(publish)
           setShowLocationPicker(false)
         }}
       />
@@ -669,6 +679,7 @@ export function CameraScreen() {
         onClose={() => setGalleryOpen(false)}
         onSelect={handleSelectGalleryAsset}
       />
+
     </View>
     </GestureDetector>
   )

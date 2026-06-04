@@ -18,7 +18,6 @@ import Reanimated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -40,8 +39,8 @@ import {
 import { useSpeciesDetail } from '@/features/species/use-species-detail'
 import {
   createSheetPanGesture,
-  SHEET_SPRING_DISMISS,
-  SHEET_SPRING_SOFT,
+  SHEET_ENTER_TIMING,
+  SHEET_EXIT_TIMING,
 } from '@/lib/draggable-sheet'
 
 const SHEET_TOP_GAP = space[40]
@@ -150,7 +149,7 @@ export function CreatureInfoOverlay({ visible, creature, onClose }: CreatureInfo
     translateY.value = offscreenY
     backdropOpacity.value = 0
     backdropOpacity.value = withTiming(1, { duration: BACKDROP_FADE_MS, easing: BACKDROP_EASE })
-    translateY.value = withSpring(0, SHEET_SPRING_SOFT)
+    translateY.value = withTiming(0, SHEET_ENTER_TIMING)
   }, [backdropOpacity, offscreenY, translateY])
 
   const animateClose = useCallback(() => {
@@ -158,7 +157,7 @@ export function CreatureInfoOverlay({ visible, creature, onClose }: CreatureInfo
     isAnimatingOut.current = true
     cancelAnimation(translateY)
     fadeBackdropOut()
-    translateY.value = withSpring(offscreenY, SHEET_SPRING_DISMISS, (finished) => {
+    translateY.value = withTiming(offscreenY, SHEET_EXIT_TIMING, (finished) => {
       if (finished) runOnJS(finishClose)()
     })
   }, [fadeBackdropOut, finishClose, offscreenY, translateY])

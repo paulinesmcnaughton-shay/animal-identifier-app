@@ -55,7 +55,10 @@ export function DexCard({
 }: DexCardProps) {
   const { number, name, date, gradient, cornerBadge, kingdom, photoUri, sightingId, isPinned } = species
   const [photoFailed, setPhotoFailed] = useState(false)
-  const { url: taxaUrl } = useTaxaPhoto((!photoUri || photoFailed) ? name : null, kingdom)
+
+  // DEX card always shows the reference species image — never the user's captured photo.
+  // User photos live in the detail page scroll (position 2+).
+  const { url: taxaUrl } = useTaxaPhoto(name, kingdom)
   const [wikiUrl, setWikiUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -63,20 +66,15 @@ export function DexCard({
   }, [photoUri])
 
   useEffect(() => {
-    if (photoUri && !photoFailed) {
-      setWikiUrl(null)
-      return
-    }
+    if (taxaUrl) { setWikiUrl(null); return }
     let cancelled = false
     void fetchWikipediaImageUrl(name).then((url) => {
       if (!cancelled) setWikiUrl(url)
     })
-    return () => {
-      cancelled = true
-    }
-  }, [name, photoUri, photoFailed])
+    return () => { cancelled = true }
+  }, [name, taxaUrl])
 
-  const photoUrl = (photoUri && !photoFailed) ? photoUri : (taxaUrl ?? wikiUrl)
+  const photoUrl = taxaUrl ?? wikiUrl ?? null
   const kingdomBg = KINGDOM[kingdom]?.bg ?? colors.dim
 
   // Jiggle — each card gets a phase offset so they don't all move in lockstep

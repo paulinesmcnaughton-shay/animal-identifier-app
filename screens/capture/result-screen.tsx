@@ -3,12 +3,13 @@ import { Image } from 'expo-image'
 import { router, useLocalSearchParams } from 'expo-router'
 import type { IdentifySource } from '@/features/identify/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Alert, Animated, Easing, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import ReAnimated, {
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
+  withTiming,
 } from 'react-native-reanimated'
+import { SHEET_ENTER_TIMING } from '@/lib/draggable-sheet'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { KingdomBadge } from '@/design/atoms/KingdomBadge'
@@ -31,6 +32,7 @@ import { sharingPrefsFromSightingsVisibility } from '@/features/settings/sightin
 
 export function ResultScreen() {
   const insets = useSafeAreaInsets()
+  const { height: windowHeight } = useWindowDimensions()
   const params = useLocalSearchParams<{
     uri?: string
     identified?: string
@@ -74,6 +76,7 @@ export function ResultScreen() {
   const [showDisclaimer, setShowDisclaimer] = useState(false)
   const [publishToMap, setPublishToMap] = useState(false)
   const [shareAnonymously, setShareAnonymously] = useState(true)
+  const [isPublished, setIsPublished] = useState(false)
   const [pinnedCoords, setPinnedCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [showLocationPicker, setShowLocationPicker] = useState(false)
 
@@ -82,6 +85,7 @@ export function ResultScreen() {
   useEffect(() => {
     void loadSettingsPreferences().then((prefs) => {
       const sharing = sharingPrefsFromSightingsVisibility(prefs.sightingsVisibility)
+      setPublishToMap(sharing.shareFindings)
       setShareAnonymously(!sharing.showUsername)
     })
   }, [])
@@ -137,13 +141,13 @@ export function ResultScreen() {
     void runIdentification(photoUri)
   }, [photoUri, prefilledResult, hasPrefilledError, runIdentification])
 
-  const cardOffset = useSharedValue(320)
+  const cardOffset = useSharedValue(windowHeight)
 
   useEffect(() => {
     if (!isLoading) {
-      cardOffset.value = withSpring(0, { damping: 22, stiffness: 180 })
+      cardOffset.value = withTiming(0, SHEET_ENTER_TIMING)
     }
-  }, [isLoading, cardOffset])
+  }, [isLoading, cardOffset, windowHeight])
 
   const cardAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: cardOffset.value }],
@@ -282,14 +286,14 @@ export function ResultScreen() {
             <View style={styles.handle} />
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={pinnedCoords ? 'Edit pinned location' : 'Pin sighting location'}
+              accessibilityLabel={isPublished ? 'Edit sighting location' : 'Pin and share sighting location'}
               onPress={() => setShowLocationPicker(true)}
               style={styles.gpsBtn}
               hitSlop={12}>
               <Ionicons
-                name={pinnedCoords ? 'location' : 'location-outline'}
+                name={isPublished ? 'location' : 'location-outline'}
                 size={22}
-                color={pinnedCoords ? colors.green : colors.dim}
+                color={isPublished ? colors.green : colors.dim}
               />
             </Pressable>
           </View>
@@ -314,37 +318,9 @@ export function ResultScreen() {
             <ProgressBar progress={result.confidence} />
           </View>
 
-          <Pressable
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: publishToMap }}
-            accessibilityLabel="Share on Nearby map"
-            onPress={() => setPublishToMap(v => !v)}
-            style={styles.shareRow}>
-            <Ionicons
-              name={publishToMap ? 'checkbox' : 'square-outline'}
-              size={20}
-              color={publishToMap ? colors.green : colors.dim}
-            />
-            <Text style={styles.shareText}>
-              Your sighting is private — check to share on the Nearby map.
-            </Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: shareAnonymously, disabled: !publishToMap }}
-            accessibilityLabel="Share anonymously"
-            onPress={() => publishToMap && setShareAnonymously(v => !v)}
-            style={[styles.shareRow, !publishToMap && styles.shareRowDisabled]}>
-            <Ionicons
-              name={shareAnonymously ? 'checkbox' : 'square-outline'}
-              size={20}
-              color={!publishToMap ? colors.hairline : shareAnonymously ? colors.green : colors.dim}
-            />
-            <Text style={[styles.shareText, !publishToMap && styles.shareTextDisabled]}>
-              Share anonymously — uncheck to show your username publicly.
-            </Text>
-          </Pressable>
+          <Text style={styles.privacyHint}>
+            Your sighting is private.{'\n'}Tap the GPS icon to share on the Nearby map.
+          </Text>
 
           {result.confidence > 0 ? (
             <PopButton
@@ -385,12 +361,15 @@ export function ResultScreen() {
 
       <LocationPickerModal
         visible={showLocationPicker}
-        initialCoordinate={
-          pinnedCoords ? [pinnedCoords.lng, pinnedCoords.lat] : null
-        }
+        initialCoordinate={pinnedCoords ? [pinnedCoords.lng, pinnedCoords.lat] : null}
+        defaultPublishToMap={publishToMap}
+        defaultShareAnonymously={shareAnonymously}
         onClose={() => setShowLocationPicker(false)}
-        onConfirm={(lat, lng) => {
+        onConfirm={(lat, lng, publish, anonymous) => {
           setPinnedCoords({ lat, lng })
+          setPublishToMap(publish)
+          setShareAnonymously(anonymous)
+          setIsPublished(publish)
           setShowLocationPicker(false)
         }}
       />
@@ -409,6 +388,7 @@ export function ResultScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
     </View>
   )
 }
@@ -567,7 +547,7 @@ const styles = StyleSheet.create({
     color: colors.green,
   },
   confidenceBar: {
-    marginBottom: space[16],
+    marginBottom: space[40],
   },
   unknownBadge: {
     flexDirection: 'row',
@@ -584,24 +564,13 @@ const styles = StyleSheet.create({
     fontWeight: typeTokens.body.weights.bold,
     color: colors.dim,
   },
-  shareRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space[8],
-    marginBottom: space[16],
-  },
-  shareRowDisabled: {
-    opacity: 0.45,
-  },
-  shareText: {
-    flex: 1,
-    fontSize: typeTokens.size.bodySM,
+  privacyHint: {
+    fontSize: typeTokens.size.caption,
     fontWeight: typeTokens.body.weights.medium,
-    color: colors.ink2,
-    lineHeight: 20,
-  },
-  shareTextDisabled: {
     color: colors.dim,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: space[16],
   },
   notSureHint: {
     fontSize: typeTokens.size.caption,
