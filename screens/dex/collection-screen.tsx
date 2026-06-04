@@ -21,7 +21,6 @@ import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import { deleteUserSighting } from '@/features/sightings/delete-user-sighting'
-import { pinSighting, unpinSighting } from '@/features/sightings/pin-sighting'
 import { useAccountProfile } from '@/features/settings/account-profile'
 import { useUserSightingsData } from '@/features/sightings/use-user-sightings-data'
 import { speciesDetailRouteParamsFromId } from '@/features/species/species-latin-names'
@@ -74,15 +73,6 @@ export function CollectionScreen() {
     await deleteUserSighting(pendingDelete.id)
     setIsDeleting(false)
     setPendingDelete(null)
-  }
-
-  const handlePinPress = async (species: DexCardSpecies) => {
-    if (!species.sightingId) return
-    if (species.isPinned) {
-      await unpinSighting(species.sightingId)
-    } else {
-      await pinSighting(species.sightingId, species.id)
-    }
   }
 
   if (isLoading || !isReady || (isAuthenticated && dexDataLoading && spotsCaptured > 0)) {
@@ -173,7 +163,6 @@ export function CollectionScreen() {
                     isDeleteMode={isDeleteMode}
                     onLongPress={() => setIsDeleteMode(true)}
                     onDeletePress={() => setPendingDelete(species)}
-                    onPinPress={() => void handlePinPress(species)}
                     onPress={() =>
                       router.push({
                         pathname: '/species/[id]',

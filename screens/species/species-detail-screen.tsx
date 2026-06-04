@@ -20,7 +20,7 @@ import { isPlaceholderDexNumber } from '@/features/species/resolve-dex-number'
 import { getLocalSpeciesHeroImage } from '@/features/species/resolve-species-hero-image'
 import { useSpeciesUserSightings } from '@/features/sightings/use-species-user-sightings'
 import { useSpeciesDetail } from '@/features/species/use-species-detail'
-import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
+import { fetchSpeciesReferencePhotos, useTaxaPhoto } from '@/features/species/use-taxa-photo'
 import {
   colors,
   profileCardShadow as profileCardShadowStyle,
@@ -104,25 +104,42 @@ export function SpeciesDetailScreen() {
   )
 
   const { url: taxaPhotoUrl } = useTaxaPhoto(species.commonName, species.kingdom, species.latinName)
-  const officialPhotoUrl = heroImageUrl?.trim() || taxaPhotoUrl || null
 
   const userSightings = useSpeciesUserSightings(id)
   const heroArtWidth = screenWidth - screenLayout.padH * 2
 
+  const [referencePhotos, setReferencePhotos] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!species.commonName && !species.latinName) {
+      setReferencePhotos([])
+      return
+    }
+    let cancelled = false
+    fetchSpeciesReferencePhotos(species.commonName, species.latinName ?? undefined, 5)
+      .then((urls) => { if (!cancelled) setReferencePhotos(urls) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [species.commonName, species.latinName])
+
   const photoUrls = useMemo(() => {
+    if (localHeroImage) return []
+
     const seen = new Set<string>()
     const all: string[] = []
 
-    // User's capture shows first — instant display while reference image loads
-    for (const uri of [capturePhotoUri, ...userSightings.map((s) => s.photoUri)]) {
-      if (uri && !seen.has(uri)) { seen.add(uri); all.push(uri) }
+    const hero = heroImageUrl?.trim()
+    if (hero && !seen.has(hero)) { seen.add(hero); all.push(hero) }
+
+    for (const url of referencePhotos) {
+      if (url && !seen.has(url)) { seen.add(url); all.push(url) }
     }
 
-    // Reference image appended once resolved — user can swipe to see it
-    const officialSource = localHeroImage ? null : officialPhotoUrl
-    if (officialSource && !seen.has(officialSource)) all.push(officialSource)
+    // taxaPhotoUrl as single-photo fallback if fetchSpeciesReferencePhotos returned nothing
+    if (all.length === 0 && taxaPhotoUrl && !seen.has(taxaPhotoUrl)) all.push(taxaPhotoUrl)
+
     return all
-  }, [capturePhotoUri, userSightings, localHeroImage, officialPhotoUrl])
+  }, [heroImageUrl, referencePhotos, taxaPhotoUrl, localHeroImage])
 
   const [activePhotoIndex, setActivePhotoIndex] = useState(0)
   const scrollRef = useRef<ScrollView>(null)

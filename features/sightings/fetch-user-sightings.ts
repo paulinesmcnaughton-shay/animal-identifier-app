@@ -39,7 +39,7 @@ export interface UserSightingRow {
   is_pinned: boolean
 }
 
-function rowToDexCard(latest: UserSightingRow, photoRow: UserSightingRow): DexCardSpecies {
+function rowToDexCard(latest: UserSightingRow): DexCardSpecies {
   const kingdom = parseKingdom(latest.kingdom)
   const number =
     latest.dex_number?.trim() || getDexNumberForSpeciesId(latest.species_id) || '#???'
@@ -51,31 +51,23 @@ function rowToDexCard(latest: UserSightingRow, photoRow: UserSightingRow): DexCa
     date: formatSpottedAgo(latest.spotted_at),
     kingdom,
     gradient: GRADIENT_BY_KINGDOM[kingdom],
-    photoUri: photoRow.photo_uri ?? null,
-    sightingId: photoRow.id,
-    isPinned: photoRow.is_pinned,
   }
 }
 
-/** Latest sighting per species for Wild Dex grid (newest first). Pinned photo takes priority. */
+/** Latest sighting per species for Wild Dex grid (newest first). */
 export function buildDexEntriesFromSightings(rows: UserSightingRow[]): DexCardSpecies[] {
-  const bySpecies = new Map<string, { latest: UserSightingRow; pinned: UserSightingRow | null }>()
+  const bySpecies = new Map<string, UserSightingRow>()
 
   for (const row of rows) {
     const existing = bySpecies.get(row.species_id)
-    if (!existing) {
-      bySpecies.set(row.species_id, { latest: row, pinned: row.is_pinned ? row : null })
-    } else {
-      if (new Date(row.spotted_at) > new Date(existing.latest.spotted_at)) {
-        existing.latest = row
-      }
-      if (row.is_pinned) existing.pinned = row
+    if (!existing || new Date(row.spotted_at) > new Date(existing.spotted_at)) {
+      bySpecies.set(row.species_id, row)
     }
   }
 
   return [...bySpecies.values()]
-    .sort((a, b) => new Date(b.latest.spotted_at).getTime() - new Date(a.latest.spotted_at).getTime())
-    .map(({ latest, pinned }) => rowToDexCard(latest, pinned ?? latest))
+    .sort((a, b) => new Date(b.spotted_at).getTime() - new Date(a.spotted_at).getTime())
+    .map((latest) => rowToDexCard(latest))
 }
 
 export async function fetchUserSightings(): Promise<UserSightingRow[] | null> {

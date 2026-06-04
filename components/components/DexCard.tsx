@@ -17,7 +17,6 @@ import Animated, {
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { dexCardHairline } from '@/design/dex-card-shell'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
-import { fetchWikipediaImageUrl } from '@/features/species/fetch-wikipedia-image'
 import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
 
 export interface DexCardSpecies {
@@ -29,9 +28,6 @@ export interface DexCardSpecies {
   gradient: readonly [string, string]
   cornerBadge?: 'NEW' | 'RARE'
   showFootprint?: boolean
-  photoUri?: string | null
-  sightingId?: string | null
-  isPinned?: boolean
 }
 
 interface DexCardProps {
@@ -41,7 +37,6 @@ interface DexCardProps {
   onLongPress?: () => void
   isDeleteMode?: boolean
   onDeletePress?: () => void
-  onPinPress?: () => void
 }
 
 export function DexCard({
@@ -51,30 +46,17 @@ export function DexCard({
   onLongPress,
   isDeleteMode = false,
   onDeletePress,
-  onPinPress,
 }: DexCardProps) {
-  const { number, name, date, gradient, cornerBadge, kingdom, photoUri, sightingId, isPinned } = species
+  const { number, name, date, cornerBadge, kingdom } = species
   const [photoFailed, setPhotoFailed] = useState(false)
 
-  // DEX card always shows the reference species image — never the user's captured photo.
-  // User photos live in the detail page scroll (position 2+).
-  const { url: taxaUrl } = useTaxaPhoto(name, kingdom)
-  const [wikiUrl, setWikiUrl] = useState<string | null>(null)
+  const { url: photoUrl } = useTaxaPhoto(name, kingdom)
 
   useEffect(() => {
     setPhotoFailed(false)
-  }, [photoUri])
+  }, [photoUrl])
 
-  useEffect(() => {
-    if (taxaUrl) { setWikiUrl(null); return }
-    let cancelled = false
-    void fetchWikipediaImageUrl(name).then((url) => {
-      if (!cancelled) setWikiUrl(url)
-    })
-    return () => { cancelled = true }
-  }, [name, taxaUrl])
-
-  const photoUrl = taxaUrl ?? wikiUrl ?? null
+  const showImage = !!photoUrl && !photoFailed
   const kingdomBg = KINGDOM[kingdom]?.bg ?? colors.dim
 
   // Jiggle — each card gets a phase offset so they don't all move in lockstep
@@ -109,7 +91,7 @@ export function DexCard({
     <Animated.View style={animStyle}>
       <View style={[styles.card, { width }]}>
         <View style={[styles.artWrap, { backgroundColor: kingdomBg }]}>
-          {photoUrl ? (
+          {showImage ? (
             <Image
               source={{ uri: photoUrl }}
               style={StyleSheet.absoluteFill}
@@ -117,19 +99,10 @@ export function DexCard({
               onError={() => setPhotoFailed(true)}
             />
           ) : (
-            <LinearGradient
-              colors={[...gradient]}
-              style={StyleSheet.absoluteFill}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-          )}
-
-          {!photoUrl ? (
-            <View style={styles.silhouette}>
-              <Text style={styles.kingdomEmoji}>{KINGDOM[kingdom]?.emoji ?? '🌿'}</Text>
+            <View style={styles.placeholder}>
+              <Text style={styles.placeholderInitial}>{name.charAt(0).toUpperCase()}</Text>
             </View>
-          ) : null}
+          )}
 
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.45)']}
@@ -145,21 +118,6 @@ export function DexCard({
             <View style={[styles.cornerPill, cornerBadge === 'NEW' ? styles.pillNew : styles.pillRare]}>
               <Text style={styles.cornerPillText}>{cornerBadge}</Text>
             </View>
-          ) : null}
-
-          {sightingId && onPinPress && !isDeleteMode ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={isPinned ? 'Unpin photo' : 'Pin as lead photo'}
-              onPress={onPinPress}
-              hitSlop={8}
-              style={styles.starBtn}>
-              <Ionicons
-                name={isPinned ? 'star' : 'star-outline'}
-                size={14}
-                color={isPinned ? colors.sun : 'rgba(255,255,255,0.9)'}
-              />
-            </Pressable>
           ) : null}
         </View>
 
@@ -239,13 +197,16 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.md,
     overflow: 'hidden',
   },
-  silhouette: {
+  placeholder: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#C5CCD6',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  kingdomEmoji: {
+  placeholderInitial: {
     fontSize: 36,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.85)',
     textAlign: 'center',
   },
   bottomOverlay: {
@@ -331,16 +292,5 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.card,
     zIndex: 10,
-  },
-  starBtn: {
-    position: 'absolute',
-    top: space[8],
-    right: space[8],
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 })
