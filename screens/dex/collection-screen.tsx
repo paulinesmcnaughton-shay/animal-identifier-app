@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons'
 import { Link, router } from 'expo-router'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Dimensions,
@@ -22,6 +22,7 @@ import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import { deleteUserSighting } from '@/features/sightings/delete-user-sighting'
 import { useAccountProfile } from '@/features/settings/account-profile'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { useUserSightingsData } from '@/features/sightings/use-user-sightings-data'
 import { speciesDetailRouteParamsFromId } from '@/features/species/species-latin-names'
 import { useAuth } from '@/lib/auth/auth-context'
@@ -46,6 +47,36 @@ export function CollectionScreen() {
   const [isDeleteMode, setIsDeleteMode] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<DexCardSpecies | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [pendingDeleteHasJournalData, setPendingDeleteHasJournalData] = useState(false)
+
+  // Check if the species being deleted has any sightings with notes/journal/caption.
+  // Fetches up to 20 active sightings and checks in JS to avoid unreliable PostgREST NULL syntax.
+  useEffect(() => {
+    if (!pendingDelete) { setPendingDeleteHasJournalData(false); return }
+    console.log('PENDING DELETE SET species id:', pendingDelete.id)
+    const supabase = getSupabaseClient()
+    if (!supabase) return
+    let cancelled = false
+    void (async () => {
+      const { data: authData } = await supabase.auth.getUser()
+      const userId = authData.user?.id
+      if (!userId || cancelled) return
+      const { data } = await supabase
+        .from('user_sightings')
+        .select('notes, journal_entry, user_caption')
+        .eq('user_id', userId)
+        .eq('species_id', pendingDelete.id)
+        .eq('is_deleted', false)
+        .limit(20)
+      if (!cancelled) {
+        const hasData = (data ?? []).some(
+          (r) => r.notes || r.journal_entry || r.user_caption,
+        )
+        setPendingDeleteHasJournalData(hasData)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [pendingDelete])
 
   const colWidth = useMemo(() => {
     const w = Dimensions.get('window').width
@@ -69,10 +100,13 @@ export function CollectionScreen() {
 
   const handleConfirmDelete = async () => {
     if (!pendingDelete) return
+    console.log('CONFIRM DELETE PRESSED species id:', pendingDelete.id)
     setIsDeleting(true)
-    await deleteUserSighting(pendingDelete.id)
+    const result = await deleteUserSighting(pendingDelete.id)
+    console.log('DELETE RESULT:', result)
     setIsDeleting(false)
     setPendingDelete(null)
+    setPendingDeleteHasJournalData(false)
   }
 
   if (isLoading || !isReady || (isAuthenticated && dexDataLoading && spotsCaptured > 0)) {
@@ -185,6 +219,7 @@ export function CollectionScreen() {
       <DeleteConfirmModal
         species={pendingDelete}
         isDeleting={isDeleting}
+        hasJournalData={pendingDeleteHasJournalData}
         onConfirm={handleConfirmDelete}
         onCancel={() => setPendingDelete(null)}
       />
@@ -197,11 +232,12 @@ export function CollectionScreen() {
 interface DeleteConfirmModalProps {
   species: DexCardSpecies | null
   isDeleting: boolean
+  hasJournalData: boolean
   onConfirm: () => void
   onCancel: () => void
 }
 
-function DeleteConfirmModal({ species, isDeleting, onConfirm, onCancel }: DeleteConfirmModalProps) {
+function DeleteConfirmModal({ species, isDeleting, hasJournalData, onConfirm, onCancel }: DeleteConfirmModalProps) {
   return (
     <Modal
       visible={species !== null}
@@ -217,14 +253,22 @@ function DeleteConfirmModal({ species, isDeleting, onConfirm, onCancel }: Delete
           <Text style={styles.dialogTitle}>Remove from Wild Dex?</Text>
           <Text style={styles.dialogBody}>
             <Text style={styles.dialogSpeciesName}>{species?.name}</Text>
-            {' '}will be permanently removed from your collection. All sightings of this species will be deleted and cannot be recovered.
+            {' '}will be permanently removed from your collection. All sightings of this species will be deleted.
           </Text>
+          {hasJournalData ? (
+            <View style={styles.journalWarning}>
+              <Ionicons name="journal-outline" size={16} color={colors.earth} />
+              <Text style={styles.journalWarningText}>
+                This sighting has saved notes or journal entries. You may want to export your journal before deleting.
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.dialogActions}>
             <Pressable
               accessibilityRole="button"
               onPress={onCancel}
               style={({ pressed }) => [styles.actionBtn, styles.cancelBtn, pressed && styles.actionBtnPressed]}>
-              <Text style={styles.cancelBtnLabel}>Keep it</Text>
+              <Text style={styles.cancelBtnLabel}>Cancel</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -234,7 +278,9 @@ function DeleteConfirmModal({ species, isDeleting, onConfirm, onCancel }: Delete
               {isDeleting ? (
                 <ActivityIndicator size="small" color={colors.card} />
               ) : (
-                <Text style={styles.deleteConfirmBtnLabel}>Delete</Text>
+                <Text style={styles.deleteConfirmBtnLabel}>
+                  {hasJournalData ? 'Delete Anyway' : 'Delete'}
+                </Text>
               )}
             </Pressable>
           </View>
@@ -427,5 +473,24 @@ const styles = StyleSheet.create({
     fontSize: typeTokens.size.bodySM,
     fontWeight: '700',
     color: colors.card,
+  },
+  journalWarning: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space[8],
+    backgroundColor: colors.bg2,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    paddingHorizontal: space[16],
+    paddingVertical: space[8],
+    marginTop: space[8],
+  },
+  journalWarningText: {
+    flex: 1,
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.medium,
+    color: colors.earth,
+    lineHeight: 18,
   },
 })

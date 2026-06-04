@@ -3,8 +3,8 @@ import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import * as Location from 'expo-location'
 import { router, useLocalSearchParams } from 'expo-router'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {
@@ -20,7 +20,8 @@ import { isPlaceholderDexNumber } from '@/features/species/resolve-dex-number'
 import { getLocalSpeciesHeroImage } from '@/features/species/resolve-species-hero-image'
 import { useSpeciesUserSightings } from '@/features/sightings/use-species-user-sightings'
 import { useSpeciesDetail } from '@/features/species/use-species-detail'
-import { fetchSpeciesReferencePhotos, useTaxaPhoto } from '@/features/species/use-taxa-photo'
+import { getSightingPhotoUri } from '@/features/species/get-display-image-uri'
+import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
 import {
   colors,
   profileCardShadow as profileCardShadowStyle,
@@ -53,7 +54,6 @@ function isGlassRarityChip(rarity: string): boolean {
 
 export function SpeciesDetailScreen() {
   const insets = useSafeAreaInsets()
-  const { width: screenWidth } = useWindowDimensions()
   const params = useLocalSearchParams<{
     id?: string | string[]
     name?: string | string[]
@@ -64,12 +64,12 @@ export function SpeciesDetailScreen() {
     domestic?: string | string[]
     fromCapture?: string | string[]
     saved?: string | string[]
-    capturePhotoUri?: string | string[]
   }>()
 
   const fromCapture = resolveRouteParam(params.fromCapture) === '1'
   const savedToCollection = resolveRouteParam(params.saved) === '1'
-  const capturePhotoUri = resolveRouteParam(params.capturePhotoUri) ?? undefined
+  const confidenceRaw = resolveRouteParam(params.confidence)
+  const confidence = confidenceRaw ? parseFloat(confidenceRaw) : null
 
   const id = resolveRouteParam(params.id) ?? 'unknown'
   const paramName = resolveRouteParam(params.name)
@@ -103,48 +103,26 @@ export function SpeciesDetailScreen() {
     [id, paramName, species.commonName],
   )
 
-  const { url: taxaPhotoUrl } = useTaxaPhoto(species.commonName, species.kingdom, species.latinName)
-
+  const { url: taxaPhotoUrl, isResolving: isTaxaResolving } = useTaxaPhoto(species.commonName, species.kingdom, species.latinName)
   const userSightings = useSpeciesUserSightings(id)
-  const heroArtWidth = screenWidth - screenLayout.padH * 2
 
-  const [referencePhotos, setReferencePhotos] = useState<string[]>([])
+  const heroDisplayUri = heroImageUrl?.trim() || taxaPhotoUrl || null
+  const [heroFailed, setHeroFailed] = useState(false)
 
-  useEffect(() => {
-    if (!species.commonName && !species.latinName) {
-      setReferencePhotos([])
-      return
-    }
-    let cancelled = false
-    fetchSpeciesReferencePhotos(species.commonName, species.latinName ?? undefined, 5)
-      .then((urls) => { if (!cancelled) setReferencePhotos(urls) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [species.commonName, species.latinName])
-
-  const photoUrls = useMemo(() => {
-    if (localHeroImage) return []
-
-    const seen = new Set<string>()
-    const all: string[] = []
-
-    const hero = heroImageUrl?.trim()
-    if (hero && !seen.has(hero)) { seen.add(hero); all.push(hero) }
-
-    for (const url of referencePhotos) {
-      if (url && !seen.has(url)) { seen.add(url); all.push(url) }
-    }
-
-    // taxaPhotoUrl as single-photo fallback if fetchSpeciesReferencePhotos returned nothing
-    if (all.length === 0 && taxaPhotoUrl && !seen.has(taxaPhotoUrl)) all.push(taxaPhotoUrl)
-
-    return all
-  }, [heroImageUrl, referencePhotos, taxaPhotoUrl, localHeroImage])
-
-  const [activePhotoIndex, setActivePhotoIndex] = useState(0)
-  const scrollRef = useRef<ScrollView>(null)
+  useEffect(() => { setHeroFailed(false) }, [heroDisplayUri])
 
   const kingdomMeta = KINGDOM[species.kingdom]
+
+  // True only once all async sources have resolved and there is still no reference image
+  const heroImageResolved = !isSpeciesLoading && !isTaxaResolving
+  const hasReferenceImage = (!!heroDisplayUri && !heroFailed) || !!localHeroImage
+  const isNeedsId = heroImageResolved && !hasReferenceImage
+
+  const isLowConfidence = confidence !== null && confidence < 0.7
+  const showNeedsIdHint = fromCapture && (isNeedsId || isLowConfidence)
+
+  const needsIdLabel = id === 'unknown' ? 'Unknown Species' : 'Needs ID'
+  const needsIdEmoji = kingdomMeta?.emoji ?? '❓'
 
   const handleBack = () => {
     if (fromCapture) {
@@ -163,7 +141,7 @@ export function SpeciesDetailScreen() {
     router.replace('/(tabs)/dex')
   }
 
-  const footerHeight = space[16] + space[16] + 48 + insets.bottom
+  const footerHeight = space[24] + 48 + insets.bottom + space[16]
 
   return (
     <View style={styles.screen}>
@@ -198,27 +176,17 @@ export function SpeciesDetailScreen() {
               <View style={styles.heroLoading}>
                 <ActivityIndicator color={colors.card} size="large" />
               </View>
-            ) : photoUrls.length > 0 ? (
-              <ScrollView
-                ref={scrollRef}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                scrollEventThrottle={16}
-                onScroll={(e) =>
-                  setActivePhotoIndex(Math.round(e.nativeEvent.contentOffset.x / heroArtWidth))
-                }
-                style={{ width: heroArtWidth, height: HERO_HEIGHT }}>
-                {photoUrls.map((uri, i) => (
-                  <Image
-                    key={i}
-                    source={{ uri }}
-                    style={{ width: heroArtWidth, height: HERO_HEIGHT }}
-                    contentFit="cover"
-                    contentPosition="center"
-                  />
-                ))}
-              </ScrollView>
+            ) : heroDisplayUri && !heroFailed ? (
+              <Image
+                source={{ uri: heroDisplayUri }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                contentPosition="center"
+                onError={(e) => {
+                  console.log('IMAGE FAILED', heroDisplayUri, e)
+                  setHeroFailed(true)
+                }}
+              />
             ) : localHeroImage ? (
               <Image
                 source={localHeroImage}
@@ -227,24 +195,21 @@ export function SpeciesDetailScreen() {
                 contentPosition="center"
               />
             ) : (
-              <LinearGradient
-                colors={[...species.gradient]}
-                style={StyleSheet.absoluteFill}
-                start={{ x: 0.2, y: 0 }}
-                end={{ x: 0.8, y: 1 }}
-              />
+              <>
+                <LinearGradient
+                  colors={[...species.gradient]}
+                  style={StyleSheet.absoluteFill}
+                  start={{ x: 0.2, y: 0 }}
+                  end={{ x: 0.8, y: 1 }}
+                />
+                {isNeedsId ? (
+                  <View style={styles.heroNoImageOverlay}>
+                    <Text style={styles.heroNoImageEmoji}>{needsIdEmoji}</Text>
+                    <Text style={styles.heroNoImageLabel}>{needsIdLabel}</Text>
+                  </View>
+                ) : null}
+              </>
             )}
-
-            {photoUrls.length > 1 ? (
-              <View style={styles.photoDots} pointerEvents="none">
-                {photoUrls.map((_, i) => (
-                  <View
-                    key={i}
-                    style={[styles.photoDot, i === activePhotoIndex && styles.photoDotActive]}
-                  />
-                ))}
-              </View>
-            ) : null}
 
             <View style={[styles.kingdomChip, { backgroundColor: kingdomMeta?.bg ?? colors.plum }]}>
               <Text style={styles.kingdomChipEmoji}>{kingdomMeta?.emoji ?? '🌿'}</Text>
@@ -286,6 +251,14 @@ export function SpeciesDetailScreen() {
               <View style={styles.savedBanner}>
                 <Ionicons name="checkmark-circle" size={18} color={colors.green} />
                 <Text style={styles.savedBannerText}>Added to Wild Dex & My Sightings</Text>
+              </View>
+            ) : null}
+            {showNeedsIdHint ? (
+              <View style={styles.needsIdBanner}>
+                <Ionicons name="information-circle-outline" size={16} color={colors.dim} />
+                <Text style={styles.needsIdBannerText}>
+                  Saved to your sightings. You can identify this later.
+                </Text>
               </View>
             ) : null}
             <Text style={styles.commonName}>{species.commonName}</Text>
@@ -399,10 +372,22 @@ interface SightingRowProps {
 
 function SightingRow({ sighting: s, isLast }: SightingRowProps) {
   const place = useReverseGeocode(s.latitude, s.longitude)
+  const [thumbFailed, setThumbFailed] = useState(false)
+  const thumbUri = getSightingPhotoUri(s)
+  const showThumb = !!thumbUri && !thumbFailed
+
   return (
     <View style={[sightingStyles.row, !isLast && sightingStyles.rowBorder]}>
-      {s.photoUri ? (
-        <Image source={{ uri: s.photoUri }} style={sightingStyles.thumb} contentFit="cover" />
+      {showThumb ? (
+        <Image
+          source={{ uri: thumbUri }}
+          style={sightingStyles.thumb}
+          contentFit="cover"
+          onError={(e) => {
+            console.log('IMAGE FAILED', s.photoUri, e)
+            setThumbFailed(true)
+          }}
+        />
       ) : (
         <View style={[sightingStyles.thumb, sightingStyles.thumbPlaceholder]}>
           <Ionicons name="paw" size={18} color={colors.dim} />
@@ -411,11 +396,7 @@ function SightingRow({ sighting: s, isLast }: SightingRowProps) {
       <View style={sightingStyles.meta}>
         <Text style={sightingStyles.date}>{formatSightingDate(s.spottedAt)}</Text>
         <View style={sightingStyles.locationRow}>
-          <Ionicons
-            name={s.latitude != null ? 'location-outline' : 'location-outline'}
-            size={12}
-            color={colors.dim}
-          />
+          <Ionicons name="location-outline" size={12} color={colors.dim} />
           <Text style={sightingStyles.location} numberOfLines={1}>{place || '…'}</Text>
         </View>
       </View>
@@ -693,27 +674,39 @@ const styles = StyleSheet.create({
   captureFooterButton: {
     alignSelf: 'stretch',
   },
-  photoDots: {
-    position: 'absolute',
-    bottom: space[8],
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
+  heroNoImageOverlay: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    gap: space[4],
-    zIndex: 4,
+    justifyContent: 'center',
+    gap: space[8],
   },
-  photoDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.5)',
+  heroNoImageEmoji: {
+    fontSize: 48,
+    textAlign: 'center',
   },
-  photoDotActive: {
-    backgroundColor: colors.card,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  heroNoImageLabel: {
+    fontSize: typeTokens.size.micro,
+    fontWeight: typeTokens.body.weights.black,
+    color: 'rgba(255,255,255,0.75)',
+    letterSpacing: 1.5,
+    textAlign: 'center',
+  },
+  needsIdBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[8],
+    marginBottom: space[8],
+    paddingVertical: space[8],
+    paddingHorizontal: space[16],
+    backgroundColor: colors.bg2,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+  },
+  needsIdBannerText: {
+    flex: 1,
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.medium,
+    color: colors.dim,
   },
 })

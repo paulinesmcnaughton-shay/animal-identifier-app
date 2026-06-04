@@ -47,16 +47,16 @@ export function DexCard({
   isDeleteMode = false,
   onDeletePress,
 }: DexCardProps) {
-  const { number, name, date, cornerBadge, kingdom } = species
+  const { number, name, date, gradient, cornerBadge, kingdom } = species
   const [photoFailed, setPhotoFailed] = useState(false)
 
-  const { url: photoUrl } = useTaxaPhoto(name, kingdom)
+  const { url: displayUri } = useTaxaPhoto(name, kingdom)
 
   useEffect(() => {
     setPhotoFailed(false)
-  }, [photoUrl])
+  }, [displayUri])
 
-  const showImage = !!photoUrl && !photoFailed
+  const showImage = !!displayUri && !photoFailed
   const kingdomBg = KINGDOM[kingdom]?.bg ?? colors.dim
 
   // Jiggle — each card gets a phase offset so they don't all move in lockstep
@@ -93,15 +93,26 @@ export function DexCard({
         <View style={[styles.artWrap, { backgroundColor: kingdomBg }]}>
           {showImage ? (
             <Image
-              source={{ uri: photoUrl }}
+              source={{ uri: displayUri }}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
-              onError={() => setPhotoFailed(true)}
+              onError={(e) => {
+                console.log('IMAGE FAILED', displayUri, e)
+                setPhotoFailed(true)
+              }}
             />
           ) : (
-            <View style={styles.placeholder}>
-              <Text style={styles.placeholderInitial}>{name.charAt(0).toUpperCase()}</Text>
-            </View>
+            <>
+              <LinearGradient
+                colors={[...gradient]}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              <View style={styles.silhouette}>
+                <Text style={styles.kingdomEmoji}>{KINGDOM[kingdom]?.emoji ?? '🌿'}</Text>
+              </View>
+            </>
           )}
 
           <LinearGradient
@@ -196,6 +207,15 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.md,
     borderTopRightRadius: radius.md,
     overflow: 'hidden',
+  },
+  silhouette: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kingdomEmoji: {
+    fontSize: 36,
+    textAlign: 'center',
   },
   placeholder: {
     ...StyleSheet.absoluteFillObject,

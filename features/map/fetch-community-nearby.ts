@@ -106,12 +106,29 @@ export async function fetchCommunityMapSightings(
     return null
   }
 
+  const rawCount = (data ?? []).length
+  console.log('Nearby Sightings raw count (community_sightings):', rawCount)
+  if (__DEV__) {
+    ;(data ?? []).forEach((row) => {
+      const r = row as CommunitySightingRow
+      console.log('RENDER NEARBY ITEM', {
+        id: r.id,
+        species_id: r.species_id,
+        species_name: r.species_name,
+        source: 'community',
+      })
+    })
+  }
+
   const maxDistanceM = radiusKm * 1000
 
-  return (data ?? [])
+  const mapped = (data ?? [])
     .map((row) => rowToSighting(row as CommunitySightingRow, userCoord, maxDistanceM))
     .filter((item): item is NearbyMapSighting => item !== null)
     .sort((a, b) => a.distanceM - b.distanceM)
+
+  console.log('Nearby Sightings filtered count (community_sightings):', mapped.length)
+  return mapped
 }
 
 export { mockCommunityNearUser }

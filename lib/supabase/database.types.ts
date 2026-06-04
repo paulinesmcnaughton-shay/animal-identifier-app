@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -15,7 +17,9 @@ export type Database = {
       community_sightings: {
         Row: {
           created_at: string
+          deleted_at: string | null
           id: string
+          is_deleted: boolean
           kingdom: string
           latitude: number
           longitude: number
@@ -28,7 +32,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
+          is_deleted?: boolean
           kingdom: string
           latitude: number
           longitude: number
@@ -41,7 +47,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
+          is_deleted?: boolean
           kingdom?: string
           latitude?: number
           longitude?: number
@@ -469,52 +477,70 @@ export type Database = {
         Row: {
           confidence: number | null
           created_at: string
+          deleted_at: string | null
           dex_number: string | null
           id: string
+          is_deleted: boolean
           is_domestic: boolean
+          is_favorite: boolean
           is_pinned: boolean
+          journal_entry: string | null
           kingdom: string
           latin_name: string | null
           latitude: number | null
           longitude: number | null
+          notes: string | null
           photo_uri: string | null
           species_id: string
           species_name: string
           spotted_at: string
+          user_caption: string | null
           user_id: string
         }
         Insert: {
           confidence?: number | null
           created_at?: string
+          deleted_at?: string | null
           dex_number?: string | null
           id?: string
+          is_deleted?: boolean
           is_domestic?: boolean
+          is_favorite?: boolean
           is_pinned?: boolean
+          journal_entry?: string | null
           kingdom: string
           latin_name?: string | null
           latitude?: number | null
           longitude?: number | null
+          notes?: string | null
           photo_uri?: string | null
           species_id: string
           species_name: string
           spotted_at?: string
+          user_caption?: string | null
           user_id: string
         }
         Update: {
           confidence?: number | null
           created_at?: string
+          deleted_at?: string | null
           dex_number?: string | null
           id?: string
+          is_deleted?: boolean
           is_domestic?: boolean
+          is_favorite?: boolean
           is_pinned?: boolean
+          journal_entry?: string | null
           kingdom?: string
           latin_name?: string | null
           latitude?: number | null
           longitude?: number | null
+          notes?: string | null
           photo_uri?: string | null
           species_id?: string
           species_name?: string
           spotted_at?: string
+          user_caption?: string | null
           user_id?: string
         }
         Relationships: [
@@ -546,6 +572,7 @@ export type Database = {
 }
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<

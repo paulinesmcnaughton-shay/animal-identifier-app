@@ -302,6 +302,26 @@ export function SettingsScreenContent() {
           />
         </View>
 
+        <Text style={styles.sectionLabel}>Your Data</Text>
+        <View style={styles.group}>
+          <SettingsRow
+            icon="download-outline"
+            iconBg={colors.greenLight}
+            title="Export Journal & Notes"
+            subtitle="Save a copy of your notes, journal entries, and sighting memories to your phone."
+            action={{
+              type: 'chevron',
+              onPress: () =>
+                Alert.alert(
+                  'Export Journal & Notes',
+                  'This feature is coming soon. You will be able to download your notes, journal entries, and sighting memories as a PDF or ZIP file.',
+                  [{ text: 'OK' }],
+                ),
+            }}
+            isLast
+          />
+        </View>
+
         <View style={styles.logoutWrap}>
           <Pressable
             accessibilityRole="button"

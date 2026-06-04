@@ -37,6 +37,12 @@ export interface UserSightingRow {
   longitude: number | null
   spotted_at: string
   is_pinned: boolean
+  notes: string | null
+  journal_entry: string | null
+  user_caption: string | null
+  is_favorite: boolean
+  is_deleted: boolean
+  deleted_at: string | null
 }
 
 function rowToDexCard(latest: UserSightingRow): DexCardSpecies {
@@ -81,9 +87,10 @@ export async function fetchUserSightings(): Promise<UserSightingRow[] | null> {
   const { data, error } = await supabase
     .from('user_sightings')
     .select(
-      'id, species_id, species_name, kingdom, latin_name, dex_number, confidence, is_domestic, photo_uri, latitude, longitude, spotted_at, is_pinned',
+      'id, species_id, species_name, kingdom, latin_name, dex_number, confidence, is_domestic, photo_uri, latitude, longitude, spotted_at, is_pinned, notes, journal_entry, user_caption, is_favorite, is_deleted, deleted_at',
     )
     .eq('user_id', userId)
+    .eq('is_deleted', false)
     .order('spotted_at', { ascending: false })
 
   if (error) {

@@ -13,7 +13,7 @@ const inFlight = new Map<string, Promise<string | null>>()
 
 async function fetchInatPhoto(query: string): Promise<string | null> {
   const res = await fetch(
-    `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(query)}&per_page=5`,
+    `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(query)}&per_page=10`,
   )
   if (!res.ok) return null
   const data = (await res.json()) as { results?: TaxaResult[] }
@@ -25,7 +25,6 @@ async function fetchInatPhoto(query: string): Promise<string | null> {
 }
 
 async function fetchWikipediaPhoto(query: string): Promise<string | null> {
-  // REST summary API — underscored title, redirect supported
   const title = query.trim().replace(/ /g, '_')
   try {
     const res = await fetch(
@@ -37,12 +36,16 @@ async function fetchWikipediaPhoto(query: string): Promise<string | null> {
         thumbnail?: { source?: string }
         originalimage?: { source?: string }
       }
-      const url = d.originalimage?.source ?? d.thumbnail?.source
-      if (url) return url
+      // Upscale the thumbnail URL to 800px — far more reliable than full-res originals (often 5-10 MB)
+      const thumb = d.thumbnail?.source
+      if (thumb) return thumb.replace(/\/\d+px-/, '/800px-')
+      // originalimage as last resort — only use if thumbnail is absent
+      const orig = d.originalimage?.source
+      if (orig) return orig
     }
   } catch {}
 
-  // MediaWiki Action API fallback — handles alternate titles and redirects
+  // MediaWiki Action API fallback — resolves alternate titles and redirects
   try {
     const res = await fetch(
       `https://en.wikipedia.org/w/api.php?action=query&prop=pageimages&format=json` +

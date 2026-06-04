@@ -28,24 +28,54 @@ async function uploadPhotoToStorage(
   userId: string,
   uri: string,
 ): Promise<string | null> {
+  console.log('UPLOAD PHOTO URI:', uri)
+
+  const fileInfo = await FileSystem.getInfoAsync(uri)
+  console.log('UPLOAD FILE INFO:', fileInfo)
+
+  if (!fileInfo.exists) {
+    console.warn('[WildKind] photo file does not exist:', uri)
+    return null
+  }
+
+  if ('size' in fileInfo && fileInfo.size === 0) {
+    console.warn('[WildKind] photo file is 0 bytes before upload — aborting')
+    return null
+  }
+
   try {
     const response = await fetch(uri)
-    const blob = await response.blob()
-    const path = `${userId}/${Date.now()}.jpg`
+    const arrayBuffer = await response.arrayBuffer()
 
-    const { error } = await supabase.storage
-      .from('sighting-photos')
-      .upload(path, blob, { contentType: 'image/jpeg', upsert: false })
+    console.log('UPLOAD ARRAY BUFFER SIZE:', arrayBuffer.byteLength)
 
-    if (error) {
-      if (__DEV__) console.warn('[WildKind] photo upload failed:', error.message)
+    if (arrayBuffer.byteLength === 0) {
+      console.warn('[WildKind] arrayBuffer is 0 bytes — fetch did not read the file')
       return null
     }
 
-    const { data } = supabase.storage.from('sighting-photos').getPublicUrl(path)
-    return data.publicUrl
+    const filePath = `${userId}/${Date.now()}.jpg`
+    console.log('SUPABASE STORAGE PATH:', filePath)
+
+    const { data, error } = await supabase.storage
+      .from('sighting-photos')
+      .upload(filePath, arrayBuffer, { contentType: 'image/jpeg', upsert: false })
+
+    if (error) {
+      console.warn('[WildKind] photo upload failed:', error.message)
+      return null
+    }
+
+    console.log('SUPABASE UPLOAD DATA:', data)
+
+    const { data: urlData } = supabase.storage
+      .from('sighting-photos')
+      .getPublicUrl(filePath)
+
+    console.log('SUPABASE PUBLIC URL:', urlData.publicUrl)
+    return urlData.publicUrl
   } catch (err) {
-    if (__DEV__) console.warn('[WildKind] photo upload error:', err)
+    console.warn('[WildKind] photo upload error:', err)
     return null
   }
 }
@@ -166,6 +196,8 @@ export async function saveUserSighting(
     if (__DEV__) console.warn('[WildKind] user_sightings insert failed:', insertError.message)
     return { ok: false, isNewSpecies: false, errorMessage: insertError.message }
   }
+
+  console.log('INSERTED SIGHTING photo_uri:', savedPhotoUri)
 
   const { data: profileRow } = await supabase
     .from('profiles')

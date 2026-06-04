@@ -5,6 +5,7 @@ import { fetchNearbyMapSightings } from '@/features/map/fetch-nearby-map'
 import { haversineDistanceM } from '@/features/map/geo'
 import type { NearbyMapSighting } from '@/features/map/map-sighting'
 import { NEARBY_RELOAD_MOVE_M } from '@/features/map/nearby-radius'
+import { subscribeSightingsChanged } from '@/features/sightings/sightings-events'
 import type { MapCoordinate } from '@/features/map/use-user-location'
 
 interface NearbyMapState {
@@ -73,6 +74,12 @@ export function useNearbyCommunitySightings(
   useEffect(() => {
     void reload(false)
   }, [reload])
+
+  // Global subscription — force-reload when a Dex delete fires, regardless of tab focus
+  useEffect(() => subscribeSightingsChanged(() => {
+    lastFetchCoordRef.current = null  // clear coord cache so reload always runs
+    void reload(true)
+  }), [reload])
 
   useFocusEffect(
     useCallback(() => {

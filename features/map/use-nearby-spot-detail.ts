@@ -60,6 +60,7 @@ export function useNearbySpotDetail(sighting: NearbyMapSighting | null) {
           .select('photo_uri')
           .eq('user_id', userId)
           .eq('species_id', speciesId)
+          .eq('is_deleted', false)
           .not('photo_uri', 'is', null)
           .order('spotted_at', { ascending: false })
           .limit(1)

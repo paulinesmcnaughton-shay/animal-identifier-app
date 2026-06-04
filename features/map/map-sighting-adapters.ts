@@ -9,6 +9,14 @@ export function userSightingToNearbyMapPin(
   row: UserSightingRow,
   userCoord: MapCoordinate | null,
 ): NearbyMapSighting | null {
+  // Defense-in-depth: reject soft-deleted rows even if the query filter missed them
+  if (row.is_deleted || row.deleted_at) {
+    console.log('Nearby Sightings: skipping deleted sighting', row.id, {
+      is_deleted: row.is_deleted,
+      deleted_at: row.deleted_at,
+    })
+    return null
+  }
   if (row.latitude == null || row.longitude == null) return null
 
   const lat = row.latitude
