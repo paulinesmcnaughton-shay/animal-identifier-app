@@ -105,7 +105,7 @@ export function SpeciesDetailScreen() {
 
   // Single resolver: heroImageUrl (Supabase / iNat / domestic registry) wins,
   // then kingdom-validated external lookup. Read-only — never mutates `species`.
-  const { uri: heroDisplayUri, isResolving: isHeroResolving } = useReferenceImage(
+  const { uri: heroDisplayUri, isResolving: isHeroResolving, onImageError: onHeroError } = useReferenceImage(
     {
       commonName: species.commonName,
       scientificName: species.latinName,
@@ -120,15 +120,11 @@ export function SpeciesDetailScreen() {
   )
   const userSightings = useSpeciesUserSightings(id)
 
-  const [heroFailed, setHeroFailed] = useState(false)
-
-  useEffect(() => { setHeroFailed(false) }, [heroDisplayUri])
-
   const kingdomMeta = KINGDOM[species.kingdom]
 
   // True only once all async sources have resolved and there is still no reference image
   const heroImageResolved = !isSpeciesLoading && !isHeroResolving
-  const hasReferenceImage = (!!heroDisplayUri && !heroFailed) || !!localHeroImage
+  const hasReferenceImage = !!heroDisplayUri || !!localHeroImage
   const isNeedsId = heroImageResolved && !hasReferenceImage
 
   const isLowConfidence = confidence !== null && confidence < 0.7
@@ -189,16 +185,13 @@ export function SpeciesDetailScreen() {
               <View style={styles.heroLoading}>
                 <ActivityIndicator color={colors.card} size="large" />
               </View>
-            ) : heroDisplayUri && !heroFailed ? (
+            ) : heroDisplayUri ? (
               <Image
                 source={{ uri: heroDisplayUri }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 contentPosition="center"
-                onError={(e) => {
-                  console.log('IMAGE FAILED', heroDisplayUri, e)
-                  setHeroFailed(true)
-                }}
+                onError={() => onHeroError(heroDisplayUri)}
               />
             ) : localHeroImage ? (
               <Image

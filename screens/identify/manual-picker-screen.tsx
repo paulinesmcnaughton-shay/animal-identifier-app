@@ -286,8 +286,7 @@ interface PickerSpeciesCardProps {
 }
 
 function PickerSpeciesCard({ item, width, onPress }: PickerSpeciesCardProps) {
-  const [imageFailed, setImageFailed] = useState(false)
-  const { uri: resolvedUrl } = useReferenceImage(
+  const { uri: imageUrl, onImageError } = useReferenceImage(
     {
       commonName: item.commonName,
       scientificName: item.latinName,
@@ -299,11 +298,6 @@ function PickerSpeciesCard({ item, width, onPress }: PickerSpeciesCardProps) {
     },
     { screen: 'identify', component: 'PickerSpeciesCard' },
   )
-  const imageUrl = imageFailed ? null : resolvedUrl
-
-  useEffect(() => {
-    setImageFailed(false)
-  }, [item.id])
 
   return (
     <Pressable
@@ -317,7 +311,7 @@ function PickerSpeciesCard({ item, width, onPress }: PickerSpeciesCardProps) {
             source={{ uri: imageUrl }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
-            onError={() => setImageFailed(true)}
+            onError={() => onImageError(imageUrl)}
           />
         ) : (
           <LinearGradient

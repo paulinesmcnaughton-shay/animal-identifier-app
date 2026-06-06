@@ -1,3 +1,4 @@
+import Constants from 'expo-constants'
 import { useEffect, useRef, useState } from 'react'
 
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
@@ -31,7 +32,7 @@ const INAT_ICONIC_TO_KINGDOM: Partial<Record<string, KingdomKey>> = {
 // from "disappearing" after a burst of requests rate-limits iNat.
 const photoCache = new Map<string, string>()
 // Which external source produced the cached URL — for the debug pipeline log.
-export type ExternalPhotoSource = 'inaturalist' | 'wikipedia' | 'wikimedia'
+export type ExternalPhotoSource = 'inaturalist' | 'wikipedia' | 'wikimedia' | 'google'
 const photoSourceCache = new Map<string, ExternalPhotoSource>()
 // Genuine "no image exists" results are remembered briefly so we don't refetch
 // imageless species on every render, but still recover if the source later adds one.
@@ -180,7 +181,30 @@ async function md5Hash(str: string): Promise<string> {
 }
 
 /**
- * Resolve a reference photo for a species via iNat → Wikipedia → Wikimedia.
+ * Google Programmable Search (Custom Search JSON API), image mode — the broad
+ * fallback when iNat/Wikipedia/Wikimedia have nothing. Skipped (returns null, no
+ * request) unless both an API key and a search-engine id (cx) are configured.
+ * Throws on a transient HTTP error so it is retried rather than cached as empty.
+ */
+async function fetchGoogleImage(query: string): Promise<string | null> {
+  const extra = Constants.expoConfig?.extra as
+    | { googleSearchApiKey?: string; googleSearchCx?: string }
+    | undefined
+  const key = extra?.googleSearchApiKey?.trim()
+  const cx = extra?.googleSearchCx?.trim()
+  if (!key || !cx || !query.trim()) return null
+
+  const res = await fetch(
+    `https://www.googleapis.com/customsearch/v1?key=${key}&cx=${cx}` +
+      `&searchType=image&num=1&safe=active&q=${encodeURIComponent(query)}`,
+  )
+  if (!res.ok) throw new Error(`Google CSE HTTP ${res.status}`)
+  const d = (await res.json()) as { items?: { link?: string }[] }
+  return d.items?.[0]?.link ?? null
+}
+
+/**
+ * Resolve a reference photo for a species via iNat → Wikipedia → Wikimedia → Google.
  * Exported so `resolveReferenceImage` can call it without a React context.
  *
  * `kingdom` is used to validate iNat results — a mammal query will never
@@ -233,6 +257,8 @@ export async function resolvePhoto(
     if (latin) await attempt('wikipedia', () => fetchWikipediaPhoto(latin))
     // 5. Wikimedia Commons search
     if (query || latin) await attempt('wikimedia', () => fetchWikimediaPhoto(query || latin))
+    // 6. Google Programmable Search (only if configured) — broadest fallback
+    if (query || latin) await attempt('google', () => fetchGoogleImage(query || latin))
 
     if (__DEV__) {
       console.log('RESOLVED REFERENCE IMAGE', {

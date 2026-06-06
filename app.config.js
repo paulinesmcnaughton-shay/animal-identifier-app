@@ -112,6 +112,10 @@ module.exports = {
     anthropicApiKey: envString('ANTHROPIC_API_KEY'),
     openAiApiKey: envString('OPENAI_API_KEY'),
     googleVisionApiKey: envString('GOOGLE_VISION_API_KEY'),
+    // Google Programmable Search (Custom Search JSON API) — reference-image fallback.
+    // Needs an API key AND a search-engine id (cx) with Image search enabled.
+    googleSearchApiKey: envString('GOOGLE_SEARCH_API_KEY') || envString('GOOGLE_VISION_API_KEY'),
+    googleSearchCx: envString('GOOGLE_SEARCH_CX'),
     plantnetApiKey: envString('PLANTNET_API_KEY'),
     SUPABASE_URL: envString('SUPABASE_URL') || 'https://wiysesftlprovkpouvqu.supabase.co',
     SUPABASE_PUBLISHABLE_KEY:

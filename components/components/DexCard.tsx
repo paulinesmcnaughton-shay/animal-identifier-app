@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import Animated, {
   cancelAnimation,
@@ -52,12 +52,11 @@ export function DexCard({
   onDeletePress,
 }: DexCardProps) {
   const { number, name, date, gradient, cornerBadge, kingdom, referenceImageUrl, latin } = species
-  const [photoFailed, setPhotoFailed] = useState(false)
 
   // Domestic dex numbers are prefixed D (e.g. D012 Corgi). The registry image is a
   // DOMESTIC image only — gate it so it can never attach to a wild species.
   const isDomestic = /^#?D\d/.test(number)
-  const { uri: displayUri } = useReferenceImage(
+  const { uri: displayUri, onImageError } = useReferenceImage(
     {
       commonName: name,
       scientificName: latin ?? null,
@@ -71,11 +70,7 @@ export function DexCard({
     { screen: 'dex', component: 'DexCard' },
   )
 
-  useEffect(() => {
-    setPhotoFailed(false)
-  }, [displayUri])
-
-  const showImage = !!displayUri && !photoFailed
+  const showImage = !!displayUri
   const kingdomBg = KINGDOM[kingdom]?.bg ?? colors.dim
 
   // Jiggle — each card gets a phase offset so they don't all move in lockstep
@@ -115,10 +110,7 @@ export function DexCard({
               source={{ uri: displayUri }}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
-              onError={(e) => {
-                console.log('IMAGE FAILED', displayUri, e)
-                setPhotoFailed(true)
-              }}
+              onError={() => onImageError(displayUri)}
             />
           ) : (
             <>

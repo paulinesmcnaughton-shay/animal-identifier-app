@@ -127,7 +127,7 @@ export function CaptureResultSheet({
 
   // The species reference image — registry/domestic first, then kingdom-validated
   // external lookup. NEVER the user's capture photo (that stays in the camera preview).
-  const { uri: referenceImageUri } = useReferenceImage(
+  const { uri: resultImageUri, onImageError } = useReferenceImage(
     {
       commonName: result?.commonName ?? '',
       scientificName: result?.latinName ?? null,
@@ -138,11 +138,6 @@ export function CaptureResultSheet({
     },
     { screen: 'capture-result', component: 'CaptureResultSheet' },
   )
-  const [imageFailed, setImageFailed] = useState(false)
-  useEffect(() => {
-    setImageFailed(false)
-  }, [referenceImageUri])
-  const resultImageUri = imageFailed ? null : referenceImageUri
 
   if (phase === 'hidden') return null
 
@@ -273,7 +268,7 @@ export function CaptureResultSheet({
                   source={{ uri: resultImageUri }}
                   style={StyleSheet.absoluteFill}
                   contentFit="cover"
-                  onError={() => setImageFailed(true)}
+                  onError={() => onImageError(resultImageUri)}
                 />
               ) : (
                 <View

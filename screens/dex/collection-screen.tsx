@@ -451,9 +451,7 @@ interface OpenSourceCardProps {
 }
 
 function OpenSourceCard({ item, width, isCollected, style, onPress }: OpenSourceCardProps) {
-  const [imageFailed, setImageFailed] = useState(false)
-
-  const { uri: resolvedUrl } = useReferenceImage(
+  const { uri: imageUrl, onImageError } = useReferenceImage(
     {
       commonName: item.commonName,
       scientificName: item.latinName,
@@ -465,11 +463,6 @@ function OpenSourceCard({ item, width, isCollected, style, onPress }: OpenSource
     },
     { screen: 'dex', component: 'OpenSourceCard' },
   )
-  const imageUrl = imageFailed ? null : resolvedUrl
-
-  useEffect(() => {
-    setImageFailed(false)
-  }, [item.id])
 
   const kingdomMeta = KINGDOM[item.kingdom]
 
@@ -490,7 +483,7 @@ function OpenSourceCard({ item, width, isCollected, style, onPress }: OpenSource
             source={{ uri: imageUrl }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
-            onError={() => setImageFailed(true)}
+            onError={() => onImageError(imageUrl)}
           />
         ) : (
           <LinearGradient
