@@ -123,10 +123,16 @@ async function fetchWikipediaPhoto(query: string): Promise<string | null> {
     if (res.ok) {
       const d = (await res.json()) as {
         thumbnail?: { source?: string }
-        originalimage?: { source?: string }
+        originalimage?: { source?: string; width?: number }
       }
       const thumb = d.thumbnail?.source
-      if (thumb) return thumb.replace(/\/\d+px-/, '/800px-')
+      if (thumb) {
+        // Never request a width wider than the source — Wikimedia returns HTTP 400
+        // for an upscaled thumb, which would make the image fail to load.
+        const origWidth = d.originalimage?.width
+        const targetWidth = origWidth ? Math.min(800, origWidth) : 480
+        return thumb.replace(/\/\d+px-/, `/${targetWidth}px-`)
+      }
       const orig = d.originalimage?.source
       if (orig) return orig
     }
