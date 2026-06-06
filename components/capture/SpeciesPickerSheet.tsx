@@ -36,6 +36,7 @@ const ICONIC: Partial<Record<KingdomKey, string>> = {
   plant:     'Plantae',
   tree:      'Plantae',
   flower:    'Plantae',
+  fungi:     'Fungi',
 }
 
 const INAT_KINGDOM_MAP: Record<string, KingdomKey> = {
@@ -48,7 +49,7 @@ const INAT_KINGDOM_MAP: Record<string, KingdomKey> = {
   Arachnida:      'arachnid',
   Mollusca:       'mollusc',
   Plantae:        'plant',
-  Fungi:          'plant',
+  Fungi:          'fungi',
 }
 
 interface InatTaxon {

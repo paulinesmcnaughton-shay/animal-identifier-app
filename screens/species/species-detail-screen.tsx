@@ -118,6 +118,31 @@ export function SpeciesDetailScreen() {
   const hasReferenceImage = (!!heroDisplayUri && !heroFailed) || !!localHeroImage
   const isNeedsId = heroImageResolved && !hasReferenceImage
 
+  useEffect(() => {
+    if (!heroImageResolved) return
+    if (__DEV__) {
+      console.log('REFERENCE IMAGE RESOLVED', {
+        commonName: species.commonName,
+        scientificName: species.latinName,
+        speciesId: id,
+        dexNum: species.dexNumber,
+        taxonId: null,
+        kingdom: species.kingdom,
+        category: isDomesticRoute ? 'domestic' : (species.kingdom ?? 'unknown'),
+        registryImage: !isDomesticRoute ? (heroImageUrl ?? null) : null,
+        domesticImage: isDomesticRoute ? (heroImageUrl ?? null) : null,
+        inatImage: null,
+        wikipediaImage: taxaPhotoUrl ?? null,
+        googleImage: null,
+        aiImage: null,
+        finalUri: localHeroImage ?? heroDisplayUri ?? null,
+        source: heroImageUrl ? (isDomesticRoute ? 'domestic_registry' : 'app_registry') : taxaPhotoUrl ? 'wikipedia' : 'needs_id_placeholder',
+        reason: heroImageUrl ? 'supabase_fetch' : taxaPhotoUrl ? 'useTaxaPhoto_fallback' : 'no_image_found',
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heroImageResolved])
+
   const isLowConfidence = confidence !== null && confidence < 0.7
   const showNeedsIdHint = fromCapture && (isNeedsId || isLowConfidence)
 
@@ -264,7 +289,7 @@ export function SpeciesDetailScreen() {
             <Text style={styles.commonName}>{species.commonName}</Text>
             <Text style={styles.latinName}>{species.latinName}</Text>
 
-            {species.kingdom !== 'plant' && species.kingdom !== 'tree' && species.kingdom !== 'flower' ? (
+            {species.kingdom !== 'plant' && species.kingdom !== 'tree' && species.kingdom !== 'flower' && species.kingdom !== 'fungi' ? (
               <View style={styles.gameStatsWrap}>
                 <SpeciesGameStatsGrid species={species} />
               </View>
@@ -272,6 +297,15 @@ export function SpeciesDetailScreen() {
           </View>
           </View>
         </View>
+
+        {species.kingdom === 'fungi' ? (
+          <View style={styles.fungiWarningBanner}>
+            <Ionicons name="warning-outline" size={16} color="#8B5A00" />
+            <Text style={styles.fungiWarningText}>
+              Do not eat wild mushrooms based on app identification. Some mushrooms are poisonous or dangerous.
+            </Text>
+          </View>
+        ) : null}
 
         <SpeciesDexDetailSections
           species={species}
@@ -708,5 +742,25 @@ const styles = StyleSheet.create({
     fontSize: typeTokens.size.bodySM,
     fontWeight: typeTokens.body.weights.medium,
     color: colors.dim,
+  },
+  fungiWarningBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space[8],
+    marginHorizontal: space[16],
+    marginBottom: space[16],
+    paddingVertical: space[8],
+    paddingHorizontal: space[16],
+    backgroundColor: '#FFF8E1',
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#FFD54F',
+  },
+  fungiWarningText: {
+    flex: 1,
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.medium,
+    color: '#8B5A00',
+    lineHeight: 18,
   },
 })

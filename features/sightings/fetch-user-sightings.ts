@@ -21,6 +21,7 @@ const GRADIENT_BY_KINGDOM: Record<KingdomKey, readonly [string, string]> = {
   plant:  ['#A4DE3A', '#65A30D'],
   tree:   ['#52B788', '#2D6A4F'],
   flower: ['#F9A8D4', '#E879A0'],
+  fungi:  ['#D4A574', '#6D4C41'],
 }
 
 export interface UserSightingRow {
@@ -99,6 +100,32 @@ export async function fetchUserSightings(): Promise<UserSightingRow[] | null> {
   }
 
   return (data ?? []) as UserSightingRow[]
+}
+
+/** Batch-fetches reference_image_url from domestic_species for a set of dex numbers.
+ * Returns a map keyed by dex_number (both with and without leading #). */
+export async function fetchDomesticReferenceImages(
+  dexNumbers: string[],
+): Promise<Record<string, string>> {
+  const supabase = getSupabaseClient()
+  if (!supabase || dexNumbers.length === 0) return {}
+
+  // Normalise: strip leading '#' so the IN query matches the DB format
+  const normalized = [...new Set(dexNumbers.map((n) => (n.startsWith('#') ? n.slice(1) : n)))]
+
+  const { data } = await supabase
+    .from('domestic_species')
+    .select('dex_number, reference_image_url')
+    .in('dex_number', normalized)
+
+  const result: Record<string, string> = {}
+  for (const row of data ?? []) {
+    const url = row.reference_image_url?.trim()
+    if (!url) continue
+    result[row.dex_number] = url
+    result[`#${row.dex_number}`] = url
+  }
+  return result
 }
 
 export async function fetchUserMapSightings(

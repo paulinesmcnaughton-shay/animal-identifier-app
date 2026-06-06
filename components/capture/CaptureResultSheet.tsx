@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { GestureDetector } from 'react-native-gesture-handler'
 import ReAnimated, {
@@ -16,7 +16,7 @@ import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import type { IdentResult } from '@/features/identify/types'
 import { createSheetPanGesture, SHEET_ENTER_TIMING } from '@/lib/draggable-sheet'
 
-export type CaptureResultSheetPhase = 'hidden' | 'loading' | 'success' | 'error' | 'manual'
+export type CaptureResultSheetPhase = 'hidden' | 'loading' | 'success' | 'error' | 'manual' | 'saved'
 
 interface CaptureResultSheetProps {
   phase: CaptureResultSheetPhase
@@ -31,6 +31,7 @@ interface CaptureResultSheetProps {
   onRetake: () => void
   onRetry?: () => void
   onOpenLocationPicker: () => void
+  onReturnToCamera?: () => void
 }
 
 export function CaptureResultSheet({
@@ -46,11 +47,17 @@ export function CaptureResultSheet({
   onRetake,
   onRetry,
   onOpenLocationPicker,
+  onReturnToCamera,
 }: CaptureResultSheetProps) {
   const { height: windowHeight } = useWindowDimensions()
   const [aiInfoVisible, setAiInfoVisible] = useState(false)
   const translateY = useSharedValue(windowHeight)
   const dragStartY = useSharedValue(0)
+
+  const phaseRef = useRef(phase)
+  useEffect(() => {
+    phaseRef.current = phase
+  }, [phase])
 
   const finishRetake = useCallback(() => {
     onRetake()
@@ -60,6 +67,14 @@ export function CaptureResultSheet({
     cancelAnimation(translateY)
     finishRetake()
   }, [finishRetake, translateY])
+
+  const handleDismiss = useCallback(() => {
+    if (phaseRef.current === 'saved') {
+      onReturnToCamera?.()
+    } else {
+      onRetake()
+    }
+  }, [onRetake, onReturnToCamera])
 
   useEffect(() => {
     if (phase === 'hidden' || phase === 'loading') {
@@ -78,7 +93,7 @@ export function CaptureResultSheet({
     maxY: windowHeight,
     restY: 0,
     dismissY: windowHeight,
-    onDismiss: finishRetake,
+    onDismiss: handleDismiss,
   })
 
   const overlayStyle = useAnimatedStyle(() => ({
@@ -119,7 +134,15 @@ export function CaptureResultSheet({
           <View style={styles.handleWrap}>
             <View style={styles.handle} />
           </View>
-          {phase === 'success' ? (
+          {phase === 'saved' ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Return to camera"
+              onPress={() => { cancelAnimation(translateY); onReturnToCamera?.() }}
+              style={({ pressed }) => [styles.retakeButton, pressed && styles.retakeButtonPressed]}>
+              <Ionicons name="close" size={22} color={colors.ink2} />
+            </Pressable>
+          ) : phase === 'success' ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={isPublished ? 'Edit sighting location' : 'Pin and share sighting location'}
@@ -174,6 +197,13 @@ export function CaptureResultSheet({
             </Pressable>
           </Pressable>
         </Modal>
+
+        {phase === 'saved' ? (
+          <>
+            <Text style={styles.savedStatusLabel}>Added to Wild Dex & My Sightings</Text>
+            <PopButton label="Return to Camera" onPress={onReturnToCamera ?? onRetake} />
+          </>
+        ) : null}
 
         {phase === 'error' ? (
           <>
@@ -315,6 +345,13 @@ const styles = StyleSheet.create({
     color: colors.ink,
     letterSpacing: -0.6,
     marginBottom: space[16],
+  },
+  savedStatusLabel: {
+    fontSize: typeTokens.size.body,
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.green,
+    textAlign: 'center',
+    marginBottom: space[24],
   },
   errorBody: {
     fontSize: typeTokens.size.body,

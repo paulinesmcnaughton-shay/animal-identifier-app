@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons'
 import { Image, type ImageSource } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
+import type React from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { NativeViewGestureHandler } from 'react-native-gesture-handler'
 
 import { KingdomBadge } from '@/design/atoms/KingdomBadge'
 import { VerifiedIcon } from '@/components/map/VerifiedIcon'
@@ -34,6 +36,10 @@ interface NearbySpotDetailCardProps {
   showDirections?: boolean
   onBack: () => void
   onTakeMeThere: () => void
+  /** Ref passed from the parent sheet's pan gesture for simultaneousWithExternalGesture. */
+  scrollGestureRef?: React.RefObject<NativeViewGestureHandler | null>
+  /** Called with the scroll Y offset so the parent gate can track position. */
+  onScrollY?: (y: number) => void
 }
 
 export function NearbySpotDetailCard({
@@ -44,9 +50,12 @@ export function NearbySpotDetailCard({
   showDirections = true,
   onBack,
   onTakeMeThere,
+  scrollGestureRef,
+  onScrollY,
 }: NearbySpotDetailCardProps) {
   const { species, guide, remotePhotoUrl, isHeroImageLoading } = useNearbySpotDetail(sighting)
   const localHero = getLocalSpeciesHeroImage(sighting.speciesId ?? sighting.name)
+  // imageFailed is keyed by sighting.id — a failure on one species never bleeds into another.
   const [remoteImageFailed, setRemoteImageFailed] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
 
@@ -54,6 +63,33 @@ export function NearbySpotDetailCard({
     setRemoteImageFailed(false)
     setLightboxOpen(false)
   }, [remotePhotoUrl, sighting.id])
+
+  // Log on open (when sighting changes or component mounts)
+  useEffect(() => {
+    if (__DEV__) {
+      console.log('OPEN DETAIL WITH IMAGE', {
+        id: sighting.id,
+        speciesName: sighting.name,
+        speciesId: sighting.speciesId ?? null,
+        passedImageUri: sighting.previewImageUrl ?? null,
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sighting.id])
+
+  // Log when remotePhotoUrl resolves
+  useEffect(() => {
+    if (__DEV__ && !isHeroImageLoading) {
+      console.log('DETAIL IMAGE RESOLVED', {
+        id: sighting.id,
+        speciesName: sighting.name,
+        speciesId: sighting.speciesId ?? null,
+        imageUri: remotePhotoUrl ?? null,
+        source: localHero ? 'local_hero' : remotePhotoUrl ? 'remote' : 'none',
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remotePhotoUrl, isHeroImageLoading])
 
   const showRemoteHero = Boolean(remotePhotoUrl && !remoteImageFailed)
   const showHeroSpinner = isHeroImageLoading && !localHero && !showRemoteHero
@@ -84,10 +120,13 @@ export function NearbySpotDetailCard({
         </Pressable>
       </View>
 
+      <NativeViewGestureHandler ref={scrollGestureRef}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={onScrollY ? ({ nativeEvent }) => onScrollY(nativeEvent.contentOffset.y) : undefined}>
         <Pressable
           accessibilityRole={canExpandPhoto ? 'button' : undefined}
           accessibilityLabel={
@@ -103,7 +142,19 @@ export function NearbySpotDetailCard({
               source={{ uri: remotePhotoUrl! }}
               style={styles.heroImage}
               contentFit="cover"
-              onError={() => setRemoteImageFailed(true)}
+              onError={(e) => {
+                // Only set local failed state — never mutate shared cache or clear the URL.
+                setRemoteImageFailed(true)
+                if (__DEV__) {
+                  console.log('DETAIL IMAGE FAILED', {
+                    id: sighting.id,
+                    speciesName: sighting.name,
+                    speciesId: sighting.speciesId ?? null,
+                    imageUri: remotePhotoUrl,
+                    error: (e as { error?: string }).error ?? 'unknown',
+                  })
+                }
+              }}
             />
           ) : (
             <LinearGradient
@@ -188,6 +239,7 @@ export function NearbySpotDetailCard({
           )
         ) : null}
       </ScrollView>
+      </NativeViewGestureHandler>
     </View>
   )
 }

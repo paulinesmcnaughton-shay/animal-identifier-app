@@ -132,6 +132,21 @@ const CATEGORY_EXPANSIONS: Record<string, string[]> = {
   shark: ['shark', 'ray', 'skate'],
   dolphin: ['dolphin', 'porpoise', 'delphinus'],
   whale: ['whale', 'orca', 'killer whale', 'sperm whale', 'humpback'],
+  mushroom: [
+    'mushroom', 'fungi', 'fungus', 'toadstool', 'mycelium',
+    'amanita', 'boletus', 'chanterelle', 'oyster mushroom',
+    'shiitake', 'portobello', 'cremini', 'button mushroom',
+    'fly agaric', 'death cap', 'destroying angel', 'morel',
+    'truffle', 'puffball', 'bracket fungus', 'turkey tail',
+    "lion's mane", 'reishi', 'chaga', 'cordyceps', 'mycorrhizal',
+  ],
+  fungi: [
+    'mushroom', 'fungi', 'fungus', 'toadstool', 'mycelium',
+    'amanita', 'boletus', 'chanterelle', 'oyster mushroom',
+    'shiitake', 'portobello', 'cremini', 'button mushroom',
+    'fly agaric', 'death cap', 'morel', 'truffle', 'puffball',
+    'bracket fungus', 'turkey tail', "lion's mane", 'reishi',
+  ],
 }
 
 function resolveExpansions(query: string): string[] | null {

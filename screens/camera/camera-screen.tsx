@@ -136,6 +136,8 @@ export function CameraScreen() {
   const [captureSheetError, setCaptureSheetError] = useState<string | null>(null)
   const [manualOutcome, setManualOutcome] = useState<ManualIdentifyOutcome | null>(null)
   const [isSavingCollection, setIsSavingCollection] = useState(false)
+  const [hasAddedCurrentCapture, setHasAddedCurrentCapture] = useState(false)
+  const [savedSightingId, setSavedSightingId] = useState<string | null>(null)
   const [publishToMap, setPublishToMap] = useState(false)
   const [shareAnonymously, setShareAnonymously] = useState(true)
   const [isPublished, setIsPublished] = useState(false)
@@ -168,6 +170,8 @@ export function CameraScreen() {
     setCaptureError(null)
     setPinnedCoords(null)
     setIsPublished(false)
+    setHasAddedCurrentCapture(false)
+    setSavedSightingId(null)
   }, [clearLockTimer])
 
   const cancelActiveCapture = useCallback(() => {
@@ -234,52 +238,68 @@ export function CameraScreen() {
   }, [])
 
   const handleAddToCollection = useCallback(async () => {
-    if (!captureResult) return
+    console.log('ADD TO COLLECTION PRESSED')
 
-    const speciesId =
-      captureResult.lookupId ?? slugifySpeciesName(captureResult.commonName)
-    const kingdom = (captureResult.kingdom ?? 'mammal') as KingdomKey
-
-    setIsSavingCollection(true)
-    const saveResult = await saveUserSighting({
-      speciesId,
-      speciesName: captureResult.commonName,
-      kingdom,
-      latinName: captureResult.latinName,
-      dexNumber: captureResult.dexNumber,
-      confidence: captureResult.confidence,
-      isDomestic: captureResult.isDomestic,
-      photoUri: capturedPhotoUri,
-      manualLatitude: pinnedCoords?.lat ?? null,
-      manualLongitude: pinnedCoords?.lng ?? null,
-      publishToMap,
-      shareAnonymously: publishToMap ? shareAnonymously : undefined,
-    })
-    setIsSavingCollection(false)
-
-    if (!saveResult.ok) {
-      Alert.alert(
-        'Could not save',
-        saveResult.errorMessage ?? 'Sign in to add finds to your collection.',
-      )
+    if (isSavingCollection) {
+      console.log('already saving, ignored')
       return
     }
 
-    router.push({
-      pathname: '/species/[id]',
-      params: {
-        id: speciesId,
-        name: captureResult.commonName,
+    if (hasAddedCurrentCapture && savedSightingId) {
+      console.log('already added current capture, ignored')
+      console.log('OPEN CONFIRMATION SHEET')
+      setResultSheetPhase('saved')
+      return
+    }
+
+    if (!captureResult) return
+
+    const speciesId = captureResult.lookupId ?? slugifySpeciesName(captureResult.commonName)
+    const kingdom = (captureResult.kingdom ?? 'mammal') as KingdomKey
+
+    console.log('SAVE START')
+    setIsSavingCollection(true)
+
+    try {
+      const saveResult = await saveUserSighting({
+        speciesId,
+        speciesName: captureResult.commonName,
         kingdom,
-        number: captureResult.dexNumber ?? '',
-        confidence: String(captureResult.confidence),
-        ...(captureResult.latinName ? { latin: captureResult.latinName } : {}),
-        ...(captureResult.isDomestic ? { domestic: '1' } : {}),
-        fromCapture: '1',
-        saved: '1',
-      },
-    } as Href)
-  }, [captureResult, capturedPhotoUri])
+        latinName: captureResult.latinName,
+        dexNumber: captureResult.dexNumber,
+        confidence: captureResult.confidence,
+        isDomestic: captureResult.isDomestic,
+        photoUri: capturedPhotoUri,
+        manualLatitude: pinnedCoords?.lat ?? null,
+        manualLongitude: pinnedCoords?.lng ?? null,
+        publishToMap,
+        shareAnonymously: publishToMap ? shareAnonymously : undefined,
+      })
+
+      if (!saveResult.ok) {
+        Alert.alert(
+          'Could not save',
+          saveResult.errorMessage ?? 'Sign in to add finds to your collection.',
+        )
+        return
+      }
+
+      console.log('SAVE SUCCESS', speciesId)
+      setSavedSightingId(speciesId)
+      setHasAddedCurrentCapture(true)
+      console.log('OPEN CONFIRMATION SHEET')
+      setResultSheetPhase('saved')
+    } finally {
+      setIsSavingCollection(false)
+    }
+  }, [captureResult, capturedPhotoUri, hasAddedCurrentCapture, isSavingCollection, pinnedCoords, publishToMap, savedSightingId, shareAnonymously])
+
+  const handleReturnToCamera = useCallback(() => {
+    console.log('RETURN TO CAMERA PRESSED')
+    console.log('CLOSING SHEET')
+    console.log('CAMERA STATE RESET')
+    dismissResultSheet()
+  }, [dismissResultSheet])
 
   const handleChooseSpecies = useCallback(() => {
     const uri = capturedPhotoUri
@@ -656,6 +676,7 @@ export function CameraScreen() {
         onRetake={dismissResultSheet}
         onRetry={handleRetryIdentification}
         onOpenLocationPicker={() => setShowLocationPicker(true)}
+        onReturnToCamera={handleReturnToCamera}
       />
 
       <LocationPickerModal

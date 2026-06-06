@@ -1,6 +1,6 @@
 import { slugifySpeciesName } from '@/data/species-catalog'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
-import { kingdomKeyFromTaxonomy, isFungiTaxonomy } from '@/features/species/kingdom-from-taxonomy'
+import { kingdomKeyFromTaxonomy } from '@/features/species/kingdom-from-taxonomy'
 import type { PickerKingdomFilter } from '@/features/species/picker-kingdom-tabs'
 import { matchesPickerKingdom } from '@/features/species/picker-kingdom-tabs'
 import { getSupabaseClient } from '@/lib/supabase/client'
@@ -27,7 +27,7 @@ const INAT_ICONIC_MAP: Record<string, KingdomKey> = {
   Arachnida: 'arachnid',
   Mollusca: 'mollusc',
   Plantae: 'plant',
-  Fungi: 'plant',
+  Fungi: 'fungi',
 }
 
 interface InatTaxon {
@@ -47,6 +47,13 @@ function mapDomesticRow(row: {
   reference_image_url: string | null
 }): PickerSpeciesItem {
   const taxonomyKingdom = row.kingdom
+  if (__DEV__) {
+    console.log('RAW RESULT IMAGE FIELDS (domestic)', {
+      name: row.common_name,
+      dexNum: row.dex_number,
+      reference_image_url: row.reference_image_url,
+    })
+  }
   return {
     id: row.id,
     commonName: row.common_name,
@@ -65,13 +72,25 @@ function mapInatTaxon(taxon: InatTaxon): PickerSpeciesItem {
   const taxonomyKingdom = iconic
   const kingdom = INAT_ICONIC_MAP[iconic] ?? 'mammal'
   const commonName = taxon.preferred_common_name?.trim() || taxon.name?.trim() || 'Unknown'
+  const imageUrl = taxon.default_photo?.medium_url ?? taxon.default_photo?.square_url ?? null
+  if (__DEV__) {
+    console.log('RAW RESULT IMAGE FIELDS (inat)', {
+      name: commonName,
+      taxonId: taxon.id,
+      iconic_taxon_name: iconic,
+      kingdom,
+      medium_url: taxon.default_photo?.medium_url ?? null,
+      square_url: taxon.default_photo?.square_url ?? null,
+      imageUrl,
+    })
+  }
   return {
     id: `inat-${taxon.id}`,
     commonName,
     latinName: taxon.name ?? '',
-    kingdom: isFungiTaxonomy(iconic) ? 'plant' : kingdom,
+    kingdom,
     taxonomyKingdom,
-    imageUrl: taxon.default_photo?.medium_url ?? taxon.default_photo?.square_url ?? null,
+    imageUrl,
     isDomestic: false,
     gradient: ['#A8D8EA', '#5BC0EB'],
   }

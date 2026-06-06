@@ -77,7 +77,6 @@ import {
 import { useDistanceUnit } from '@/features/settings/use-distance-unit'
 import type { NearbyMapSighting } from '@/features/map/map-sighting'
 import { categoryFilterSightings } from '@/features/map/sightings-category-search'
-import { fetchWikipediaImageUrl } from '@/features/species/fetch-wikipedia-image'
 import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
 import { useUserSightingsData } from '@/features/sightings/use-user-sightings-data'
 import { useAuth } from '@/lib/auth/auth-context'
@@ -381,6 +380,17 @@ export function MapScreenContent() {
   const [walkDirectionsScrollEnabled, setWalkDirectionsScrollEnabled] = useState(false)
   const [sightingsListScrollEnabled, setSightingsListScrollEnabled] = useState(false)
 
+  // Refs for NativeViewGestureHandler wrappers around each scrollable area inside
+  // the sheet. Added to simultaneousWithExternalGesture so scroll and pan co-exist.
+  const sightingsListRef = useRef<NativeViewGestureHandler>(null)
+  const nearbyListRef = useRef<NativeViewGestureHandler>(null)
+  const detailScrollRef = useRef<NativeViewGestureHandler>(null)
+  // Tracks whether the current gesture started inside the handle/top-strip area.
+  // Only gestures that start in the handle zone are allowed to move the sheet —
+  // this prevents content-area scrolling from accidentally dismissing the sheet.
+  const gestureStartedInHandle = useSharedValue(false)
+  const listScrollY = useSharedValue(0)
+
   useAnimatedReaction(
     () => translateY.value < 12,
     (isExpanded) => {
@@ -389,6 +399,12 @@ export function MapScreenContent() {
     },
     [translateY],
   )
+
+  // Reset list scroll tracking whenever the visible sheet changes so a previously
+  // scrolled list doesn't block sheet dismiss on the next interaction.
+  useEffect(() => {
+    listScrollY.value = 0
+  }, [viewMode, selectedSighting, listScrollY])
 
   const sheetSnapY = useMemo((): number => {
     if (isWalkPreview) return snapWalkPreview
@@ -407,12 +423,23 @@ export function MapScreenContent() {
     () =>
       Gesture.Pan()
         .enabled(sheetExpandable)
+        // Allow the pan gesture and inner scroll gestures to run simultaneously.
+        // onUpdate gates movement so only handle-area drags actually move the sheet.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .simultaneousWithExternalGesture(sightingsListRef as React.RefObject<any>, nearbyListRef as React.RefObject<any>, detailScrollRef as React.RefObject<any>)
         .activeOffsetY([-PAN_ACTIVE_OFFSET_Y, PAN_ACTIVE_OFFSET_Y])
         .failOffsetX([...PAN_FAIL_OFFSET_X])
-        .onStart(() => {
+        .onStart((e) => {
           context.value = translateY.value
+          // e.y is relative to the GestureDetector's view (top of the bottom sheet).
+          // The handle pill sits in the first ~56px — only allow sheet movement from there.
+          gestureStartedInHandle.value = e.y < 56
         })
         .onUpdate((e) => {
+          // If the touch started outside the handle zone (i.e. in scrollable content),
+          // let the inner scroll handle it — do not move the sheet at all.
+          if (!gestureStartedInHandle.value) return
+
           const isWalkPreviewDrag = walkSessionRef.current?.phase === 'preview'
           const maxDragY = isWalkPreviewDrag
             ? snapWalkPreviewCollapsedRef.current
@@ -461,7 +488,7 @@ export function MapScreenContent() {
           }
           translateY.value = withSpring(snapCollapsed, SPRING)
         }),
-    [context, dismissSheetDetail, sheetExpandable, snapCollapsed, snapExpandedY, translateY],
+    [context, dismissSheetDetail, gestureStartedInHandle, listScrollY, sheetExpandable, snapCollapsed, snapExpandedY, translateY],
   )
 
   const handleClearSheetSelection = useCallback(() => {
@@ -1165,6 +1192,10 @@ export function MapScreenContent() {
                 onClearSelection={handleClearSheetSelection}
                 searchQuery={normalizedQuery}
                 onExpandSheet={handleExpandSightingsSheet}
+                listGestureRef={sightingsListRef}
+                onListScroll={(y) => { listScrollY.value = y }}
+                detailScrollGestureRef={detailScrollRef}
+                onDetailScroll={(y) => { listScrollY.value = y }}
               />
             ) : (
               <NearbySheet
@@ -1180,6 +1211,11 @@ export function MapScreenContent() {
                 onClearSelection={handleClearSheetSelection}
                 onTakeMeThere={handleOpenWalkPreview}
                 onExpandSheet={handleExpandSightingsSheet}
+                listScrollEnabled={sightingsListScrollEnabled}
+                listGestureRef={nearbyListRef}
+                onListScroll={(y) => { listScrollY.value = y }}
+                detailScrollGestureRef={detailScrollRef}
+                onDetailScroll={(y) => { listScrollY.value = y }}
               />
             )}
           </View>
@@ -1205,6 +1241,10 @@ interface SightingsSheetProps {
   onSelectSighting: (sighting: NearbyMapSighting) => void
   onClearSelection: () => void
   onExpandSheet: () => void
+  listGestureRef: React.RefObject<NativeViewGestureHandler | null>
+  onListScroll: (y: number) => void
+  detailScrollGestureRef: React.RefObject<NativeViewGestureHandler | null>
+  onDetailScroll: (y: number) => void
 }
 
 function SightingsSheet({
@@ -1216,6 +1256,10 @@ function SightingsSheet({
   onSelectSighting,
   onClearSelection,
   onExpandSheet,
+  listGestureRef,
+  onListScroll,
+  detailScrollGestureRef,
+  onDetailScroll,
 }: SightingsSheetProps) {
   const [shownCount, setShownCount] = useState(SIGHTINGS_INITIAL_SHOWN)
   const prevItemCountRef = useRef(items.length)
@@ -1239,6 +1283,8 @@ function SightingsSheet({
           showDirections={false}
           onBack={onClearSelection}
           onTakeMeThere={() => {}}
+          scrollGestureRef={detailScrollGestureRef}
+          onScrollY={onDetailScroll}
         />
       </View>
     )
@@ -1266,51 +1312,55 @@ function SightingsSheet({
       <View style={styles.handle} />
       <Text style={styles.sheetTitle}>My Sightings</Text>
       <Text style={[styles.sheetSub, { marginBottom: space[16] }]}>{subtitle}</Text>
-      <FlatList
-        data={visibleItems}
-        keyExtractor={(item) => item.id}
-        scrollEnabled={listScrollEnabled}
-        style={styles.nearbyList}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={null}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        ListFooterComponent={
-          hasMore ? (
+      <NativeViewGestureHandler ref={listGestureRef}>
+        <FlatList
+          data={visibleItems}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={listScrollEnabled}
+          style={styles.nearbyList}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={({ nativeEvent }) => onListScroll(nativeEvent.contentOffset.y)}
+          ListEmptyComponent={null}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ListFooterComponent={
+            hasMore ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Show ${Math.min(SIGHTINGS_PAGE_SIZE, remaining)} more sightings`}
+                onPress={handleShowMore}
+                style={({ pressed }) => [styles.showMoreBtn, pressed && styles.showMorePressed]}>
+                <Text style={styles.showMoreLabel}>
+                  Show more ({remaining} remaining)
+                </Text>
+                <Ionicons name="chevron-down" size={14} color={colors.greenLight} />
+              </Pressable>
+            ) : null
+          }
+          renderItem={({ item }) => (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Show ${Math.min(SIGHTINGS_PAGE_SIZE, remaining)} more sightings`}
-              onPress={handleShowMore}
-              style={({ pressed }) => [styles.showMoreBtn, pressed && styles.showMorePressed]}>
-              <Text style={styles.showMoreLabel}>
-                Show more ({remaining} remaining)
-              </Text>
-              <Ionicons name="chevron-down" size={14} color={colors.greenLight} />
-            </Pressable>
-          ) : null
-        }
-        renderItem={({ item }) => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`View ${item.name}`}
-            onPress={() => onSelectSighting(item)}
-            style={({ pressed }) => [styles.nearbyRowPressable, pressed && styles.nearbyRowPressed]}>
-            <View style={styles.nearbyRow}>
-              <View style={styles.nearbyMeta}>
-                <View style={styles.nearbyNameRow}>
-                  <NearbySpeciesName name={item.name} style={styles.nearbyName} />
-                  {item.isNew && (
-                    <View style={styles.newTag}>
-                      <Text style={styles.newTagText}>NEW</Text>
-                    </View>
-                  )}
+              accessibilityLabel={`View ${item.name}`}
+              onPress={() => onSelectSighting(item)}
+              style={({ pressed }) => [styles.nearbyRowPressable, pressed && styles.nearbyRowPressed]}>
+              <View style={styles.nearbyRow}>
+                <View style={styles.nearbyMeta}>
+                  <View style={styles.nearbyNameRow}>
+                    <NearbySpeciesName name={item.name} style={styles.nearbyName} />
+                    {item.isNew && (
+                      <View style={styles.newTag}>
+                        <Text style={styles.newTagText}>NEW</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.nearbyDist}>{item.date}</Text>
                 </View>
-                <Text style={styles.nearbyDist}>{item.date}</Text>
+                <KingdomBadge kind={item.kingdom} />
               </View>
-              <KingdomBadge kind={item.kingdom} />
-            </View>
-          </Pressable>
-        )}
-      />
+            </Pressable>
+          )}
+        />
+      </NativeViewGestureHandler>
     </View>
   )
 }
@@ -1328,6 +1378,11 @@ interface NearbySheetProps {
   onClearSelection: () => void
   onTakeMeThere: (sighting: NearbyMapSighting) => void
   onExpandSheet: () => void
+  listScrollEnabled: boolean
+  listGestureRef: React.RefObject<NativeViewGestureHandler | null>
+  onListScroll: (y: number) => void
+  detailScrollGestureRef: React.RefObject<NativeViewGestureHandler | null>
+  onDetailScroll: (y: number) => void
 }
 
 function nearbyListSubtitle(item: NearbyMapSighting, distanceUnit: DistanceUnit): string {
@@ -1382,6 +1437,11 @@ function NearbySheet({
   onClearSelection,
   onTakeMeThere,
   onExpandSheet,
+  listScrollEnabled,
+  listGestureRef,
+  onListScroll,
+  detailScrollGestureRef,
+  onDetailScroll,
 }: NearbySheetProps) {
   const [shownCount, setShownCount] = useState(SIGHTINGS_INITIAL_SHOWN)
   const prevItemCountRef = useRef(items.length)
@@ -1416,6 +1476,8 @@ function NearbySheet({
           canTakeMeThere={canGuideToSighting(selectedSighting)}
           onBack={onClearSelection}
           onTakeMeThere={() => onTakeMeThere(selectedSighting)}
+          scrollGestureRef={detailScrollGestureRef}
+          onScrollY={onDetailScroll}
         />
       </View>
     )
@@ -1439,57 +1501,73 @@ function NearbySheet({
           ? "Let's explore what is near you and start collecting."
           : 'Waiting for GPS…'}
       </Text>
-      <FlatList
-        data={visibleItems}
-        keyExtractor={(item) => item.id}
-        scrollEnabled
-        style={styles.nearbyList}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={<Text style={styles.sheetSub}>{emptyMessage}</Text>}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        ListFooterComponent={
-          hasMore ? (
+      <NativeViewGestureHandler ref={listGestureRef}>
+        <FlatList
+          data={visibleItems}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={listScrollEnabled}
+          style={styles.nearbyList}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={({ nativeEvent }) => onListScroll(nativeEvent.contentOffset.y)}
+          ListEmptyComponent={<Text style={styles.sheetSub}>{emptyMessage}</Text>}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ListFooterComponent={
+            hasMore ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Show ${Math.min(SIGHTINGS_PAGE_SIZE, remaining)} more nearby species`}
+                onPress={handleShowMore}
+                style={({ pressed }) => [styles.showMoreBtn, pressed && styles.showMorePressed]}>
+                <Text style={styles.showMoreLabel}>
+                  Show more ({remaining} remaining)
+                </Text>
+                <Ionicons name="chevron-down" size={14} color={colors.greenLight} />
+              </Pressable>
+            ) : null
+          }
+          renderItem={({ item }) => (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Show ${Math.min(SIGHTINGS_PAGE_SIZE, remaining)} more nearby species`}
-              onPress={handleShowMore}
-              style={({ pressed }) => [styles.showMoreBtn, pressed && styles.showMorePressed]}>
-              <Text style={styles.showMoreLabel}>
-                Show more ({remaining} remaining)
-              </Text>
-              <Ionicons name="chevron-down" size={14} color={colors.greenLight} />
-            </Pressable>
-          ) : null
-        }
-        renderItem={({ item }) => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`View ${item.name} field guide`}
-            onPress={() => onSelectSighting(item)}
-            style={({ pressed }) => [styles.nearbyRowPressable, pressed && styles.nearbyRowPressed]}>
-            <View style={styles.nearbyRow}>
-              <RowThumbnail
-                previewImageUrl={item.previewImageUrl}
-                name={item.name}
-                scientificName={item.scientificName}
-                kingdom={item.kingdom}
-              />
-              <View style={styles.nearbyMeta}>
-                <View style={styles.nearbyNameRow}>
-                  <NearbySpeciesName name={item.name} style={styles.nearbyName} />
-                  {item.isNew && (
-                    <View style={styles.newTag}>
-                      <Text style={styles.newTagText}>NEW</Text>
-                    </View>
-                  )}
+              accessibilityLabel={`View ${item.name} field guide`}
+              onPress={() => {
+                if (__DEV__) {
+                  console.log('NEARBY CARD IMAGE BEFORE OPEN', {
+                    id: item.id,
+                    speciesName: item.name,
+                    speciesId: item.speciesId ?? null,
+                    previewImageUrl: item.previewImageUrl ?? null,
+                  })
+                }
+                onSelectSighting(item)
+              }}
+              style={({ pressed }) => [styles.nearbyRowPressable, pressed && styles.nearbyRowPressed]}>
+              <View style={styles.nearbyRow}>
+                <RowThumbnail
+                  previewImageUrl={item.previewImageUrl}
+                  name={item.name}
+                  scientificName={item.scientificName}
+                  kingdom={item.kingdom}
+                  sightingId={item.id}
+                  speciesId={item.speciesId}
+                />
+                <View style={styles.nearbyMeta}>
+                  <View style={styles.nearbyNameRow}>
+                    <NearbySpeciesName name={item.name} style={styles.nearbyName} />
+                    {item.isNew && (
+                      <View style={styles.newTag}>
+                        <Text style={styles.newTagText}>NEW</Text>
+                      </View>
+                    )}
+                  </View>
+                  <NearbyDistLine item={item} distanceUnit={distanceUnit} />
                 </View>
-                <NearbyDistLine item={item} distanceUnit={distanceUnit} />
+                <KingdomBadge kind={item.kingdom} />
               </View>
-              <KingdomBadge kind={item.kingdom} />
-            </View>
-          </Pressable>
-        )}
-      />
+            </Pressable>
+          )}
+        />
+      </NativeViewGestureHandler>
     </View>
   )
 }
@@ -1501,35 +1579,45 @@ function RowThumbnail({
   name,
   scientificName,
   kingdom,
+  sightingId,
+  speciesId,
 }: {
   previewImageUrl: string | null | undefined
   name: string
   scientificName?: string | null
   kingdom: string
+  sightingId?: string
+  speciesId?: string | null
 }) {
   const tint = KINGDOM[kingdom as KingdomKey]?.bg ?? colors.hairline
+
+  // useTaxaPhoto already tries iNat → Wikipedia → Wikimedia and caches the result
+  // persistently across unmounts. Do NOT add a separate local wikiUrl state here —
+  // local state resets on unmount (e.g. when the detail card opens) causing the image
+  // to flash or disappear when the user returns to the list.
   const { url: taxaUrl } = useTaxaPhoto(
     previewImageUrl ? null : name,
     kingdom as KingdomKey,
     previewImageUrl ? null : scientificName,
   )
-  const [wikiUrl, setWikiUrl] = useState<string | null>(null)
+
+  // Stable image URL: prefer previewImageUrl (direct from sighting), then cached taxa lookup.
+  const imageUrl = previewImageUrl?.trim() || taxaUrl || null
 
   useEffect(() => {
-    if (previewImageUrl) {
-      setWikiUrl(null)
-      return
+    if (__DEV__) {
+      // Fires on mount (initial load) and on remount (return from detail).
+      console.log('NEARBY CARD IMAGE', {
+        sightingId: sightingId ?? null,
+        speciesName: name,
+        speciesId: speciesId ?? null,
+        previewImageUrl: previewImageUrl ?? null,
+        taxaUrl: taxaUrl ?? null,
+        imageUri: imageUrl,
+      })
     }
-    let cancelled = false
-    void fetchWikipediaImageUrl(name).then((url) => {
-      if (!cancelled) setWikiUrl(url)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [name, previewImageUrl])
-
-  const imageUrl = previewImageUrl ?? taxaUrl ?? wikiUrl
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageUrl])
 
   return (
     <View style={[styles.rowThumb, { backgroundColor: tint }]}>

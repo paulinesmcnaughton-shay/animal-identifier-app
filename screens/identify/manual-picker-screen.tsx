@@ -204,6 +204,15 @@ export function ManualPickerScreen() {
             autoCorrect={false}
             returnKeyType="search"
           />
+          {query.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              onPress={() => setQuery('')}
+              hitSlop={8}>
+              <Ionicons name="close-circle" size={18} color={colors.dim} />
+            </Pressable>
+          ) : null}
         </View>
       </View>
     ),
@@ -260,7 +269,7 @@ export function ManualPickerScreen() {
           disabled={isSavingUnknown}
           style={({ pressed }) => [styles.notSureButton, pressed && styles.notSurePressed]}>
           {isSavingUnknown ? (
-            <ActivityIndicator color={colors.ink2} />
+            <ActivityIndicator color={colors.green} />
           ) : (
             <Text style={styles.notSureLabel}>I'm not sure</Text>
           )}
@@ -284,6 +293,21 @@ function PickerSpeciesCard({ item, width, onPress }: PickerSpeciesCardProps) {
   )
   const imageUrl = item.imageUrl ?? taxaUrl
 
+  if (__DEV__) {
+    console.log('CARD RECEIVED IMAGE', {
+      name: item.commonName,
+      kingdom: item.kingdom,
+      isDomestic: item.isDomestic,
+      item_imageUrl: item.imageUrl,
+    })
+    console.log('CARD RENDER IMAGE URI', {
+      name: item.commonName,
+      taxaUrl,
+      finalImageUrl: imageUrl,
+      source: item.imageUrl ? 'registry' : taxaUrl ? 'useTaxaPhoto' : 'none',
+    })
+  }
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -292,7 +316,20 @@ function PickerSpeciesCard({ item, width, onPress }: PickerSpeciesCardProps) {
       style={({ pressed }) => [styles.card, { width }, pressed && styles.cardPressed]}>
       <View style={styles.cardArt}>
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <Image
+            source={{ uri: imageUrl }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            onError={(e) => {
+              if (__DEV__) {
+                console.log('IMAGE LOAD ERROR', {
+                  name: item.commonName,
+                  uri: imageUrl,
+                  error: e.error ?? 'unknown',
+                })
+              }
+            }}
+          />
         ) : (
           <LinearGradient
             colors={[...item.gradient]}
@@ -489,17 +526,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
-    borderRadius: radius.md,
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hairline,
   },
   notSurePressed: {
-    opacity: 0.88,
+    opacity: 0.6,
   },
   notSureLabel: {
     fontSize: typeTokens.size.body,
     fontWeight: typeTokens.body.weights.bold,
-    color: colors.ink2,
+    color: colors.green,
+    textDecorationLine: 'underline',
   },
 })

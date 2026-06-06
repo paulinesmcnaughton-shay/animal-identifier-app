@@ -7,6 +7,7 @@ import { userSightingToNearbyMapPin } from '@/features/map/map-sighting-adapters
 import { useUserLocation } from '@/features/map/use-user-location'
 import {
   buildDexEntriesFromSightings,
+  fetchDomesticReferenceImages,
   fetchUserSightings,
   type UserSightingRow,
 } from '@/features/sightings/fetch-user-sightings'
@@ -27,6 +28,7 @@ export function useUserSightingsData(): UserSightingsDataState {
   const { coordinate: userCoord } = useUserLocation()
   const [rows, setRows] = useState<UserSightingRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [domesticRefImages, setDomesticRefImages] = useState<Record<string, string>>({})
 
   const reload = useCallback(async () => {
     if (!isAuthenticated || !isSupabaseConfigured()) {
@@ -91,7 +93,31 @@ export function useUserSightingsData(): UserSightingsDataState {
     [rows, userCoord],
   )
 
-  const dexEntries = useMemo(() => buildDexEntriesFromSightings(rows), [rows])
+  const baseDexEntries = useMemo(() => buildDexEntriesFromSightings(rows), [rows])
+
+  // Enrich domestic entries with reference images from the domestic_species registry.
+  // Runs whenever the base entry list changes (new sighting saved or deleted).
+  useEffect(() => {
+    const domesticNums = baseDexEntries
+      .map((e) => e.number)
+      .filter((n) => /^#?D\d/.test(n))
+
+    if (domesticNums.length === 0) {
+      setDomesticRefImages({})
+      return
+    }
+
+    void fetchDomesticReferenceImages(domesticNums).then(setDomesticRefImages)
+  }, [baseDexEntries])
+
+  const dexEntries = useMemo(
+    () =>
+      baseDexEntries.map((entry) => ({
+        ...entry,
+        referenceImageUrl: domesticRefImages[entry.number] ?? null,
+      })),
+    [baseDexEntries, domesticRefImages],
+  )
 
   return {
     mapPins,

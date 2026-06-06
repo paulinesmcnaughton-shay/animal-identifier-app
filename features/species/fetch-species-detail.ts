@@ -38,6 +38,7 @@ const KINGDOM_KEYS: KingdomKey[] = [
   'plant',
   'tree',
   'flower',
+  'fungi',
 ]
 
 const RARITIES: SpeciesRarity[] = ['Common', 'Uncommon', 'Rare', 'Very Rare']
@@ -175,7 +176,9 @@ function shouldQueryDomestic(lookupId: string, isDomestic?: boolean): boolean {
 const PLANT_KINGDOMS = new Set<KingdomKey>(['plant', 'tree', 'flower'])
 
 function defaultTaxonomyKingdom(kingdom: KingdomKey): string {
-  return PLANT_KINGDOMS.has(kingdom) ? 'Plantae' : 'Animalia'
+  if (PLANT_KINGDOMS.has(kingdom)) return 'Plantae'
+  if (kingdom === 'fungi') return 'Fungi'
+  return 'Animalia'
 }
 
 function wildDetailShell(
@@ -205,7 +208,7 @@ function wildDetailShell(
     vitals: [],
     taxonomy: {
       kingdom: defaultTaxonomyKingdom(kingdom),
-      phylum: PLANT_KINGDOMS.has(kingdom) ? 'Tracheophyta' : 'Unknown',
+      phylum: PLANT_KINGDOMS.has(kingdom) ? 'Tracheophyta' : kingdom === 'fungi' ? 'Unknown' : 'Unknown',
       class: 'Unknown',
       order: 'Unknown',
       family: 'Unknown',

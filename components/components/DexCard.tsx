@@ -28,6 +28,8 @@ export interface DexCardSpecies {
   gradient: readonly [string, string]
   cornerBadge?: 'NEW' | 'RARE'
   showFootprint?: boolean
+  /** Pre-resolved reference image from domestic_species registry. Skips useTaxaPhoto when set. */
+  referenceImageUrl?: string | null
 }
 
 interface DexCardProps {
@@ -47,10 +49,35 @@ export function DexCard({
   isDeleteMode = false,
   onDeletePress,
 }: DexCardProps) {
-  const { number, name, date, gradient, cornerBadge, kingdom } = species
+  const { number, name, date, gradient, cornerBadge, kingdom, referenceImageUrl } = species
   const [photoFailed, setPhotoFailed] = useState(false)
 
-  const { url: displayUri } = useTaxaPhoto(name, kingdom)
+  // Skip the iNat/Wikipedia network lookup when the registry already supplies a URL.
+  // This prevents domestic breed names like "Bengal" from resolving to wild-species photos.
+  const { url: taxaPhotoUrl } = useTaxaPhoto(referenceImageUrl ? null : name, kingdom)
+  const displayUri = referenceImageUrl?.trim() || taxaPhotoUrl || null
+
+  if (__DEV__) {
+    const isDomestic = /^#?D\d/.test(number)
+    console.log('REFERENCE IMAGE RESOLVED', {
+      commonName: name,
+      scientificName: null,
+      speciesId: species.id,
+      dexNum: number,
+      taxonId: null,
+      kingdom,
+      category: isDomestic ? 'domestic' : (kingdom ?? 'unknown'),
+      registryImage: !isDomestic ? null : null,
+      domesticImage: isDomestic ? (referenceImageUrl ?? null) : null,
+      inatImage: !referenceImageUrl ? (taxaPhotoUrl ?? null) : null,
+      wikipediaImage: null,
+      googleImage: null,
+      aiImage: null,
+      finalUri: displayUri,
+      source: referenceImageUrl ? 'domestic_registry' : taxaPhotoUrl ? 'inaturalist' : 'needs_id_placeholder',
+      reason: referenceImageUrl ? 'pre_resolved_registry' : taxaPhotoUrl ? 'useTaxaPhoto_fallback' : 'no_image_found',
+    })
+  }
 
   useEffect(() => {
     setPhotoFailed(false)

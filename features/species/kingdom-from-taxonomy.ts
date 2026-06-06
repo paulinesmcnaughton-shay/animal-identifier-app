@@ -32,12 +32,18 @@ const CLASS_TO_KINGDOM: Record<string, KingdomKey> = {
   mollusc: 'mollusc',
   plantae: 'plant',
   plant: 'plant',
+  fungi: 'fungi',
+  fungus: 'fungi',
+  basidiomycota: 'fungi',
+  ascomycota: 'fungi',
+  mushroom: 'fungi',
 }
 
 export function kingdomKeyFromTaxonomy(value: string | null | undefined): KingdomKey {
   if (!value) return 'mammal'
   const normalized = value.trim().toLowerCase()
-  if (normalized.includes('fung')) return 'plant'
+  // Fungi must resolve before plant — some systems list fungi under Plantae but they are distinct
+  if (normalized.includes('fung') || normalized.includes('basidiomyc') || normalized.includes('ascomyc') || normalized.includes('mycel')) return 'fungi'
   if (normalized.includes('plant')) return 'plant'
   if (normalized.includes('aves') || normalized === 'bird') return 'bird'
   if (normalized.includes('insect')) return 'insect'
