@@ -739,11 +739,17 @@ const styles = StyleSheet.create({
   osChipsWrap: {
     marginHorizontal: -H_PAD,
     marginBottom: space[8],
+    // Size the row to its chips — without this the horizontal ScrollView stretches
+    // to fill the flex:1 column and the chips become full-height bars.
+    flexGrow: 0,
+    flexShrink: 0,
   },
   osChipsScroll: {
     paddingHorizontal: H_PAD,
     gap: space[8],
     paddingVertical: space[4],
+    // Chips take their intrinsic (padding-based) height instead of stretching.
+    alignItems: 'center',
   },
   osGrid: {
     flex: 1,
