@@ -8,7 +8,7 @@ import {
   type ReferenceImageInput,
   type ReferenceImageSource,
 } from '@/features/species/resolve-reference-image'
-import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
+import { useStoredReferenceImage } from '@/features/species/fetch-stored-reference-image'
 
 export interface UseReferenceImageResult {
   /** The reference image to display, or null → caller renders its gradient/placeholder. */
@@ -63,33 +63,35 @@ export function useReferenceImage(
     }
   }, [identityKey])
 
-  // 1-3: synchronous, instant — no flash, no network. A pre-resolved URL that has
-  // already failed to load is skipped so we fall through to the external lookup.
+  // 1-3: synchronous, instant — a known-good URL we already hold (DB/domestic/AI).
+  // Shown immediately so there's no blank while the owned copy resolves. A URL that
+  // has already failed to load is skipped so we escalate to the resolver.
   const preResolvedRaw = pickPreResolvedImage(input)
   const preResolved = preResolvedRaw && !failedUris.has(preResolvedRaw.uri) ? preResolvedRaw : null
-  const needsExternal = !preResolved
 
-  // 4: external lookup. The hook is ALWAYS called (stable hook order); when a
-  // pre-resolved URL exists we pass null so it short-circuits to a no-op.
-  // Identity (species_id/dex/taxon/category) keeps same-name species distinct.
-  const { url: taxaPhotoUrl, isResolving, source: externalSource } = useTaxaPhoto(
-    needsExternal ? input.commonName : null,
-    input.kingdom,
-    needsExternal ? input.scientificName : null,
-    needsExternal ? identityKey : null,
-  )
-  const externalUri = taxaPhotoUrl && !failedUris.has(taxaPhotoUrl) ? taxaPhotoUrl : null
+  // 4: owned image via the resolve-species-image edge function (DB → domestic →
+  // iNat → Wikipedia → Wikimedia → Google, verified + stored to our CDN). The hook
+  // is ALWAYS called; we only activate it (pass identity) when we have no working
+  // pre-resolved URL — i.e. nothing yet, or the pre-resolved one just failed. This
+  // self-heals broken/missing URLs without calling the function for cards that
+  // already display fine.
+  const needsStored = !preResolved
+  const storedInput: ReferenceImageInput = needsStored
+    ? input
+    : { ...input, commonName: '', scientificName: null }
+  const { uri: storedRaw, source: storedSource, isResolving } = useStoredReferenceImage(storedInput)
+  const storedUri = storedRaw && !failedUris.has(storedRaw) ? storedRaw : null
 
-  const uri = preResolved?.uri ?? externalUri
+  const uri = preResolved?.uri ?? storedUri
   const source: ReferenceImageSource | null = preResolved
     ? preResolved.source
-    : externalUri
-      ? externalSource ?? 'inaturalist'
+    : storedUri
+      ? storedSource ?? 'database'
       : isResolving
         ? null
         : 'needs_id_placeholder'
 
-  useReferenceImagePipelineLog({ input, debug, preResolvedSource: preResolved?.source ?? null, taxaPhotoUrl: externalUri, externalSource, uri, source, isResolving })
+  useReferenceImagePipelineLog({ input, debug, preResolvedSource: preResolved?.source ?? null, storedUri, storedSource, uri, source, isResolving })
 
   return { uri, source, isResolving, onImageError }
 }
@@ -100,15 +102,15 @@ interface PipelineLogArgs {
   input: ReferenceImageInput
   debug?: ReferenceImageDebugContext
   preResolvedSource: ReferenceImageSource | null
-  taxaPhotoUrl: string | null
-  externalSource: ReferenceImageSource | null
+  storedUri: string | null
+  storedSource: ReferenceImageSource | null
   uri: string | null
   source: ReferenceImageSource | null
   isResolving: boolean
 }
 
 function useReferenceImagePipelineLog(args: PipelineLogArgs): void {
-  const { input, debug, preResolvedSource, taxaPhotoUrl, externalSource, uri, source, isResolving } = args
+  const { input, debug, preResolvedSource, storedUri, storedSource, uri, source, isResolving } = args
   // Only log once per settled (uri, source) pair to avoid render spam.
   const lastLoggedRef = useRef<string>('')
 
@@ -131,17 +133,19 @@ function useReferenceImagePipelineLog(args: PipelineLogArgs): void {
       category: referenceCategory(input),
       // Reference resolver NEVER sees the user's sighting photo — always null here.
       userPhotoUri: null,
-      databaseImage: preResolvedSource === 'database' ? input.appRegistryImageUrl ?? null : null,
-      domesticRegistryImage: preResolvedSource === 'domestic_registry' ? input.domesticRegistryImageUrl ?? null : null,
-      inaturalistImage: externalSource === 'inaturalist' ? taxaPhotoUrl : null,
-      wikipediaImage: externalSource === 'wikipedia' || externalSource === 'wikimedia' ? taxaPhotoUrl : null,
-      googleImage: externalSource === 'google' ? taxaPhotoUrl : null,
+      databaseImage: preResolvedSource === 'database' ? input.appRegistryImageUrl ?? null : storedSource === 'database' ? storedUri : null,
+      domesticRegistryImage: preResolvedSource === 'domestic_registry' ? input.domesticRegistryImageUrl ?? null : storedSource === 'domestic_registry' ? storedUri : null,
+      inaturalistImage: storedSource === 'inaturalist' ? storedUri : null,
+      wikipediaImage: storedSource === 'wikipedia' || storedSource === 'wikimedia' ? storedUri : null,
+      googleImage: storedSource === 'google' ? storedUri : null,
       aiImage: preResolvedSource === 'ai_metadata' ? input.aiImageUrl ?? null : null,
+      // The owned (Supabase Storage) copy of the final image, when resolved server-side.
+      storedUri,
       finalUri: uri,
       source: source ?? 'needs_id_placeholder',
       reason: source ?? 'no_image_found',
     })
-  }, [debug?.screen, debug?.component, input, preResolvedSource, taxaPhotoUrl, externalSource, uri, source, isResolving])
+  }, [debug?.screen, debug?.component, input, preResolvedSource, storedUri, storedSource, uri, source, isResolving])
 }
 
 // Re-export for convenience so callers import from one place.
