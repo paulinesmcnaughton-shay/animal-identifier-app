@@ -17,7 +17,7 @@ import Animated, {
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { dexCardHairline } from '@/design/dex-card-shell'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
-import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
+import { useReferenceImage } from '@/features/species/use-reference-image'
 
 export interface DexCardSpecies {
   id: string
@@ -28,7 +28,9 @@ export interface DexCardSpecies {
   gradient: readonly [string, string]
   cornerBadge?: 'NEW' | 'RARE'
   showFootprint?: boolean
-  /** Pre-resolved reference image from domestic_species registry. Skips useTaxaPhoto when set. */
+  /** Scientific name — improves reference-image accuracy and cache keying. */
+  latin?: string | null
+  /** Pre-resolved reference image from domestic_species registry. Skips external lookup when set. */
   referenceImageUrl?: string | null
 }
 
@@ -49,35 +51,25 @@ export function DexCard({
   isDeleteMode = false,
   onDeletePress,
 }: DexCardProps) {
-  const { number, name, date, gradient, cornerBadge, kingdom, referenceImageUrl } = species
+  const { number, name, date, gradient, cornerBadge, kingdom, referenceImageUrl, latin } = species
   const [photoFailed, setPhotoFailed] = useState(false)
 
-  // Skip the iNat/Wikipedia network lookup when the registry already supplies a URL.
-  // This prevents domestic breed names like "Bengal" from resolving to wild-species photos.
-  const { url: taxaPhotoUrl } = useTaxaPhoto(referenceImageUrl ? null : name, kingdom)
-  const displayUri = referenceImageUrl?.trim() || taxaPhotoUrl || null
-
-  if (__DEV__) {
-    const isDomestic = /^#?D\d/.test(number)
-    console.log('REFERENCE IMAGE RESOLVED', {
+  // Domestic dex numbers are prefixed D (e.g. D012 Corgi). The registry image is a
+  // DOMESTIC image only — gate it so it can never attach to a wild species.
+  const isDomestic = /^#?D\d/.test(number)
+  const { uri: displayUri } = useReferenceImage(
+    {
       commonName: name,
-      scientificName: null,
+      scientificName: latin ?? null,
       speciesId: species.id,
       dexNum: number,
-      taxonId: null,
       kingdom,
-      category: isDomestic ? 'domestic' : (kingdom ?? 'unknown'),
-      registryImage: !isDomestic ? null : null,
-      domesticImage: isDomestic ? (referenceImageUrl ?? null) : null,
-      inatImage: !referenceImageUrl ? (taxaPhotoUrl ?? null) : null,
-      wikipediaImage: null,
-      googleImage: null,
-      aiImage: null,
-      finalUri: displayUri,
-      source: referenceImageUrl ? 'domestic_registry' : taxaPhotoUrl ? 'inaturalist' : 'needs_id_placeholder',
-      reason: referenceImageUrl ? 'pre_resolved_registry' : taxaPhotoUrl ? 'useTaxaPhoto_fallback' : 'no_image_found',
-    })
-  }
+      isDomestic,
+      appRegistryImageUrl: isDomestic ? null : referenceImageUrl,
+      domesticRegistryImageUrl: isDomestic ? referenceImageUrl : null,
+    },
+    { screen: 'dex', component: 'DexCard' },
+  )
 
   useEffect(() => {
     setPhotoFailed(false)

@@ -21,7 +21,7 @@ import { getLocalSpeciesHeroImage } from '@/features/species/resolve-species-her
 import { useSpeciesUserSightings } from '@/features/sightings/use-species-user-sightings'
 import { useSpeciesDetail } from '@/features/species/use-species-detail'
 import { getSightingPhotoUri } from '@/features/species/get-display-image-uri'
-import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
+import { useReferenceImage } from '@/features/species/use-reference-image'
 import {
   colors,
   profileCardShadow as profileCardShadowStyle,
@@ -103,10 +103,23 @@ export function SpeciesDetailScreen() {
     [id, paramName, species.commonName],
   )
 
-  const { url: taxaPhotoUrl, isResolving: isTaxaResolving } = useTaxaPhoto(species.commonName, species.kingdom, species.latinName)
+  // Single resolver: heroImageUrl (Supabase / iNat / domestic registry) wins,
+  // then kingdom-validated external lookup. Read-only — never mutates `species`.
+  const { uri: heroDisplayUri, isResolving: isHeroResolving } = useReferenceImage(
+    {
+      commonName: species.commonName,
+      scientificName: species.latinName,
+      speciesId: id,
+      dexNum: species.dexNumber,
+      kingdom: species.kingdom,
+      isDomestic: isDomesticRoute,
+      appRegistryImageUrl: isDomesticRoute ? null : heroImageUrl,
+      domesticRegistryImageUrl: isDomesticRoute ? heroImageUrl : null,
+    },
+    { screen: 'species-detail', component: 'HeroImage' },
+  )
   const userSightings = useSpeciesUserSightings(id)
 
-  const heroDisplayUri = heroImageUrl?.trim() || taxaPhotoUrl || null
   const [heroFailed, setHeroFailed] = useState(false)
 
   useEffect(() => { setHeroFailed(false) }, [heroDisplayUri])
@@ -114,34 +127,9 @@ export function SpeciesDetailScreen() {
   const kingdomMeta = KINGDOM[species.kingdom]
 
   // True only once all async sources have resolved and there is still no reference image
-  const heroImageResolved = !isSpeciesLoading && !isTaxaResolving
+  const heroImageResolved = !isSpeciesLoading && !isHeroResolving
   const hasReferenceImage = (!!heroDisplayUri && !heroFailed) || !!localHeroImage
   const isNeedsId = heroImageResolved && !hasReferenceImage
-
-  useEffect(() => {
-    if (!heroImageResolved) return
-    if (__DEV__) {
-      console.log('REFERENCE IMAGE RESOLVED', {
-        commonName: species.commonName,
-        scientificName: species.latinName,
-        speciesId: id,
-        dexNum: species.dexNumber,
-        taxonId: null,
-        kingdom: species.kingdom,
-        category: isDomesticRoute ? 'domestic' : (species.kingdom ?? 'unknown'),
-        registryImage: !isDomesticRoute ? (heroImageUrl ?? null) : null,
-        domesticImage: isDomesticRoute ? (heroImageUrl ?? null) : null,
-        inatImage: null,
-        wikipediaImage: taxaPhotoUrl ?? null,
-        googleImage: null,
-        aiImage: null,
-        finalUri: localHeroImage ?? heroDisplayUri ?? null,
-        source: heroImageUrl ? (isDomesticRoute ? 'domestic_registry' : 'app_registry') : taxaPhotoUrl ? 'wikipedia' : 'needs_id_placeholder',
-        reason: heroImageUrl ? 'supabase_fetch' : taxaPhotoUrl ? 'useTaxaPhoto_fallback' : 'no_image_found',
-      })
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [heroImageResolved])
 
   const isLowConfidence = confidence !== null && confidence < 0.7
   const showNeedsIdHint = fromCapture && (isNeedsId || isLowConfidence)

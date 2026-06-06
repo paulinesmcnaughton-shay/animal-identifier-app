@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons'
+import { Image } from 'expo-image'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { GestureDetector } from 'react-native-gesture-handler'
@@ -10,10 +11,12 @@ import ReAnimated, {
 } from 'react-native-reanimated'
 
 import { ProgressBar } from '@/components/ProgressBar'
-import { KingdomBadge } from '@/design/atoms/KingdomBadge'
+import { KINGDOM, KingdomBadge } from '@/design/atoms/KingdomBadge'
 import { slideUpSheetHandle, slideUpSheetShell } from '@/design/slide-up-sheet'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import type { IdentResult } from '@/features/identify/types'
+import { fetchDomesticReferenceImages } from '@/features/sightings/fetch-user-sightings'
+import { useReferenceImage } from '@/features/species/use-reference-image'
 import { createSheetPanGesture, SHEET_ENTER_TIMING } from '@/lib/draggable-sheet'
 
 export type CaptureResultSheetPhase = 'hidden' | 'loading' | 'success' | 'error' | 'manual' | 'saved'
@@ -103,6 +106,43 @@ export function CaptureResultSheet({
   const cardAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }))
+
+  // Domestic pets: pull the exact seeded breed image from the domestic_species
+  // registry (e.g. Bengal, Corgi) so we never show an ambiguous external guess.
+  const [domesticImageUrl, setDomesticImageUrl] = useState<string | null>(null)
+  useEffect(() => {
+    const dexNumber = result?.dexNumber
+    if (phase !== 'success' || !result?.isDomestic || !dexNumber) {
+      setDomesticImageUrl(null)
+      return
+    }
+    let cancelled = false
+    void fetchDomesticReferenceImages([dexNumber]).then((map) => {
+      if (!cancelled) setDomesticImageUrl(map[dexNumber] ?? null)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [phase, result?.isDomestic, result?.dexNumber])
+
+  // The species reference image — registry/domestic first, then kingdom-validated
+  // external lookup. NEVER the user's capture photo (that stays in the camera preview).
+  const { uri: referenceImageUri } = useReferenceImage(
+    {
+      commonName: result?.commonName ?? '',
+      scientificName: result?.latinName ?? null,
+      kingdom: result?.kingdom ?? null,
+      dexNum: result?.dexNumber ?? null,
+      isDomestic: result?.isDomestic,
+      domesticRegistryImageUrl: domesticImageUrl,
+    },
+    { screen: 'capture-result', component: 'CaptureResultSheet' },
+  )
+  const [imageFailed, setImageFailed] = useState(false)
+  useEffect(() => {
+    setImageFailed(false)
+  }, [referenceImageUri])
+  const resultImageUri = imageFailed ? null : referenceImageUri
 
   if (phase === 'hidden') return null
 
@@ -227,6 +267,28 @@ export function CaptureResultSheet({
 
         {phase === 'success' && result ? (
           <>
+            <View style={styles.resultImageWrap}>
+              {resultImageUri ? (
+                <Image
+                  source={{ uri: resultImageUri }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  onError={() => setImageFailed(true)}
+                />
+              ) : (
+                <View
+                  style={[
+                    StyleSheet.absoluteFill,
+                    styles.resultImageFallback,
+                    { backgroundColor: result.kingdom ? KINGDOM[result.kingdom]?.bg : colors.hairline },
+                  ]}>
+                  <Text style={styles.resultImageEmoji}>
+                    {result.kingdom ? KINGDOM[result.kingdom]?.emoji ?? '🌿' : '🌿'}
+                  </Text>
+                </View>
+              )}
+            </View>
+
             <Text style={styles.speciesName}>{result.commonName}</Text>
 
             {result.kingdom ? (
@@ -337,6 +399,22 @@ const styles = StyleSheet.create({
   },
   retakeButtonPressed: {
     opacity: 0.85,
+  },
+  resultImageWrap: {
+    alignSelf: 'stretch',
+    height: 180,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.hairline,
+    marginBottom: space[16],
+  },
+  resultImageFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultImageEmoji: {
+    fontSize: 56,
+    lineHeight: 64,
   },
   speciesName: {
     fontFamily: typeTokens.display.family,

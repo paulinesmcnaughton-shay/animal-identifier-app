@@ -55,6 +55,7 @@ function rowToDexCard(latest: UserSightingRow): DexCardSpecies {
     id: latest.species_id,
     number,
     name: latest.species_name,
+    latin: latest.latin_name,
     date: formatSpottedAgo(latest.spotted_at),
     kingdom,
     gradient: GRADIENT_BY_KINGDOM[kingdom],

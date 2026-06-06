@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { resolveGbifHeroImageUrl } from '@/features/map/gbif-occurrence-media'
 import type { NearbyMapSighting } from '@/features/map/map-sighting'
 import { fetchWikipediaImageUrl } from '@/features/species/fetch-wikipedia-image'
-import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
+import { useReferenceImage } from '@/features/species/use-reference-image'
 
 interface NearbyHeroImageState {
   url: string | null
@@ -12,10 +12,17 @@ interface NearbyHeroImageState {
 
 export function useNearbyHeroImage(sighting: NearbyMapSighting | null): NearbyHeroImageState {
   const kingdom = sighting?.kingdom ?? null
-  const { url: taxaPhotoUrl, isResolving: isTaxaResolving } = useTaxaPhoto(
-    sighting?.name,
-    kingdom,
-    sighting?.scientificName,
+  // Species reference image (registry + kingdom-validated external). The user's
+  // own sighting photo (previewImageUrl) and GBIF media take precedence below —
+  // this only supplies the canonical species image, never a sighting photo.
+  const { uri: taxaPhotoUrl, isResolving: isTaxaResolving } = useReferenceImage(
+    {
+      commonName: sighting?.name ?? '',
+      scientificName: sighting?.scientificName,
+      kingdom,
+      speciesId: sighting?.speciesId,
+    },
+    { screen: 'map', component: 'NearbyHeroImage' },
   )
 
   const [gbifUrl, setGbifUrl] = useState<string | null>(null)

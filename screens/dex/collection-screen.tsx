@@ -38,7 +38,7 @@ import {
   searchPickerSpecies,
   type PickerSpeciesItem,
 } from '@/features/species/search-picker-species'
-import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
+import { useReferenceImage } from '@/features/species/use-reference-image'
 import { useAuth } from '@/lib/auth/auth-context'
 
 const H_PAD = screenLayout.padH
@@ -453,12 +453,19 @@ interface OpenSourceCardProps {
 function OpenSourceCard({ item, width, isCollected, style, onPress }: OpenSourceCardProps) {
   const [imageFailed, setImageFailed] = useState(false)
 
-  const { url: taxaUrl } = useTaxaPhoto(
-    item.imageUrl ? null : item.commonName,
-    item.kingdom,
-    item.imageUrl ? null : item.latinName,
+  const { uri: resolvedUrl } = useReferenceImage(
+    {
+      commonName: item.commonName,
+      scientificName: item.latinName,
+      speciesId: item.id,
+      dexNum: item.dexNumber ?? null,
+      kingdom: item.kingdom,
+      isDomestic: item.isDomestic,
+      appRegistryImageUrl: item.imageUrl,
+    },
+    { screen: 'dex', component: 'OpenSourceCard' },
   )
-  const imageUrl = item.imageUrl && !imageFailed ? item.imageUrl : (!imageFailed ? taxaUrl : null)
+  const imageUrl = imageFailed ? null : resolvedUrl
 
   useEffect(() => {
     setImageFailed(false)

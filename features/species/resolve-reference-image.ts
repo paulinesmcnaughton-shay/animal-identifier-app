@@ -2,10 +2,15 @@ import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import { resolvePhoto } from '@/features/species/use-taxa-photo'
 
 export type ReferenceImageSource =
-  | 'app_registry'
+  | 'database'
   | 'domestic_registry'
+  | 'farm_registry'
+  | 'zoo_registry'
+  | 'aquarium_registry'
   | 'inaturalist'
   | 'wikipedia'
+  | 'wikimedia'
+  | 'google'
   | 'ai_metadata'
   | 'category_placeholder'
   | 'needs_id_placeholder'
@@ -41,6 +46,60 @@ function firstNonEmpty(...urls: (string | null | undefined)[]): string | null {
   return null
 }
 
+/** Category label used in both the debug log and the cache identity. */
+export function referenceCategory(input: ReferenceImageInput): string {
+  return input.isDomestic ? 'domestic' : (input.kingdom ?? 'unknown')
+}
+
+/**
+ * Identity segment of the external cache key. Includes species_id, dex_num,
+ * taxon_id and category so two different species that share a common name never
+ * collide — while the same species reuses one cache entry across screens.
+ */
+export function buildResolverIdentity(input: ReferenceImageInput): string {
+  return [
+    input.speciesId ?? '',
+    input.dexNum ?? '',
+    input.taxonId ?? '',
+    referenceCategory(input),
+  ].join('~')
+}
+
+/**
+ * Synchronous part of the reference-image priority — the part that needs no
+ * network call. Single source of truth for the registry → domestic → AI order,
+ * shared by both `resolveReferenceImage` (async) and `useReferenceImage` (hook).
+ *
+ *   1. App registry fields (species table image columns)
+ *   2. Domestic registry image — STRICT: only when isDomestic is true
+ *   3. AI-provided metadata URL
+ *
+ * Returns null when none of the pre-resolved sources have a URL, meaning the
+ * caller must fall through to the external (iNat/Wikipedia) lookup.
+ */
+export function pickPreResolvedImage(input: ReferenceImageInput): ResolvedImage | null {
+  const fromRegistry = firstNonEmpty(input.appRegistryImageUrl)
+  if (fromRegistry) {
+    return { uri: fromRegistry, source: 'database', confidence: 1, reason: 'database' }
+  }
+
+  // Domestic registry images apply ONLY to confirmed domestic pets — this is the
+  // gate that stops a dog/cat image ever attaching to a frog/plant/insect/bird.
+  if (input.isDomestic) {
+    const fromDomestic = firstNonEmpty(input.domesticRegistryImageUrl)
+    if (fromDomestic) {
+      return { uri: fromDomestic, source: 'domestic_registry', confidence: 0.95, reason: 'domestic_registry' }
+    }
+  }
+
+  const fromAi = firstNonEmpty(input.aiImageUrl)
+  if (fromAi) {
+    return { uri: fromAi, source: 'ai_metadata', confidence: 0.8, reason: 'ai_metadata' }
+  }
+
+  return null
+}
+
 /**
  * Resolves the best available reference image for any species or organism.
  *
@@ -57,17 +116,7 @@ function firstNonEmpty(...urls: (string | null | undefined)[]): string | null {
 export async function resolveReferenceImage(
   input: ReferenceImageInput,
 ): Promise<ResolvedImage | null> {
-  const {
-    commonName,
-    scientificName,
-    speciesId,
-    dexNum,
-    kingdom,
-    isDomestic,
-    appRegistryImageUrl,
-    domesticRegistryImageUrl,
-    aiImageUrl,
-  } = input
+  const { commonName, scientificName, kingdom } = input
 
   let registryImage: string | null = null
   let domesticImage: string | null = null
@@ -75,43 +124,25 @@ export async function resolveReferenceImage(
   let wikipediaImage: string | null = null
   let aiImage: string | null = null
 
-  // 1. App registry
-  const fromRegistry = firstNonEmpty(appRegistryImageUrl)
-  if (fromRegistry) {
-    registryImage = fromRegistry
-    const result: ResolvedImage = { uri: fromRegistry, source: 'app_registry', confidence: 1, reason: 'app_registry' }
-    logResolved(input, { registryImage, domesticImage, inatImage, wikipediaImage, aiImage, result })
-    return result
-  }
-
-  // 2. Domestic registry — strict: only use when species is confirmed domestic
-  if (isDomestic) {
-    const fromDomestic = firstNonEmpty(domesticRegistryImageUrl)
-    if (fromDomestic) {
-      domesticImage = fromDomestic
-      const result: ResolvedImage = { uri: fromDomestic, source: 'domestic_registry', confidence: 0.95, reason: 'domestic_registry' }
-      logResolved(input, { registryImage, domesticImage, inatImage, wikipediaImage, aiImage, result })
-      return result
-    }
-  }
-
-  // 3. AI metadata URL (from identify pipeline)
-  const fromAi = firstNonEmpty(aiImageUrl)
-  if (fromAi) {
-    aiImage = fromAi
-    const result: ResolvedImage = { uri: fromAi, source: 'ai_metadata', confidence: 0.8, reason: 'ai_metadata' }
-    logResolved(input, { registryImage, domesticImage, inatImage, wikipediaImage, aiImage, result })
-    return result
+  // 1-3. Pre-resolved sources (registry → domestic → AI), shared with the hook.
+  const preResolved = pickPreResolvedImage(input)
+  if (preResolved) {
+    if (preResolved.source === 'database') registryImage = preResolved.uri
+    else if (preResolved.source === 'domestic_registry') domesticImage = preResolved.uri
+    else if (preResolved.source === 'ai_metadata') aiImage = preResolved.uri
+    logResolved(input, { registryImage, domesticImage, inatImage, wikipediaImage, aiImage, result: preResolved })
+    return preResolved
   }
 
   // 4. External lookup via iNat + Wikipedia (kingdom-validated)
   const query = commonName?.trim() ?? ''
   const latin = scientificName?.trim() ?? ''
+  const identity = buildResolverIdentity(input)
 
   // Run iNat and Wikipedia in parallel for speed
   const [inatResult, wikiResult] = await Promise.all([
     query || latin
-      ? resolvePhoto(query, latin, kingdom).catch(() => null)
+      ? resolvePhoto(query, latin, kingdom, identity).catch(() => null)
       : Promise.resolve(null),
     query
       ? fetchWikipediaOnly(query).catch(() => null)

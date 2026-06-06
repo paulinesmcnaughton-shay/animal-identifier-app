@@ -36,7 +36,7 @@ import {
   type PickerSpeciesItem,
 } from '@/features/species/search-picker-species'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
-import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
+import { useReferenceImage } from '@/features/species/use-reference-image'
 
 const SEARCH_DEBOUNCE_MS = 400
 
@@ -286,27 +286,24 @@ interface PickerSpeciesCardProps {
 }
 
 function PickerSpeciesCard({ item, width, onPress }: PickerSpeciesCardProps) {
-  const { url: taxaUrl } = useTaxaPhoto(
-    item.imageUrl ? null : item.commonName,
-    item.kingdom,
-    item.imageUrl ? null : item.latinName,
-  )
-  const imageUrl = item.imageUrl ?? taxaUrl
-
-  if (__DEV__) {
-    console.log('CARD RECEIVED IMAGE', {
-      name: item.commonName,
+  const [imageFailed, setImageFailed] = useState(false)
+  const { uri: resolvedUrl } = useReferenceImage(
+    {
+      commonName: item.commonName,
+      scientificName: item.latinName,
+      speciesId: item.id,
+      dexNum: item.dexNumber ?? null,
       kingdom: item.kingdom,
       isDomestic: item.isDomestic,
-      item_imageUrl: item.imageUrl,
-    })
-    console.log('CARD RENDER IMAGE URI', {
-      name: item.commonName,
-      taxaUrl,
-      finalImageUrl: imageUrl,
-      source: item.imageUrl ? 'registry' : taxaUrl ? 'useTaxaPhoto' : 'none',
-    })
-  }
+      appRegistryImageUrl: item.imageUrl,
+    },
+    { screen: 'identify', component: 'PickerSpeciesCard' },
+  )
+  const imageUrl = imageFailed ? null : resolvedUrl
+
+  useEffect(() => {
+    setImageFailed(false)
+  }, [item.id])
 
   return (
     <Pressable
@@ -320,15 +317,7 @@ function PickerSpeciesCard({ item, width, onPress }: PickerSpeciesCardProps) {
             source={{ uri: imageUrl }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
-            onError={(e) => {
-              if (__DEV__) {
-                console.log('IMAGE LOAD ERROR', {
-                  name: item.commonName,
-                  uri: imageUrl,
-                  error: e.error ?? 'unknown',
-                })
-              }
-            }}
+            onError={() => setImageFailed(true)}
           />
         ) : (
           <LinearGradient

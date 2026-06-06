@@ -77,7 +77,7 @@ import {
 import { useDistanceUnit } from '@/features/settings/use-distance-unit'
 import type { NearbyMapSighting } from '@/features/map/map-sighting'
 import { categoryFilterSightings } from '@/features/map/sightings-category-search'
-import { useTaxaPhoto } from '@/features/species/use-taxa-photo'
+import { useReferenceImage } from '@/features/species/use-reference-image'
 import { useUserSightingsData } from '@/features/sightings/use-user-sightings-data'
 import { useAuth } from '@/lib/auth/auth-context'
 import {
@@ -1590,39 +1590,42 @@ function RowThumbnail({
   speciesId?: string | null
 }) {
   const tint = KINGDOM[kingdom as KingdomKey]?.bg ?? colors.hairline
+  const [imageFailed, setImageFailed] = useState(false)
 
-  // useTaxaPhoto already tries iNat → Wikipedia → Wikimedia and caches the result
-  // persistently across unmounts. Do NOT add a separate local wikiUrl state here —
-  // local state resets on unmount (e.g. when the detail card opens) causing the image
-  // to flash or disappear when the user returns to the list.
-  const { url: taxaUrl } = useTaxaPhoto(
-    previewImageUrl ? null : name,
-    kingdom as KingdomKey,
-    previewImageUrl ? null : scientificName,
+  // The species reference resolver caches successes persistently across unmounts
+  // and never poisons on transient errors — so the image survives opening/closing
+  // the detail card. The user's own sighting photo (previewImageUrl) takes
+  // precedence; we skip the species lookup entirely when a preview already exists.
+  const hasPreview = !!previewImageUrl?.trim()
+  const { uri: taxaUrl } = useReferenceImage(
+    {
+      commonName: hasPreview ? '' : name,
+      scientificName: hasPreview ? null : scientificName,
+      kingdom: kingdom as KingdomKey,
+      speciesId,
+    },
+    { screen: 'map', component: 'RowThumbnail' },
   )
 
-  // Stable image URL: prefer previewImageUrl (direct from sighting), then cached taxa lookup.
-  const imageUrl = previewImageUrl?.trim() || taxaUrl || null
+  // Stable image URL: prefer previewImageUrl (direct from sighting), then reference lookup.
+  const resolvedUrl = previewImageUrl?.trim() || taxaUrl || null
+  const imageUrl = imageFailed ? null : resolvedUrl
 
+  // Per-item failure state, keyed by the resolved URL — a broken load falls back
+  // to the kingdom emoji and never poisons another row.
   useEffect(() => {
-    if (__DEV__) {
-      // Fires on mount (initial load) and on remount (return from detail).
-      console.log('NEARBY CARD IMAGE', {
-        sightingId: sightingId ?? null,
-        speciesName: name,
-        speciesId: speciesId ?? null,
-        previewImageUrl: previewImageUrl ?? null,
-        taxaUrl: taxaUrl ?? null,
-        imageUri: imageUrl,
-      })
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageUrl])
+    setImageFailed(false)
+  }, [resolvedUrl])
 
   return (
     <View style={[styles.rowThumb, { backgroundColor: tint }]}>
       {imageUrl ? (
-        <Image source={{ uri: imageUrl }} style={styles.rowThumbImage} contentFit="cover" />
+        <Image
+          source={{ uri: imageUrl }}
+          style={styles.rowThumbImage}
+          contentFit="cover"
+          onError={() => setImageFailed(true)}
+        />
       ) : (
         <Text style={styles.rowThumbEmoji}>{KINGDOM[kingdom as KingdomKey]?.emoji ?? '🌿'}</Text>
       )}
