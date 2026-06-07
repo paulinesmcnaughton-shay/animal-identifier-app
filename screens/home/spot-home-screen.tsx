@@ -93,19 +93,33 @@ interface QuestsCarouselProps {
 function QuestsCarousel({ quests }: QuestsCarouselProps) {
   const { width } = useWindowDimensions()
   const cardWidth = width - screenLayout.padH * 2 - space[24]
+  const snap = cardWidth + space[8]
+  const [activeIndex, setActiveIndex] = useState(0)
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      decelerationRate="fast"
-      snapToInterval={cardWidth + space[8]}
-      snapToAlignment="start"
-      contentContainerStyle={styles.questCarousel}>
-      {quests.map((progress) => (
-        <QuestCard key={progress.quest.id} progress={progress} width={cardWidth} />
-      ))}
-    </ScrollView>
+    <View style={styles.questCarouselWrap}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        snapToInterval={snap}
+        snapToAlignment="start"
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          const i = Math.round(e.nativeEvent.contentOffset.x / snap)
+          if (i !== activeIndex) setActiveIndex(Math.max(0, Math.min(i, quests.length - 1)))
+        }}
+        contentContainerStyle={styles.questCarousel}>
+        {quests.map((progress) => (
+          <QuestCard key={progress.quest.id} progress={progress} width={cardWidth} />
+        ))}
+      </ScrollView>
+      <View style={styles.dots}>
+        {quests.map((progress, i) => (
+          <View key={progress.quest.id} style={[styles.dot, i === activeIndex && styles.dotActive]} />
+        ))}
+      </View>
+    </View>
   )
 }
 
@@ -452,9 +466,27 @@ const styles = StyleSheet.create({
   },
 
   // Quest carousel
+  questCarouselWrap: {
+    gap: space[8],
+  },
   questCarousel: {
     gap: space[8],
     paddingRight: space[24],
+  },
+  dots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: space[4],
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.hairline,
+  },
+  dotActive: {
+    backgroundColor: colors.green,
+    width: 18,
   },
   venuesCard: {
     flexDirection: 'row',
