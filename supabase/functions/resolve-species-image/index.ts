@@ -160,6 +160,35 @@ async function fromGoogle(query: string): Promise<string[]> {
   return (d.items ?? []).map((i) => i.link).filter((l): l is string => !!l)
 }
 
+// Full-text Wikipedia search → the matching page's image. Essential for dog/cat
+// BREEDS: iNaturalist has no breed taxa (all dogs collapse to one Canis photo),
+// but Wikipedia has a page per breed. Querying "Akita dog breed" finds it.
+async function fromWikipediaSearch(query: string): Promise<string[]> {
+  if (!query) return []
+  const res = await fetch(
+    `https://en.wikipedia.org/w/api.php?action=query&generator=search` +
+      `&gsrsearch=${encodeURIComponent(query)}&gsrlimit=3&prop=pageimages` +
+      `&piprop=thumbnail&pithumbsize=500&format=json&origin=*`,
+    { headers: { 'User-Agent': UA } },
+  )
+  if (!res.ok) throw new Error(`wikisearch ${res.status}`)
+  const d = await res.json() as { query?: { pages?: Record<string, { index?: number; thumbnail?: { source?: string } }> } }
+  const pages = Object.values(d.query?.pages ?? {}).sort((a, b) => (a.index ?? 99) - (b.index ?? 99))
+  return pages.map((p) => p.thumbnail?.source).filter((s): s is string => !!s)
+}
+
+// Dog vs cat from the latin name (Canis/Felis) or breed-name keywords.
+function petKindFor(commonName: string, scientificName: string): 'dog' | 'cat' {
+  const sci = scientificName.toLowerCase()
+  if (sci.includes('felis')) return 'cat'
+  if (sci.includes('canis')) return 'dog'
+  const n = commonName.toLowerCase()
+  if (/\b(cat|feline|kitten|tabby|siamese|persian|ragdoll|sphynx|bengal|abyssinian|burmese|birman|manx|shorthair|longhair|maine coon|rex|bombay|savannah|ragamuffin)\b/.test(n)) {
+    return 'cat'
+  }
+  return 'dog'
+}
+
 // ─── Verify + download + store ─────────────────────────────────────────────────
 
 async function fetchImageBytes(url: string): Promise<{ bytes: Uint8Array; contentType: string } | null> {
@@ -189,8 +218,11 @@ async function storeAndCache(
   cacheKey: string,
   img: { bytes: Uint8Array; contentType: string },
   source: string,
+  sourceUrl: string,
 ): Promise<string> {
-  const path = `${await sha256hex(cacheKey)}.${extFor(img.contentType)}`
+  // Path includes the source URL so a re-resolve with a different image yields a
+  // NEW public URL — clients never serve a stale cached copy after we fix a source.
+  const path = `${await sha256hex(`${cacheKey}|${sourceUrl}`)}.${extFor(img.contentType)}`
   await admin.storage.from(BUCKET).upload(path, img.bytes, { contentType: img.contentType, upsert: true })
   const { data } = admin.storage.from(BUCKET).getPublicUrl(path)
   const publicUrl = data.publicUrl
@@ -246,16 +278,29 @@ Deno.serve(async (req: Request) => {
 
   const isDomestic = input.isDomestic === true || /^#?D\d/i.test(norm(input.dexNum))
 
-  const attempts: { source: string; run: () => Promise<string[]> }[] = [
-    ...(isDomestic ? [{ source: 'domestic_registry', run: () => fromDomestic(input) }] : []),
-    { source: 'database', run: () => fromSpeciesTable(input) },
-    { source: 'inaturalist', run: () => fromInat(commonName, kingdom) },
-    { source: 'wikipedia', run: () => fromWikipedia(commonName) },
-    { source: 'inaturalist', run: () => fromInat(scientificName, kingdom) },
-    { source: 'wikipedia', run: () => fromWikipedia(scientificName) },
-    { source: 'wikimedia', run: () => fromWikimedia(commonName || scientificName) },
-    { source: 'google', run: () => fromGoogle(commonName || scientificName) },
-  ]
+  // Domestic breeds: iNaturalist has NO breed taxa — it returns one generic
+  // dog/cat photo for every breed. Resolve breeds via Wikipedia (a page per breed)
+  // and only fall back to the generic iNat species photo as a last resort.
+  const petKind = petKindFor(commonName, scientificName)
+  const attempts: { source: string; run: () => Promise<string[]> }[] = isDomestic
+    ? [
+        { source: 'domestic_registry', run: () => fromDomestic(input) },
+        { source: 'database', run: () => fromSpeciesTable(input) },
+        { source: 'wikipedia', run: () => fromWikipediaSearch(`${commonName} ${petKind} breed`) },
+        { source: 'wikipedia', run: () => fromWikipedia(commonName) },
+        { source: 'wikimedia', run: () => fromWikimedia(`${commonName} ${petKind}`) },
+        { source: 'google', run: () => fromGoogle(`${commonName} ${petKind} breed`) },
+        { source: 'inaturalist', run: () => fromInat(commonName, kingdom) },
+      ]
+    : [
+        { source: 'database', run: () => fromSpeciesTable(input) },
+        { source: 'inaturalist', run: () => fromInat(commonName, kingdom) },
+        { source: 'wikipedia', run: () => fromWikipedia(commonName) },
+        { source: 'inaturalist', run: () => fromInat(scientificName, kingdom) },
+        { source: 'wikipedia', run: () => fromWikipedia(scientificName) },
+        { source: 'wikimedia', run: () => fromWikimedia(commonName || scientificName) },
+        { source: 'google', run: () => fromGoogle(commonName || scientificName) },
+      ]
 
   for (const attempt of attempts) {
     let urls: string[] = []
@@ -268,7 +313,7 @@ Deno.serve(async (req: Request) => {
       const img = await fetchImageBytes(url)
       if (!img) continue
       try {
-        const stored = await storeAndCache(input, cacheKey, img, attempt.source)
+        const stored = await storeAndCache(input, cacheKey, img, attempt.source, url)
         return json({ uri: stored, source: attempt.source, reason: attempt.source })
       } catch (e) {
         // storage failed — still return the verified external URL so the UI shows something

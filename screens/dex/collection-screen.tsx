@@ -739,16 +739,17 @@ const styles = StyleSheet.create({
   osChipsWrap: {
     marginHorizontal: -H_PAD,
     marginBottom: space[8],
-    // Size the row to its chips — without this the horizontal ScrollView stretches
-    // to fill the flex:1 column and the chips become full-height bars.
+    // Fixed height stops the horizontal ScrollView from stretching to fill the
+    // flex:1 column (which turned the chips into full-height bars). 48 is on the
+    // 8pt grid; no spacing token exists at this value.
+    height: 48,
     flexGrow: 0,
     flexShrink: 0,
   },
   osChipsScroll: {
     paddingHorizontal: H_PAD,
     gap: space[8],
-    paddingVertical: space[4],
-    // Chips take their intrinsic (padding-based) height instead of stretching.
+    // Center chips vertically within the fixed-height row so they keep their pill shape.
     alignItems: 'center',
   },
   osGrid: {
