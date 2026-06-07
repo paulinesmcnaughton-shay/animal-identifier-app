@@ -18,6 +18,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SUPABASE_URL = process.env.SUPABASE_URL ?? 'https://wiysesftlprovkpouvqu.supabase.co'
 const KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? 'sb_publishable_QLe0faP1klanHt3V_HFy1w_K8EDJmUD'
 const FN_URL = `${SUPABASE_URL}/functions/v1/resolve-species-image`
+const FN_DETAIL_URL = `${SUPABASE_URL}/functions/v1/resolve-species-detail`
 const CONCURRENCY = Number(process.env.BACKFILL_CONCURRENCY ?? 6)
 
 // iNat-style class names → WildKind kingdom keys (the function validates with these).
@@ -100,6 +101,23 @@ async function resolveOne(species, attempt = 1) {
   }
 }
 
+async function resolveDetailOne(species, attempt = 1) {
+  try {
+    const res = await fetch(FN_DETAIL_URL, {
+      method: 'POST',
+      headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(species),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (data?.description || data?.taxonomy) return { ok: true }
+    if (attempt < 2) return resolveDetailOne(species, attempt + 1)
+    return { ok: false, reason: data?.reason ?? `http_${res.status}` }
+  } catch (e) {
+    if (attempt < 2) return resolveDetailOne(species, attempt + 1)
+    return { ok: false, reason: String(e) }
+  }
+}
+
 async function runPool(items, worker, concurrency) {
   let i = 0
   const runNext = async () => {
@@ -130,30 +148,38 @@ async function main() {
 
   const bySource = {}
   const failures = []
+  let detailOk = 0
+  const detailFailures = []
   let done = 0
 
   await runPool(
     species,
     async (s) => {
-      const r = await resolveOne(s)
+      const [img, detail] = await Promise.all([resolveOne(s), resolveDetailOne(s)])
       done++
-      if (r.ok) {
-        bySource[r.source] = (bySource[r.source] ?? 0) + 1
-        console.log(`[${done}/${species.length}] ✓ ${r.source.padEnd(18)} ${s.commonName}`)
+      if (img.ok) {
+        bySource[img.source] = (bySource[img.source] ?? 0) + 1
       } else {
-        failures.push({ name: s.commonName, reason: r.reason })
-        console.log(`[${done}/${species.length}] ✗ ${'FAILED'.padEnd(18)} ${s.commonName} (${r.reason})`)
+        failures.push({ name: s.commonName, reason: img.reason })
       }
+      if (detail.ok) detailOk++
+      else detailFailures.push({ name: s.commonName, reason: detail.reason })
+      const tags = `${img.ok ? `img:${img.source}` : 'img:FAIL'}  ${detail.ok ? 'detail:ok' : 'detail:FAIL'}`
+      console.log(`[${done}/${species.length}] ${s.commonName.padEnd(28)} ${tags}`)
     },
     CONCURRENCY,
   )
 
   console.log('\n──────── BACKFILL SUMMARY ────────')
-  console.log(`Resolved & stored: ${species.length - failures.length}/${species.length}`)
-  console.log('By source:', bySource)
+  console.log(`Images stored:  ${species.length - failures.length}/${species.length}  by source: ${JSON.stringify(bySource)}`)
+  console.log(`Details cached: ${detailOk}/${species.length}`)
   if (failures.length) {
-    console.log(`\nFailed (${failures.length}) — these have no image from any source:`)
+    console.log(`\nImage failures (${failures.length}):`)
     for (const f of failures) console.log(`  - ${f.name} (${f.reason})`)
+  }
+  if (detailFailures.length) {
+    console.log(`\nDetail failures (${detailFailures.length}):`)
+    for (const f of detailFailures) console.log(`  - ${f.name} (${f.reason})`)
   }
 }
 

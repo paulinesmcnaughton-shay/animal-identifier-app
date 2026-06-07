@@ -5,6 +5,7 @@ import {
   type SpeciesDetail,
 } from '@/data/species-catalog'
 import { fetchSpeciesDetailFromSupabase } from '@/features/species/fetch-species-detail'
+import { useSpeciesEnrichment } from '@/features/species/fetch-species-enrichment'
 import { resolveDexNumber } from '@/features/species/resolve-dex-number'
 import type { LatinNameSource } from '@/features/species/types'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
@@ -163,6 +164,21 @@ export function useSpeciesDetail({
     return { species: merged, resolvedLatinSource: source }
   }, [fallback, remoteDetail, overrides, latinNameHint, latinNameSource])
 
+  // Real "What it is" description (Wikipedia) + taxonomy (GBIF), cached server-side.
+  const enrichment = useSpeciesEnrichment({
+    commonName: species.commonName,
+    scientificName: species.latinName,
+    kingdom: species.kingdom,
+    dexNum: species.dexNumber,
+    speciesId: id,
+    isDomestic: isDomestic || isDomesticRemote,
+  })
+
+  const enrichedSpecies = useMemo(
+    () => applyEnrichment(species, enrichment),
+    [species, enrichment],
+  )
+
   useEffect(() => {
     if (!__DEV__) return
     console.log('[WildKind Species] latinName source:', resolvedLatinSource, {
@@ -174,7 +190,7 @@ export function useSpeciesDetail({
   }, [resolvedLatinSource, species.commonName, species.latinName, id, isDomestic, isDomesticRemote])
 
   return {
-    species,
+    species: enrichedSpecies,
     heroImageUrl,
     isLoading,
     isFromSupabase,
@@ -182,4 +198,35 @@ export function useSpeciesDetail({
     latinNameSource: resolvedLatinSource,
     error,
   }
+}
+
+const GENERIC_DESCRIPTION = /familiar face in the wild dex|a new entry for your wild dex|often spotted in/i
+
+function applyEnrichment(
+  species: SpeciesDetail,
+  enrichment: { description: string | null; taxonomy: { kingdom: string | null; phylum: string | null; class: string | null; order: string | null; family: string | null } | null } | null,
+): SpeciesDetail {
+  if (!enrichment) return species
+
+  // Use the real description when the current one is a generic template.
+  const enrichedDescription = enrichment.description?.trim()
+  const description =
+    enrichedDescription && GENERIC_DESCRIPTION.test(species.description)
+      ? enrichedDescription
+      : species.description
+
+  // GBIF taxonomy is authoritative — fill any field it provides.
+  const t = enrichment.taxonomy
+  const taxonomy = t
+    ? {
+        kingdom: t.kingdom || species.taxonomy.kingdom,
+        phylum: t.phylum || species.taxonomy.phylum,
+        class: t.class || species.taxonomy.class,
+        order: t.order || species.taxonomy.order,
+        family: t.family || species.taxonomy.family,
+      }
+    : species.taxonomy
+
+  if (description === species.description && taxonomy === species.taxonomy) return species
+  return { ...species, description, taxonomy }
 }
