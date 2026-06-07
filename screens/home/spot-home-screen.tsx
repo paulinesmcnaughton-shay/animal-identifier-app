@@ -11,6 +11,7 @@ import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
 import { useCreatureOfWeek } from '@/features/home/creature-of-week'
 import type { CreatureRosterItem } from '@/features/home/creature-of-week'
+import { useCollectionLookup } from '@/features/collections/collections'
 import {
   buildQuestProgress,
   questCountsFromSightings,
@@ -236,6 +237,7 @@ export function SpotHomeScreen() {
   const { firstName, timeZone, level, streakDays, spotsCaptured, isReady, isLoading } =
     useAccountProfile()
   const { recentCards, dexEntries } = useUserSightingsData()
+  const collectionLookup = useCollectionLookup()
   const quests = useMemo(
     () =>
       buildQuestProgress(
@@ -245,10 +247,12 @@ export function SpotHomeScreen() {
             dexNumber: e.number,
             speciesId: e.id,
             speciesName: e.name,
+            scientificName: e.latin ?? null,
           })),
+          collectionLookup,
         ),
       ),
-    [dexEntries],
+    [dexEntries, collectionLookup],
   )
   const greeting = useSpotGreeting(timeZone)
   const creatureOfWeek = useCreatureOfWeek()

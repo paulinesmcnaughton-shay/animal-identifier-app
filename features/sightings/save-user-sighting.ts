@@ -5,6 +5,7 @@ import { slugifySpeciesName } from '@/data/species-catalog'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import { mapPrivacyFromSettings } from '@/features/map/map-privacy-from-settings'
 import { STREAK_WINDOW_MS } from '@/features/profile/streak'
+import type { Collection, CollectionLookup } from '@/features/collections/collections'
 import { computeQuestRewardDelta, questCountsFromSightings } from '@/features/quests/quests'
 import { notifyAccountProfileChanged } from '@/features/settings/account-profile-events'
 import { loadSettingsPreferences } from '@/features/settings/preferences'
@@ -210,7 +211,7 @@ export async function saveUserSighting(
 
   const { data: allSpeciesRows } = await supabase
     .from('user_sightings')
-    .select('species_id, kingdom, dex_number, is_domestic, species_name')
+    .select('species_id, kingdom, dex_number, is_domestic, species_name, latin_name')
     .eq('user_id', userId)
 
   // Distinct species (one row per species) for accurate counts.
@@ -220,6 +221,7 @@ export async function saveUserSighting(
     dexNumber: string | null
     speciesId: string | null
     speciesName: string | null
+    scientificName: string | null
   }[] = []
   for (const row of allSpeciesRows ?? []) {
     if (seenSpecies.has(row.species_id)) continue
@@ -229,8 +231,24 @@ export async function saveUserSighting(
       dexNumber: row.dex_number,
       speciesId: row.species_id,
       speciesName: row.species_name,
+      scientificName: row.latin_name,
     })
   }
+
+  // Collection lookup so safari/zoo/aquarium/petting-zoo quests credit correctly.
+  const { data: catalogRows } = await supabase
+    .from('catalog_species')
+    .select('common_name, scientific_name, collections')
+  const collectionByName = new Map<string, Collection[]>()
+  for (const c of catalogRows ?? []) {
+    const cols = (c.collections ?? []) as Collection[]
+    if (c.common_name) collectionByName.set(c.common_name.trim().toLowerCase(), cols)
+    if (c.scientific_name) collectionByName.set(c.scientific_name.trim().toLowerCase(), cols)
+  }
+  const collectionLookup: CollectionLookup = (q) =>
+    collectionByName.get((q.commonName ?? '').trim().toLowerCase()) ??
+    collectionByName.get((q.scientificName ?? '').trim().toLowerCase()) ??
+    []
   const distinctSpecies = seenSpecies.size
   const nowMs = Date.now()
   const nextStreak = computeNextStreak(
@@ -243,7 +261,7 @@ export async function saveUserSighting(
   // Quest rewards — credit badge (+XP) and bonus (+XP) once per category, tied to
   // the actual species categories the user has caught.
   const questDelta = computeQuestRewardDelta(
-    questCountsFromSightings(distinctRows),
+    questCountsFromSightings(distinctRows, collectionLookup),
     profileRow?.claimed_quests ?? [],
   )
   const nextXp = (profileRow?.xp ?? 0) + xpGain + questDelta.xpGain

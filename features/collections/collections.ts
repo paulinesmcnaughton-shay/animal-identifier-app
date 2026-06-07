@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 import { colors } from '@/design/tokens'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
@@ -87,4 +89,43 @@ export async function fetchCatalog(): Promise<CatalogSpecies[]> {
   const { data, error } = await supabase.from('catalog_species').select(SELECT).order('dex_number')
   if (error || !data) return []
   return (data as CatalogRow[]).map(mapRow)
+}
+
+// ─── Collection lookup (which collections a captured species belongs to) ────────
+
+let catalogCache: CatalogSpecies[] | null = null
+let catalogPromise: Promise<CatalogSpecies[]> | null = null
+
+async function loadCatalogOnce(): Promise<CatalogSpecies[]> {
+  if (catalogCache) return catalogCache
+  if (!catalogPromise) catalogPromise = fetchCatalog().then((rows) => ((catalogCache = rows), rows))
+  return catalogPromise
+}
+
+export type CollectionLookup = (q: { commonName?: string | null; scientificName?: string | null }) => Collection[]
+
+const norm = (s?: string | null): string => (s ?? '').trim().toLowerCase()
+
+export function buildCollectionLookup(rows: CatalogSpecies[]): CollectionLookup {
+  const byName = new Map<string, Collection[]>()
+  for (const r of rows) {
+    if (r.commonName) byName.set(norm(r.commonName), r.collections)
+    if (r.scientificName) byName.set(norm(r.scientificName), r.collections)
+  }
+  return (q) => byName.get(norm(q.commonName)) ?? byName.get(norm(q.scientificName)) ?? []
+}
+
+/** Hook: loads the catalog once and returns a fn mapping a species → its collections. */
+export function useCollectionLookup(): CollectionLookup {
+  const [lookup, setLookup] = useState<CollectionLookup>(() => () => [])
+  useEffect(() => {
+    let cancelled = false
+    void loadCatalogOnce().then((rows) => {
+      if (!cancelled) setLookup(() => buildCollectionLookup(rows))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  return lookup
 }
