@@ -1,9 +1,8 @@
 import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
-import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
-import { useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { useMemo, useState } from 'react'
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { CollectorTierBadge } from '@/components/CollectorTierBadge'
@@ -12,7 +11,11 @@ import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
 import { useCreatureOfWeek } from '@/features/home/creature-of-week'
 import type { CreatureRosterItem } from '@/features/home/creature-of-week'
-import type { WeeklyQuestProgress } from '@/features/profile/home-stats'
+import {
+  buildQuestProgress,
+  questCountsFromSightings,
+  type QuestProgress,
+} from '@/features/quests/quests'
 import { dexCardHairline } from '@/design/dex-card-shell'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
@@ -82,26 +85,47 @@ function Header({
   )
 }
 
-interface WeeklyQuestCardProps {
-  quest: WeeklyQuestProgress
+interface QuestsCarouselProps {
+  quests: QuestProgress[]
 }
 
-function WeeklyQuestCard({ quest }: WeeklyQuestCardProps) {
-  const { title, daysLeft, current, total, xpReward, progressEmoji } = quest
-  const pct = total > 0 ? current / total : 0
+function QuestsCarousel({ quests }: QuestsCarouselProps) {
+  const { width } = useWindowDimensions()
+  const cardWidth = width - screenLayout.padH * 2 - space[24]
 
   return (
-    <LinearGradient
-      colors={[colors.green, colors.greenLight]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.questCard}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      decelerationRate="fast"
+      snapToInterval={cardWidth + space[8]}
+      snapToAlignment="start"
+      contentContainerStyle={styles.questCarousel}>
+      {quests.map((progress) => (
+        <QuestCard key={progress.quest.id} progress={progress} width={cardWidth} />
+      ))}
+    </ScrollView>
+  )
+}
+
+interface QuestCardProps {
+  progress: QuestProgress
+  width: number
+}
+
+function QuestCard({ progress, width }: QuestCardProps) {
+  const { quest, count, badgeEarned, bonusEarned } = progress
+  const pct = Math.min(count, quest.bonusTarget) / quest.bonusTarget
+  const reward = bonusEarned ? `+${quest.bonusXp} XP` : badgeEarned ? 'Badge earned' : `+${quest.xpReward} XP`
+
+  return (
+    <View style={[styles.questCard, { width, backgroundColor: quest.accent }]}>
       <View style={styles.questTop}>
         <View style={styles.questTitleRow}>
           <Ionicons name="trophy" size={14} color={colors.sun} />
-          <Text style={styles.questLabel}>WEEKLY QUEST · {daysLeft}D LEFT</Text>
+          <Text style={styles.questLabel}>QUEST</Text>
         </View>
-        <Text style={styles.questTitle}>{title}</Text>
+        <Text style={styles.questTitle}>{quest.title}</Text>
       </View>
 
       <View style={styles.questBottom}>
@@ -110,22 +134,38 @@ function WeeklyQuestCard({ quest }: WeeklyQuestCardProps) {
         </View>
         <View style={styles.questMeta}>
           <View style={styles.progressEmojis}>
-            <Text style={styles.progressLabel}>PROGRESS:</Text>
-            {progressEmoji.map((e, i) => (
-              <View key={i} style={styles.emojiCircle}>
-                <Text style={styles.emojiText}>{e}</Text>
-              </View>
-            ))}
-            <View style={[styles.emojiCircle, styles.emojiCircleEmpty]}>
-              <Ionicons name="add" size={16} color="rgba(255,255,255,0.5)" />
-            </View>
+            {Array.from({ length: quest.bonusTarget }).map((_, i) => {
+              const filled = i < count
+              const isBonusSlot = i === quest.bonusTarget - 1
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.emojiCircle,
+                    !filled && styles.emojiCircleEmpty,
+                    isBonusSlot && styles.emojiCircleBonus,
+                    isBonusSlot && filled && styles.emojiCircleBonusFilled,
+                  ]}>
+                  {filled ? (
+                    <Text style={styles.emojiText}>{isBonusSlot ? '⭐️' : quest.emoji}</Text>
+                  ) : (
+                    <Ionicons
+                      name={isBonusSlot ? 'star-outline' : 'add'}
+                      size={16}
+                      color="rgba(255,255,255,0.5)"
+                    />
+                  )}
+                </View>
+              )
+            })}
           </View>
           <View style={styles.xpPill}>
-            <Text style={styles.xpText}>+{xpReward} XP</Text>
+            {badgeEarned ? <Ionicons name="ribbon" size={13} color={colors.ink} /> : null}
+            <Text style={styles.xpText}>{reward}</Text>
           </View>
         </View>
       </View>
-    </LinearGradient>
+    </View>
   )
 }
 
@@ -193,9 +233,23 @@ function CreatureOfWeekCard({ creature, onInfoPress }: CreatureOfWeekCardProps) 
 export function SpotHomeScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { firstName, timeZone, level, streakDays, spotsCaptured, weeklyQuest, isReady, isLoading } =
+  const { firstName, timeZone, level, streakDays, spotsCaptured, isReady, isLoading } =
     useAccountProfile()
-  const { recentCards } = useUserSightingsData()
+  const { recentCards, dexEntries } = useUserSightingsData()
+  const quests = useMemo(
+    () =>
+      buildQuestProgress(
+        questCountsFromSightings(
+          dexEntries.map((e) => ({
+            kingdom: e.kingdom,
+            dexNumber: e.number,
+            speciesId: e.id,
+            speciesName: e.name,
+          })),
+        ),
+      ),
+    [dexEntries],
+  )
   const greeting = useSpotGreeting(timeZone)
   const creatureOfWeek = useCreatureOfWeek()
   const [creatureInfoOpen, setCreatureInfoOpen] = useState(false)
@@ -243,7 +297,7 @@ export function SpotHomeScreen() {
           onBellPress={handleOpenNotifications}
           hasUnreadNotifications={hasUnreadNotifications}
         />
-        <WeeklyQuestCard quest={weeklyQuest} />
+        <QuestsCarousel quests={quests} />
         <View style={styles.sectionGap}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Creature of the week</Text>
@@ -381,6 +435,11 @@ const styles = StyleSheet.create({
     borderColor: colors.card,
   },
 
+  // Quest carousel
+  questCarousel: {
+    gap: space[8],
+    paddingRight: space[24],
+  },
   // Quest card
   questCard: {
     borderRadius: radius.xl,
@@ -454,10 +513,21 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.3)',
     borderStyle: 'dashed',
   },
+  emojiCircleBonus: {
+    borderWidth: 1.5,
+    borderColor: colors.sun,
+    borderStyle: 'solid',
+  },
+  emojiCircleBonusFilled: {
+    backgroundColor: 'rgba(255,201,60,0.35)',
+  },
   emojiText: {
     fontSize: 16,
   },
   xpPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[4],
     backgroundColor: colors.sun,
     paddingHorizontal: space[16],
     paddingVertical: space[8],

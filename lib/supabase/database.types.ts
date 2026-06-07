@@ -155,6 +155,7 @@ export type Database = {
           age_verified: boolean | null
           avatar_url: string | null
           badges_count: number
+          claimed_quests: string[]
           can_publish_to_nearby: boolean
           created_at: string | null
           date_of_birth: string | null
@@ -197,6 +198,7 @@ export type Database = {
           age_verified?: boolean | null
           avatar_url?: string | null
           badges_count?: number
+          claimed_quests?: string[]
           can_publish_to_nearby?: boolean
           created_at?: string | null
           date_of_birth?: string | null
@@ -239,6 +241,7 @@ export type Database = {
           age_verified?: boolean | null
           avatar_url?: string | null
           badges_count?: number
+          claimed_quests?: string[]
           can_publish_to_nearby?: boolean
           created_at?: string | null
           date_of_birth?: string | null

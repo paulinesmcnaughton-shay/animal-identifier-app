@@ -5,6 +5,7 @@ import { slugifySpeciesName } from '@/data/species-catalog'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import { mapPrivacyFromSettings } from '@/features/map/map-privacy-from-settings'
 import { STREAK_WINDOW_MS } from '@/features/profile/streak'
+import { computeQuestRewardDelta, questCountsFromSightings } from '@/features/quests/quests'
 import { notifyAccountProfileChanged } from '@/features/settings/account-profile-events'
 import { loadSettingsPreferences } from '@/features/settings/preferences'
 import { getSupabaseClient } from '@/lib/supabase/client'
@@ -202,17 +203,35 @@ export async function saveUserSighting(
   const { data: profileRow } = await supabase
     .from('profiles')
     .select(
-      'xp, streak_days, last_spotted_at, spots_captured, weekly_quest_current, weekly_quest_total',
+      'xp, streak_days, last_spotted_at, spots_captured, badges_count, claimed_quests',
     )
     .eq('id', userId)
     .maybeSingle()
 
   const { data: allSpeciesRows } = await supabase
     .from('user_sightings')
-    .select('species_id')
+    .select('species_id, kingdom, dex_number, is_domestic, species_name')
     .eq('user_id', userId)
 
-  const distinctSpecies = new Set((allSpeciesRows ?? []).map((row) => row.species_id)).size
+  // Distinct species (one row per species) for accurate counts.
+  const seenSpecies = new Set<string>()
+  const distinctRows: {
+    kingdom: string | null
+    dexNumber: string | null
+    speciesId: string | null
+    speciesName: string | null
+  }[] = []
+  for (const row of allSpeciesRows ?? []) {
+    if (seenSpecies.has(row.species_id)) continue
+    seenSpecies.add(row.species_id)
+    distinctRows.push({
+      kingdom: row.kingdom,
+      dexNumber: row.dex_number,
+      speciesId: row.species_id,
+      speciesName: row.species_name,
+    })
+  }
+  const distinctSpecies = seenSpecies.size
   const nowMs = Date.now()
   const nextStreak = computeNextStreak(
     profileRow?.streak_days ?? 0,
@@ -220,9 +239,14 @@ export async function saveUserSighting(
     nowMs,
   )
   const xpGain = isNewSpecies ? XP_NEW_SPECIES : XP_REPEAT_SPECIES
-  const nextXp = (profileRow?.xp ?? 0) + xpGain
-  const questCurrent = profileRow?.weekly_quest_current ?? 0
-  const questTotal = profileRow?.weekly_quest_total ?? 3
+
+  // Quest rewards — credit badge (+XP) and bonus (+XP) once per category, tied to
+  // the actual species categories the user has caught.
+  const questDelta = computeQuestRewardDelta(
+    questCountsFromSightings(distinctRows),
+    profileRow?.claimed_quests ?? [],
+  )
+  const nextXp = (profileRow?.xp ?? 0) + xpGain + questDelta.xpGain
 
   await supabase
     .from('profiles')
@@ -231,7 +255,8 @@ export async function saveUserSighting(
       last_spotted_at: spottedAt,
       streak_days: nextStreak,
       xp: nextXp,
-      weekly_quest_current: Math.min(questCurrent + 1, questTotal),
+      badges_count: (profileRow?.badges_count ?? 0) + questDelta.badgeGain,
+      claimed_quests: questDelta.newClaimed,
     })
     .eq('id', userId)
 
