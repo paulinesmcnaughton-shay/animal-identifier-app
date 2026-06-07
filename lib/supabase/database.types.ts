@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      catalog_species: {
+        Row: {
+          collections: string[]
+          common_name: string
+          conservation: string | null
+          created_at: string
+          dex_number: string | null
+          diet: string | null
+          id: string
+          kingdom: string | null
+          lifespan: string | null
+          reference_image_url: string | null
+          region: string | null
+          scientific_name: string | null
+          top_speed: string | null
+          updated_at: string
+        }
+        Insert: {
+          collections?: string[]
+          common_name: string
+          conservation?: string | null
+          created_at?: string
+          dex_number?: string | null
+          diet?: string | null
+          id: string
+          kingdom?: string | null
+          lifespan?: string | null
+          reference_image_url?: string | null
+          region?: string | null
+          scientific_name?: string | null
+          top_speed?: string | null
+          updated_at?: string
+        }
+        Update: {
+          collections?: string[]
+          common_name?: string
+          conservation?: string | null
+          created_at?: string
+          dex_number?: string | null
+          diet?: string | null
+          id?: string
+          kingdom?: string | null
+          lifespan?: string | null
+          reference_image_url?: string | null
+          region?: string | null
+          scientific_name?: string | null
+          top_speed?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       community_sightings: {
         Row: {
           created_at: string
@@ -555,6 +606,99 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      venue_species: {
+        Row: {
+          common_name: string | null
+          created_at: string
+          display_order: number
+          enclosure: string | null
+          id: string
+          image_url: string | null
+          notes: string | null
+          species_id: string | null
+          venue_id: string
+          zone: string | null
+        }
+        Insert: {
+          common_name?: string | null
+          created_at?: string
+          display_order?: number
+          enclosure?: string | null
+          id?: string
+          image_url?: string | null
+          notes?: string | null
+          species_id?: string | null
+          venue_id: string
+          zone?: string | null
+        }
+        Update: {
+          common_name?: string | null
+          created_at?: string
+          display_order?: number
+          enclosure?: string | null
+          id?: string
+          image_url?: string | null
+          notes?: string | null
+          species_id?: string | null
+          venue_id?: string
+          zone?: string | null
+        }
+        Relationships: []
+      }
+      venues: {
+        Row: {
+          country: string | null
+          created_at: string
+          description: string | null
+          hero_image_url: string | null
+          id: string
+          is_active: boolean
+          is_partner: boolean
+          latitude: number | null
+          longitude: number | null
+          map_image_url: string | null
+          name: string
+          region: string | null
+          type: string
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          hero_image_url?: string | null
+          id: string
+          is_active?: boolean
+          is_partner?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          map_image_url?: string | null
+          name: string
+          region?: string | null
+          type: string
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          hero_image_url?: string | null
+          id?: string
+          is_active?: boolean
+          is_partner?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          map_image_url?: string | null
+          name?: string
+          region?: string | null
+          type?: string
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {

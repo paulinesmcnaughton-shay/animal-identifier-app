@@ -49,6 +49,21 @@ async function fromDomesticTable() {
   }))
 }
 
+async function fromCatalogSpeciesTable() {
+  const url = `${SUPABASE_URL}/rest/v1/catalog_species?select=id,common_name,scientific_name,kingdom,dex_number`
+  const res = await fetch(url, { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` } })
+  if (!res.ok) throw new Error(`catalog_species REST ${res.status}`)
+  const rows = await res.json()
+  return rows.map((r) => ({
+    commonName: clean(r.common_name),
+    scientificName: clean(r.scientific_name) || null,
+    kingdom: normKingdom(r.kingdom),
+    dexNum: clean(r.dex_number) || null,
+    speciesId: clean(r.id) || null,
+    isDomestic: false,
+  }))
+}
+
 function fromRegistry() {
   const src = fs.readFileSync(path.join(ROOT, 'features/species/dex-number-registry.ts'), 'utf8')
   const region = src.slice(src.indexOf('CURATED_ASSIGNMENTS'))
@@ -131,10 +146,15 @@ async function runPool(items, worker, concurrency) {
 
 async function main() {
   console.log('Gathering species from domestic_species + registry + catalog…')
-  const [domestic, registry, catalog] = [await fromDomesticTable(), fromRegistry(), fromCatalog()]
+  const [domestic, registry, catalog, catalogSpecies] = [
+    await fromDomesticTable(),
+    fromRegistry(),
+    fromCatalog(),
+    await fromCatalogSpeciesTable(),
+  ]
 
   const byKey = new Map()
-  for (const list of [domestic, registry, catalog]) {
+  for (const list of [domestic, registry, catalog, catalogSpecies]) {
     for (const s of list) {
       if (!clean(s.commonName) && !clean(s.scientificName)) continue
       const k = dedupeKey(s)
@@ -144,7 +164,7 @@ async function main() {
     }
   }
   const species = [...byKey.values()]
-  console.log(`Total unique species: ${species.length} (domestic ${domestic.length}, registry ${registry.length}, catalog ${catalog.length})`)
+  console.log(`Total unique species: ${species.length} (domestic ${domestic.length}, registry ${registry.length}, catalog ${catalog.length}, catalogSpecies ${catalogSpecies.length})`)
 
   const bySource = {}
   const failures = []
