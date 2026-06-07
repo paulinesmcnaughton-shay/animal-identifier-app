@@ -26,6 +26,9 @@ export interface VenueAnimal {
   venueId: string
   speciesId: string | null
   commonName: string | null
+  scientificName: string | null
+  kingdom: string | null
+  dexNumber: string | null
   zone: string | null
   enclosure: string | null
   imageUrl: string | null
@@ -58,6 +61,12 @@ interface VenueSpeciesRow {
   image_url: string | null
   notes: string | null
   display_order: number
+  catalog_species: {
+    common_name: string | null
+    scientific_name: string | null
+    kingdom: string | null
+    dex_number: string | null
+  } | null
 }
 
 const VENUE_SELECT =
@@ -80,6 +89,14 @@ function mapVenue(r: VenueRow): Venue {
   }
 }
 
+export async function fetchVenue(id: string): Promise<Venue | null> {
+  const supabase = getSupabaseClient()
+  if (!supabase) return null
+  const { data, error } = await supabase.from('venues').select(VENUE_SELECT).eq('id', id).maybeSingle()
+  if (error || !data) return null
+  return mapVenue(data as VenueRow)
+}
+
 export async function fetchVenues(type?: VenueType): Promise<Venue[]> {
   const supabase = getSupabaseClient()
   if (!supabase) return []
@@ -95,15 +112,20 @@ export async function fetchVenueAnimals(venueId: string): Promise<VenueAnimal[]>
   if (!supabase) return []
   const { data, error } = await supabase
     .from('venue_species')
-    .select('id, venue_id, species_id, common_name, zone, enclosure, image_url, notes, display_order')
+    .select(
+      'id, venue_id, species_id, common_name, zone, enclosure, image_url, notes, display_order, catalog_species(common_name, scientific_name, kingdom, dex_number)',
+    )
     .eq('venue_id', venueId)
     .order('display_order')
   if (error || !data) return []
-  return (data as VenueSpeciesRow[]).map((r) => ({
+  return (data as unknown as VenueSpeciesRow[]).map((r) => ({
     id: r.id,
     venueId: r.venue_id,
     speciesId: r.species_id,
-    commonName: r.common_name,
+    commonName: r.catalog_species?.common_name ?? r.common_name,
+    scientificName: r.catalog_species?.scientific_name ?? null,
+    kingdom: r.catalog_species?.kingdom ?? null,
+    dexNumber: r.catalog_species?.dex_number ?? null,
     zone: r.zone,
     enclosure: r.enclosure,
     imageUrl: r.image_url,

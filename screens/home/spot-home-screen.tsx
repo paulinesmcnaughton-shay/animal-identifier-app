@@ -302,6 +302,18 @@ export function SpotHomeScreen() {
           hasUnreadNotifications={hasUnreadNotifications}
         />
         <QuestsCarousel quests={quests} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Explore venues"
+          onPress={() => router.push('/venues')}
+          style={({ pressed }) => [styles.venuesCard, pressed && styles.venuesCardPressed]}>
+          <Text style={styles.venuesEmoji}>🦒</Text>
+          <View style={styles.venuesText}>
+            <Text style={styles.venuesTitle}>Explore venues</Text>
+            <Text style={styles.venuesSub}>Zoos, aquariums &amp; safari parks</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.dim} />
+        </Pressable>
         <View style={styles.sectionGap}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Creature of the week</Text>
@@ -444,6 +456,23 @@ const styles = StyleSheet.create({
     gap: space[8],
     paddingRight: space[24],
   },
+  venuesCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[16],
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: space[16],
+  },
+  venuesCardPressed: { opacity: 0.9 },
+  venuesEmoji: { fontSize: 28 },
+  venuesText: { flex: 1, gap: space[4] },
+  venuesTitle: {
+    fontSize: typeTokens.size.title,
+    fontWeight: typeTokens.body.weights.extra,
+    color: colors.ink,
+  },
+  venuesSub: { fontSize: typeTokens.size.bodySM, color: colors.dim },
   // Quest card
   questCard: {
     borderRadius: radius.xl,
