@@ -39,7 +39,33 @@ import {
   type PickerSpeciesItem,
 } from '@/features/species/search-picker-species'
 import { useReferenceImage } from '@/features/species/use-reference-image'
+import {
+  COLLECTIONS,
+  fetchCatalogByCollection,
+  type CatalogSpecies,
+  type Collection,
+} from '@/features/collections/collections'
 import { useAuth } from '@/lib/auth/auth-context'
+
+// Collections shown as browse chips in the Open Source tab (excludes wild/domestic).
+const BROWSE_COLLECTIONS = COLLECTIONS.filter((c) =>
+  ['farm', 'petting_zoo', 'safari', 'zoo', 'aquarium'].includes(c.id),
+)
+
+function catalogToPickerItem(c: CatalogSpecies): PickerSpeciesItem {
+  const kingdom = (c.kingdom && c.kingdom in KINGDOM ? c.kingdom : 'fish') as KingdomKey
+  return {
+    id: c.id,
+    commonName: c.commonName,
+    latinName: c.scientificName ?? '',
+    kingdom,
+    taxonomyKingdom: c.kingdom,
+    imageUrl: c.referenceImageUrl,
+    isDomestic: false,
+    dexNumber: c.dexNumber ?? undefined,
+    gradient: ['#A8D8EA', '#5BC0EB'],
+  }
+}
 
 const H_PAD = screenLayout.padH
 const GAP = space[8]
@@ -293,6 +319,7 @@ function OpenSourceTab({ collectedNames, bottomInset }: OpenSourceTabProps) {
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [kingdomFilter, setKingdomFilter] = useState<PickerKingdomFilter>('all')
+  const [collectionFilter, setCollectionFilter] = useState<Collection | null>(null)
   const [items, setItems] = useState<PickerSpeciesItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const searchInputRef = useRef<TextInput>(null)
@@ -306,7 +333,12 @@ function OpenSourceTab({ collectedNames, bottomInset }: OpenSourceTabProps) {
     let cancelled = false
     setIsLoading(true)
 
-    void searchPickerSpecies(debouncedQuery, kingdomFilter)
+    // A collection chip browses the curated catalog; otherwise normal search.
+    const load = collectionFilter
+      ? fetchCatalogByCollection(collectionFilter).then((rows) => rows.map(catalogToPickerItem))
+      : searchPickerSpecies(debouncedQuery, kingdomFilter)
+
+    void load
       .then((results) => {
         if (!cancelled) setItems(results)
       })
@@ -318,7 +350,7 @@ function OpenSourceTab({ collectedNames, bottomInset }: OpenSourceTabProps) {
       })
 
     return () => { cancelled = true }
-  }, [debouncedQuery, kingdomFilter])
+  }, [debouncedQuery, kingdomFilter, collectionFilter])
 
   const handleSelectItem = useCallback((item: PickerSpeciesItem) => {
     const speciesId = pickerItemToLookupId(item)
@@ -380,6 +412,34 @@ function OpenSourceTab({ collectedNames, bottomInset }: OpenSourceTabProps) {
         </View>
       </View>
 
+      {/* Collection browse chips (Safari, Zoo, Aquarium, Farm, Petting Zoo) */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.osChipsScroll}
+        style={styles.osChipsWrap}>
+        {BROWSE_COLLECTIONS.map((c) => {
+          const active = collectionFilter === c.id
+          return (
+            <Pressable
+              key={c.id}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              onPress={() => setCollectionFilter(active ? null : c.id)}
+              style={[
+                styles.chip,
+                active
+                  ? [styles.chipActive, { backgroundColor: c.accent, borderColor: c.accent }]
+                  : styles.chipIdle,
+              ]}>
+              <Text style={[styles.chipLabel, active ? styles.chipLabelActive : styles.chipLabelIdle]}>
+                {c.emoji} {c.label}
+              </Text>
+            </Pressable>
+          )
+        })}
+      </ScrollView>
+
       {/* Kingdom filter chips */}
       <ScrollView
         horizontal
@@ -387,13 +447,16 @@ function OpenSourceTab({ collectedNames, bottomInset }: OpenSourceTabProps) {
         contentContainerStyle={styles.osChipsScroll}
         style={styles.osChipsWrap}>
         {PICKER_KINGDOM_TABS.map((tab) => {
-          const active = kingdomFilter === tab.id
+          const active = !collectionFilter && kingdomFilter === tab.id
           return (
             <Pressable
               key={tab.id}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
-              onPress={() => setKingdomFilter(tab.id)}
+              onPress={() => {
+                setCollectionFilter(null)
+                setKingdomFilter(tab.id)
+              }}
               style={[
                 styles.chip,
                 active
