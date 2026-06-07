@@ -367,6 +367,7 @@ async function enrichWithDescription(taxon: InatTaxon): Promise<InatTaxon> {
 async function fetchWildSpeciesFromInaturalist(
   lookupId: string,
   commonNameHint?: string,
+  latinNameHint?: string,
 ): Promise<SpeciesDetailFetchResult | null> {
   const inatId = parseInatTaxonId(lookupId)
   if (inatId !== null) {
@@ -374,6 +375,17 @@ async function fetchWildSpeciesFromInaturalist(
     if (raw?.name?.trim()) {
       const taxon = await enrichWithDescription(raw)
       return mapInatTaxonToWildResult(taxon, lookupId)
+    }
+  }
+
+  // Scientific name first — it's unambiguous. Searching by the common name alone
+  // can return the wrong species (e.g. "Leopard" → the leopard SLUG on iNaturalist).
+  if (latinNameHint?.trim()) {
+    const raw = await fetchInatTaxonByName(latinNameHint)
+    if (raw?.name?.trim()) {
+      const taxon = await enrichWithDescription(raw)
+      const resolvedId = lookupId.trim() || slugifySpeciesName(commonNameHint ?? latinNameHint)
+      return mapInatTaxonToWildResult(taxon, resolvedId)
     }
   }
 
@@ -426,6 +438,7 @@ export async function fetchSpeciesDetailFromSupabase(
   options?: SpeciesDetailFetchOptions,
 ): Promise<SpeciesDetailFetchResult | null> {
   const commonNameHint = options?.commonNameHint?.trim()
+  const latinNameHint = options?.latinNameHint?.trim()
   const queryDomestic = shouldQueryDomestic(lookupId, options?.isDomestic)
 
   if (queryDomestic) {
@@ -449,7 +462,7 @@ export async function fetchSpeciesDetailFromSupabase(
     if (options?.isDomestic) return null
   }
 
-  const wildInat = await fetchWildSpeciesFromInaturalist(lookupId, commonNameHint)
+  const wildInat = await fetchWildSpeciesFromInaturalist(lookupId, commonNameHint, latinNameHint)
   if (wildInat) {
     if (__DEV__) {
       console.log('[WildKind fetchSpeciesDetail] wild iNaturalist:', {

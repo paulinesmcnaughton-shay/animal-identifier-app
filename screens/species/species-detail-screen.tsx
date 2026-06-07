@@ -103,8 +103,10 @@ export function SpeciesDetailScreen() {
     [id, paramName, species.commonName],
   )
 
-  // Single resolver: heroImageUrl (Supabase / iNat / domestic registry) wins,
-  // then kingdom-validated external lookup. Read-only — never mutates `species`.
+  // Resolve the hero through the SAME resolver the Dex/roster mini cards use, so the
+  // detail image is identical to the card (not a different iNat photo). Only the
+  // domestic registry image is passed as an authoritative override; wild species
+  // resolve purely from identity (commonName/latin/kingdom) → owned stored image.
   const { uri: heroDisplayUri, isResolving: isHeroResolving, onImageError: onHeroError } = useReferenceImage(
     {
       commonName: species.commonName,
@@ -113,7 +115,7 @@ export function SpeciesDetailScreen() {
       dexNum: species.dexNumber,
       kingdom: species.kingdom,
       isDomestic: isDomesticRoute,
-      appRegistryImageUrl: isDomesticRoute ? null : heroImageUrl,
+      appRegistryImageUrl: null,
       domesticRegistryImageUrl: isDomesticRoute ? heroImageUrl : null,
     },
     { screen: 'species-detail', component: 'HeroImage' },
