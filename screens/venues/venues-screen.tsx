@@ -44,6 +44,14 @@ export function VenuesScreen() {
           { paddingTop: contentTopInset(insets.top), paddingBottom: insets.bottom + space[40] },
         ]}
         showsVerticalScrollIndicator={false}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          hitSlop={10}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/home'))}
+          style={({ pressed }) => [styles.backBtn, pressed && styles.cardPressed]}>
+          <Ionicons name="chevron-back" size={22} color={colors.ink} />
+        </Pressable>
         <Text style={styles.title}>Venues</Text>
         <Text style={styles.subtitle}>Partner zoos, aquariums and safari parks</Text>
 
@@ -90,6 +98,15 @@ export function VenuesScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: screenLayout.padH, gap: space[8] },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: space[8],
+  },
   title: {
     fontFamily: typeTokens.display.family,
     fontSize: typeTokens.size.displayLG,
