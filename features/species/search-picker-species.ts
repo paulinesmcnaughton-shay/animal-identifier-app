@@ -134,6 +134,24 @@ const BROWSE_KEYWORD: Partial<Record<PickerKingdomFilter, string>> = {
   fungi:  'mushroom',
 }
 
+// When the user types a category/kingdom word, browse that whole category instead
+// of a free-text iNat search. Stops "fungi" matching the coral genus *Fungia*
+// (and similar) and returns the right category with correct tags.
+const CATEGORY_QUERY_TO_FILTER: Record<string, PickerKingdomFilter> = {
+  fungi: 'fungi', fungus: 'fungi', funghi: 'fungi', mushroom: 'fungi', mushrooms: 'fungi', toadstool: 'fungi',
+  plant: 'plant', plants: 'plant',
+  tree: 'tree', trees: 'tree',
+  flower: 'flower', flowers: 'flower', wildflower: 'flower', wildflowers: 'flower',
+  bird: 'bird', birds: 'bird',
+  mammal: 'mammal', mammals: 'mammal',
+  insect: 'insect', insects: 'insect', bug: 'insect', bugs: 'insect',
+  reptile: 'reptile', reptiles: 'reptile',
+  amphibian: 'amphibian', amphibians: 'amphibian',
+  fish: 'fish', fishes: 'fish',
+  arachnid: 'arachnid', arachnids: 'arachnid',
+  mollusc: 'mollusc', molluscs: 'mollusc', mollusk: 'mollusc', mollusks: 'mollusc',
+}
+
 async function searchInatBrowse(kingdom: PickerKingdomFilter): Promise<PickerSpeciesItem[]> {
   const iconic = BROWSE_ICONIC[kingdom]
   const keyword = BROWSE_KEYWORD[kingdom]
@@ -190,15 +208,20 @@ export async function searchPickerSpecies(
   kingdomFilter: PickerKingdomFilter,
 ): Promise<PickerSpeciesItem[]> {
   const trimmed = query.trim()
+  const categoryFilter = CATEGORY_QUERY_TO_FILTER[trimmed.toLowerCase()]
   const [domestic, wild] = await Promise.all([
     searchDomestic(trimmed),
-    trimmed.length >= 2
-      ? searchInaturalist(trimmed)
-      : searchInatBrowse(kingdomFilter),
+    categoryFilter
+      ? searchInatBrowse(categoryFilter)
+      : trimmed.length >= 2
+        ? searchInaturalist(trimmed)
+        : searchInatBrowse(kingdomFilter),
   ])
 
   const merged = dedupeItems([...domestic, ...wild])
-  return filterByKingdom(merged, kingdomFilter)
+  // A category-word search ("fungi") implies its own kingdom — don't also apply
+  // the chip filter (usually 'all'), which already keeps everything.
+  return filterByKingdom(merged, categoryFilter ?? kingdomFilter)
 }
 
 export function pickerItemToLookupId(item: PickerSpeciesItem): string {
