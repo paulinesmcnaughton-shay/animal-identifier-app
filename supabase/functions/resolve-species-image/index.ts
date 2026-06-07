@@ -62,6 +62,14 @@ async function sha256hex(s: string): Promise<string> {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+// Reject composite/montage files (Wikipedia infobox grids like "Akita_Collage.png"
+// or "..._breed_sampler.jpg") — we want a single-subject photo, not a 4-up grid.
+function isMontage(url: string): boolean {
+  let name = url
+  try { name = decodeURIComponent(url) } catch { /* keep raw */ }
+  return /collage|montage|sampler|composite|compilation|mosaic|varieties|assortment|infobox/i.test(name)
+}
+
 // ─── Source lookups (each returns 0+ candidate URLs, tried in order) ───────────
 
 async function fromDomestic(i: Input): Promise<string[]> {
@@ -122,13 +130,13 @@ async function fromWikipedia(query: string): Promise<string[]> {
   if (!res.ok) throw new Error(`wiki ${res.status}`)
   const d = await res.json() as { thumbnail?: { source?: string }; originalimage?: { source?: string; width?: number } }
   const thumb = d.thumbnail?.source
-  if (thumb) {
+  if (thumb && !isMontage(thumb)) {
     // Never request a thumb wider than the source — Wikimedia 400s on upscale.
     const w = d.originalimage?.width
     const target = w ? Math.min(800, w) : 480
     return [thumb.replace(/\/\d+px-/, `/${target}px-`)]
   }
-  return d.originalimage?.source ? [d.originalimage.source] : []
+  return d.originalimage?.source && !isMontage(d.originalimage.source) ? [d.originalimage.source] : []
 }
 
 async function fromWikimedia(query: string): Promise<string[]> {
@@ -143,8 +151,8 @@ async function fromWikimedia(query: string): Promise<string[]> {
   const out: string[] = []
   for (const p of Object.values(d.query?.pages ?? {})) {
     const ii = p.imageinfo?.[0]
-    if (ii?.thumburl) out.push(ii.thumburl)
-    else if (ii?.url) out.push(ii.url)
+    const u = ii?.thumburl ?? ii?.url
+    if (u && !isMontage(u)) out.push(u)
   }
   return out
 }
@@ -174,7 +182,10 @@ async function fromWikipediaSearch(query: string): Promise<string[]> {
   if (!res.ok) throw new Error(`wikisearch ${res.status}`)
   const d = await res.json() as { query?: { pages?: Record<string, { index?: number; thumbnail?: { source?: string } }> } }
   const pages = Object.values(d.query?.pages ?? {}).sort((a, b) => (a.index ?? 99) - (b.index ?? 99))
-  return pages.map((p) => p.thumbnail?.source).filter((s): s is string => !!s)
+  // Only the TOP (most relevant) page is the right breed — lower results are other
+  // breeds. If its lead image is a montage, return nothing so we fall to Commons.
+  const top = pages[0]?.thumbnail?.source
+  return top && !isMontage(top) ? [top] : []
 }
 
 // Dog vs cat from the latin name (Canis/Felis) or breed-name keywords.
@@ -286,10 +297,13 @@ Deno.serve(async (req: Request) => {
     ? [
         { source: 'domestic_registry', run: () => fromDomestic(input) },
         { source: 'database', run: () => fromSpeciesTable(input) },
+        // Top Wikipedia breed page (single photo, montages rejected)…
         { source: 'wikipedia', run: () => fromWikipediaSearch(`${commonName} ${petKind} breed`) },
-        { source: 'wikipedia', run: () => fromWikipedia(commonName) },
+        // …else a single-subject Commons photo of the breed (covers collage breeds)…
         { source: 'wikimedia', run: () => fromWikimedia(`${commonName} ${petKind}`) },
         { source: 'google', run: () => fromGoogle(`${commonName} ${petKind} breed`) },
+        // …last resort: the generic species photo. (No direct Wikipedia title — a
+        // bare breed name like "Akita" resolves to the city, not the dog.)
         { source: 'inaturalist', run: () => fromInat(commonName, kingdom) },
       ]
     : [
