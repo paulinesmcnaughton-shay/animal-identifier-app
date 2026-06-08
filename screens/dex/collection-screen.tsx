@@ -412,35 +412,7 @@ function OpenSourceTab({ collectedNames, bottomInset }: OpenSourceTabProps) {
         </View>
       </View>
 
-      {/* Collection browse chips (Safari, Zoo, Aquarium, Farm, Petting Zoo) */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.osChipsScroll}
-        style={styles.osChipsWrap}>
-        {BROWSE_COLLECTIONS.map((c) => {
-          const active = collectionFilter === c.id
-          return (
-            <Pressable
-              key={c.id}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-              onPress={() => setCollectionFilter(active ? null : c.id)}
-              style={[
-                styles.chip,
-                active
-                  ? [styles.chipActive, { backgroundColor: c.accent, borderColor: c.accent }]
-                  : styles.chipIdle,
-              ]}>
-              <Text style={[styles.chipLabel, active ? styles.chipLabelActive : styles.chipLabelIdle]}>
-                {c.emoji} {c.label}
-              </Text>
-            </Pressable>
-          )
-        })}
-      </ScrollView>
-
-      {/* Kingdom filter chips */}
+      {/* Filter chips — kingdoms + collections in one scrolling row */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -465,6 +437,26 @@ function OpenSourceTab({ collectedNames, bottomInset }: OpenSourceTabProps) {
               ]}>
               <Text style={[styles.chipLabel, active ? styles.chipLabelActive : styles.chipLabelIdle]}>
                 {tab.emoji} {tab.label}
+              </Text>
+            </Pressable>
+          )
+        })}
+        {BROWSE_COLLECTIONS.map((c) => {
+          const active = collectionFilter === c.id
+          return (
+            <Pressable
+              key={c.id}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              onPress={() => setCollectionFilter(active ? null : c.id)}
+              style={[
+                styles.chip,
+                active
+                  ? [styles.chipActive, { backgroundColor: c.accent, borderColor: c.accent }]
+                  : styles.chipIdle,
+              ]}>
+              <Text style={[styles.chipLabel, active ? styles.chipLabelActive : styles.chipLabelIdle]}>
+                {c.emoji} {c.label}
               </Text>
             </Pressable>
           )
