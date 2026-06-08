@@ -18,7 +18,6 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { SightingsSharingFields } from '@/components/settings/SightingsSharingFields'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import { saveSightingsVisibility } from '@/features/settings/preferences'
 import { sightingsVisibilityFromSharingPrefs } from '@/features/settings/sightings-sharing-prefs'
@@ -85,7 +84,9 @@ export function PersonalizationFlow() {
 
   const [interests, setInterests] = useState<string[]>([])
   const [dob, setDob] = useState<Date | null>(null)
-  const [showUsername, setShowUsername] = useState(true)
+  // Identity (anonymous vs username) is chosen per-sighting at Confirm Pin, not in
+  // onboarding. Kept as a stored default only; onboarding no longer asks.
+  const showUsername = true
   const [isChildAccount, setIsChildAccount] = useState(false)
   const [fullName, setFullName] = useState('')
 
@@ -434,13 +435,15 @@ export function PersonalizationFlow() {
             </View>
           </View>
 
-          <SightingsSharingFields
-            shareFindings={false}
-            showUsername={showUsername}
-            onShareFindingsChange={() => {}}
-            onShowUsernameChange={setShowUsername}
-            variant="onboarding"
-          />
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.label, { fontFamily: 'Nunito_700Bold' }]}>
+              Your sightings are private
+            </Text>
+            <Text style={[styles.labelHint, { fontFamily: 'Nunito_400Regular' }]}>
+              Your sightings are private by default. You can choose to share individual
+              sightings to Nearby later by tapping the GPS icon.
+            </Text>
+          </View>
         </ScrollView>
       )}
 

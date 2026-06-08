@@ -39,8 +39,6 @@ import { slugifySpeciesName } from '@/data/species-catalog'
 import { identifyAnimalOrPlant } from '@/features/identify/identify-image'
 import type { IdentResult } from '@/features/identify/types'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
-import { loadSettingsPreferences } from '@/features/settings/preferences'
-import { sharingPrefsFromSightingsVisibility } from '@/features/settings/sightings-sharing-prefs'
 
 type Facing = 'back' | 'front'
 
@@ -85,13 +83,8 @@ export function CameraScreen() {
     isFocusedRef.current = isFocused
   }, [isFocused])
 
-  useEffect(() => {
-    void loadSettingsPreferences().then((prefs) => {
-      const sharing = sharingPrefsFromSightingsVisibility(prefs.sightingsVisibility)
-      setPublishToMap(sharing.shareFindings)
-      setShareAnonymously(!sharing.showUsername)
-    })
-  }, [])
+  // Sharing is per-image and opt-in: every capture starts private. publishToMap
+  // only becomes true when the user taps GPS → Confirm Pin for THIS photo.
 
   const [permission, requestPermission] = useCameraPermissions()
   const [facing, setFacing] = useState<Facing>('back')
