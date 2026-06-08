@@ -100,6 +100,7 @@ export async function fetchCommunityMapSightings(
     .in('privacy', ['anonymous', 'public'])
     .eq('is_deleted', false)
     .is('deleted_at', null)
+    .eq('was_user_confirmed_pin', true)
     .gte('latitude', box.minLat)
     .lte('latitude', box.maxLat)
     .gte('longitude', box.minLng)

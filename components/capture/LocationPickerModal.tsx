@@ -57,6 +57,12 @@ function LocationPickerContent({
   const [publishToMap, setPublishToMap] = useState(defaultPublishToMap)
   const [shareAnonymously, setShareAnonymously] = useState(defaultShareAnonymously)
 
+  useEffect(() => {
+    const start = initialCoordinate ?? DEFAULT_CENTER
+    console.log('CONFIRM PIN OPENED', { initialLatitude: start[1], initialLongitude: start[0] })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Request permission on mount — fires the system dialog immediately when the
   // modal opens, before the map has finished loading. Stores the result in a ref
   // so handleMapReady can use it even if the map loads before location resolves.
@@ -290,6 +296,11 @@ function ShareCard({
         </Text>
       </Pressable>
 
+      <Text style={styles.termsText}>
+        By confirming, you agree to the Nearby sharing terms: only your confirmed
+        approximate pin is shared — never your exact device location.
+      </Text>
+
       <View style={styles.popWrap}>
         <Pressable
           accessibilityRole="button"
@@ -470,6 +481,13 @@ const styles = StyleSheet.create({
   },
   checkTextDisabled: {
     color: colors.dim,
+  },
+  termsText: {
+    fontSize: typeTokens.size.caption,
+    color: colors.dim,
+    lineHeight: 16,
+    marginTop: space[8],
+    marginBottom: space[8],
   },
   cancelShareBtn: {
     alignItems: 'center',

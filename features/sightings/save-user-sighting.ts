@@ -3,7 +3,6 @@ import * as Location from 'expo-location'
 
 import { slugifySpeciesName } from '@/data/species-catalog'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
-import { mapPrivacyFromSettings } from '@/features/map/map-privacy-from-settings'
 import { STREAK_WINDOW_MS } from '@/features/profile/streak'
 import type { Collection, CollectionLookup } from '@/features/collections/collections'
 import { computeQuestRewardDelta, questCountsFromSightings } from '@/features/quests/quests'
@@ -179,20 +178,24 @@ export async function saveUserSighting(
     }
   }
 
-  const { error: insertError } = await supabase.from('user_sightings').insert({
-    user_id: userId,
-    species_id: speciesId,
-    species_name: input.speciesName.trim(),
-    kingdom: input.kingdom,
-    latin_name: input.latinName?.trim() || null,
-    dex_number: input.dexNumber?.trim() || null,
-    confidence: input.confidence ?? null,
-    is_domestic: input.isDomestic ?? false,
-    photo_uri: savedPhotoUri,
-    latitude,
-    longitude,
-    spotted_at: spottedAt,
-  })
+  const { data: insertedSighting, error: insertError } = await supabase
+    .from('user_sightings')
+    .insert({
+      user_id: userId,
+      species_id: speciesId,
+      species_name: input.speciesName.trim(),
+      kingdom: input.kingdom,
+      latin_name: input.latinName?.trim() || null,
+      dex_number: input.dexNumber?.trim() || null,
+      confidence: input.confidence ?? null,
+      is_domestic: input.isDomestic ?? false,
+      photo_uri: savedPhotoUri,
+      latitude,
+      longitude,
+      spotted_at: spottedAt,
+    })
+    .select('id')
+    .single()
 
   if (insertError) {
     if (__DEV__) console.warn('[WildKind] user_sightings insert failed:', insertError.message)
@@ -204,7 +207,7 @@ export async function saveUserSighting(
   const { data: profileRow } = await supabase
     .from('profiles')
     .select(
-      'xp, streak_days, last_spotted_at, spots_captured, badges_count, claimed_quests',
+      'xp, streak_days, last_spotted_at, spots_captured, badges_count, claimed_quests, age_group, requires_parent_setup, nearby_sharing_enabled, location_sharing_active, nearby_terms_accepted_at, nearby_share_identity, confirmed_share_latitude, confirmed_share_longitude',
     )
     .eq('id', userId)
     .maybeSingle()
@@ -278,26 +281,67 @@ export async function saveUserSighting(
     })
     .eq('id', userId)
 
-  const settingsPrivacy = mapPrivacyFromSettings(prefs.sightingsVisibility)
-  const privacy =
-    input.publishToMap === false
-      ? 'private'
-      : input.shareAnonymously === true
-        ? 'anonymous'
-        : input.shareAnonymously === false
-          ? 'public'
-          : settingsPrivacy
-  if (privacy !== 'private' && latitude != null && longitude != null) {
+  // ─── Nearby (community_sightings) gate ──────────────────────────────────────
+  // A sighting is NEVER made public just by Add to Collection. Public sharing
+  // requires the user to have completed the Confirm Pin flow, which sets these
+  // profile fields. We use the confirmed pin coordinates — never raw device GPS.
+  const isChild =
+    (profileRow?.age_group ?? '').toLowerCase().includes('under') ||
+    profileRow?.requires_parent_setup === true
+  const confirmedLat = profileRow?.confirmed_share_latitude ?? null
+  const confirmedLng = profileRow?.confirmed_share_longitude ?? null
+  const hasConfirmedPin = confirmedLat != null && confirmedLng != null
+  const termsAccepted = profileRow?.nearby_terms_accepted_at != null
+  const nearbySharingEnabled = profileRow?.nearby_sharing_enabled === true
+  const locationSharingActive = profileRow?.location_sharing_active === true
+  const shareIdentity = profileRow?.nearby_share_identity === 'public' ? 'public' : 'anonymous'
+
+  const willCreateCommunitySighting =
+    !isChild && locationSharingActive && nearbySharingEnabled && termsAccepted && hasConfirmedPin
+
+  console.log('ADD TO COLLECTION PRIVACY CHECK', {
+    userId,
+    locationSharingActive,
+    nearbySharingEnabled,
+    termsAccepted,
+    hasConfirmedPin,
+    willCreateCommunitySighting,
+  })
+
+  if (willCreateCommunitySighting) {
     await supabase.from('community_sightings').insert({
       species_name: input.speciesName.trim(),
       species_id: speciesId,
       kingdom: input.kingdom,
-      latitude,
-      longitude,
-      privacy,
+      latitude: confirmedLat,
+      longitude: confirmedLng,
+      privacy: shareIdentity,
+      // Keep user_id for ownership/delete + RLS; anonymity is enforced by the
+      // Nearby query, which only exposes the username when privacy === 'public'.
       user_id: userId,
       report_count: 1,
       spotted_at: spottedAt,
+      source_user_sighting_id: insertedSighting?.id ?? null,
+      was_user_confirmed_pin: true,
+    })
+    console.log('COMMUNITY SIGHTING CREATED', {
+      sourceUserSightingId: insertedSighting?.id ?? null,
+      latitude: confirmedLat,
+      longitude: confirmedLng,
+      privacy: shareIdentity,
+      wasUserConfirmedPin: true,
+    })
+  } else {
+    console.log('COMMUNITY SIGHTING CREATE SKIPPED', {
+      reason: isChild
+        ? 'child_account'
+        : !nearbySharingEnabled || !locationSharingActive
+          ? 'nearby_sharing_inactive'
+          : !termsAccepted
+            ? 'terms_not_accepted'
+            : !hasConfirmedPin
+              ? 'no_confirmed_pin'
+              : 'unknown',
     })
   }
 

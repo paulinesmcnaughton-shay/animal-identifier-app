@@ -39,6 +39,7 @@ import { slugifySpeciesName } from '@/data/species-catalog'
 import { identifyAnimalOrPlant } from '@/features/identify/identify-image'
 import type { IdentResult } from '@/features/identify/types'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
+import { disableNearbySharing, saveNearbySharingSettings } from '@/features/sightings/nearby-sharing'
 import { loadSettingsPreferences } from '@/features/settings/preferences'
 import { sharingPrefsFromSightingsVisibility } from '@/features/settings/sightings-sharing-prefs'
 
@@ -675,7 +676,15 @@ export function CameraScreen() {
         onChooseSpecies={handleChooseSpecies}
         onRetake={dismissResultSheet}
         onRetry={handleRetryIdentification}
-        onOpenLocationPicker={() => setShowLocationPicker(true)}
+        onOpenLocationPicker={() => {
+          console.log('GPS ICON PRESSED', {
+            permissionStatus: 'requested-in-picker',
+            nearbySharingEnabled: publishToMap,
+            termsAccepted: isPublished,
+            hasConfirmedPin: pinnedCoords != null,
+          })
+          setShowLocationPicker(true)
+        }}
         onReturnToCamera={handleReturnToCamera}
       />
 
@@ -691,6 +700,17 @@ export function CameraScreen() {
           setShareAnonymously(anonymous)
           setIsPublished(publish)
           setShowLocationPicker(false)
+          // Confirm Pin persists the sharing decision to the profile. Only with
+          // sharing ON + a confirmed pin will Add to Collection create a public row.
+          if (publish) {
+            void saveNearbySharingSettings({
+              identity: anonymous ? 'anonymous' : 'public',
+              latitude: lat,
+              longitude: lng,
+            })
+          } else {
+            void disableNearbySharing()
+          }
         }}
       />
 

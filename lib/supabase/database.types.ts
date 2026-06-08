@@ -76,10 +76,12 @@ export type Database = {
           longitude: number
           privacy: string
           report_count: number
+          source_user_sighting_id: string | null
           species_id: string | null
           species_name: string
           spotted_at: string
           user_id: string | null
+          was_user_confirmed_pin: boolean
         }
         Insert: {
           created_at?: string
@@ -91,10 +93,12 @@ export type Database = {
           longitude: number
           privacy?: string
           report_count?: number
+          source_user_sighting_id?: string | null
           species_id?: string | null
           species_name: string
           spotted_at?: string
           user_id?: string | null
+          was_user_confirmed_pin?: boolean
         }
         Update: {
           created_at?: string
@@ -207,6 +211,13 @@ export type Database = {
           avatar_url: string | null
           badges_count: number
           claimed_quests: string[]
+          confirmed_share_latitude: number | null
+          confirmed_share_longitude: number | null
+          confirmed_share_radius_meters: number | null
+          location_sharing_active: boolean
+          nearby_share_identity: string | null
+          nearby_sharing_enabled: boolean
+          nearby_terms_accepted_at: string | null
           can_publish_to_nearby: boolean
           created_at: string | null
           date_of_birth: string | null
@@ -250,6 +261,13 @@ export type Database = {
           avatar_url?: string | null
           badges_count?: number
           claimed_quests?: string[]
+          confirmed_share_latitude?: number | null
+          confirmed_share_longitude?: number | null
+          confirmed_share_radius_meters?: number | null
+          location_sharing_active?: boolean
+          nearby_share_identity?: string | null
+          nearby_sharing_enabled?: boolean
+          nearby_terms_accepted_at?: string | null
           can_publish_to_nearby?: boolean
           created_at?: string | null
           date_of_birth?: string | null
@@ -293,6 +311,13 @@ export type Database = {
           avatar_url?: string | null
           badges_count?: number
           claimed_quests?: string[]
+          confirmed_share_latitude?: number | null
+          confirmed_share_longitude?: number | null
+          confirmed_share_radius_meters?: number | null
+          location_sharing_active?: boolean
+          nearby_share_identity?: string | null
+          nearby_sharing_enabled?: boolean
+          nearby_terms_accepted_at?: string | null
           can_publish_to_nearby?: boolean
           created_at?: string | null
           date_of_birth?: string | null
