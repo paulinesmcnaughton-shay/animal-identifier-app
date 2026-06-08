@@ -792,7 +792,9 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   osChipsWrap: {
-    marginHorizontal: -H_PAD,
+    // No negative margin here: osRoot has no horizontal padding, so the row is
+    // already full-width. osChipsScroll's H_PAD padding aligns the first chip with
+    // the search bar / grid / the Your Collection chips (was flush to the edge).
     marginBottom: space[8],
     // Fixed height stops the horizontal ScrollView from stretching to fill the
     // flex:1 column (which turned the chips into full-height bars). 48 is on the
