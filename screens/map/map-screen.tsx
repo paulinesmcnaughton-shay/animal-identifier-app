@@ -315,7 +315,10 @@ export function MapScreenContent() {
   const mapSheetTopY = mapExpandedSheetTopY(insets.top)
 
   const sheetUsesExpandedTopAnchor =
-    isWalkPreview || selectedSighting !== null
+    isWalkPreview
+    || selectedSighting !== null
+    || viewMode === 'nearby'
+    || (viewMode === 'sightings' && hasSightings)
 
   const sheetHeight = useMemo(() => {
     if (sheetUsesExpandedTopAnchor) {
@@ -338,6 +341,8 @@ export function MapScreenContent() {
   )
   const snapCollapsed =
     sheetHeight - (tabBarClearance + GAP_ABOVE_NAV + SHEET_HEADER_HEIGHT + SHEET_FAB_CLEARANCE_PEEK)
+  // Middle snap for the list sheet — halfway between peek and full (peek ↔ medium ↔ full).
+  const snapMedium = Math.max(SNAP_EXPANDED, Math.round((snapCollapsed + SNAP_EXPANDED) / 2))
   const snapWalkPreview = Math.max(SNAP_EXPANDED, sheetHeight - WALK_PREVIEW_DEFAULT_HEIGHT)
   const fabClearance = sheetBottomInset(insets.bottom)
   const snapExpandedPin = Math.max(
@@ -377,6 +382,8 @@ export function MapScreenContent() {
   snapWalkPreviewRef.current = snapWalkPreview
   const snapExpandedYRef = useRef(snapExpandedY)
   snapExpandedYRef.current = snapExpandedY
+  const snapMediumRef = useRef(snapMedium)
+  snapMediumRef.current = snapMedium
   const [walkDirectionsScrollEnabled, setWalkDirectionsScrollEnabled] = useState(false)
   const [sightingsListScrollEnabled, setSightingsListScrollEnabled] = useState(false)
 
@@ -392,12 +399,13 @@ export function MapScreenContent() {
   const listScrollY = useSharedValue(0)
 
   useAnimatedReaction(
-    () => translateY.value < 12,
-    (isExpanded) => {
-      runOnJS(setWalkDirectionsScrollEnabled)(isExpanded)
-      runOnJS(setSightingsListScrollEnabled)(isExpanded)
+    // List/content scroll is enabled at medium and full (anything above the peek).
+    () => translateY.value < snapCollapsed - 24,
+    (scrollable) => {
+      runOnJS(setWalkDirectionsScrollEnabled)(scrollable)
+      runOnJS(setSightingsListScrollEnabled)(scrollable)
     },
-    [translateY],
+    [translateY, snapCollapsed],
   )
 
   // Reset list scroll tracking whenever the visible sheet changes so a previously
@@ -409,11 +417,13 @@ export function MapScreenContent() {
   const sheetSnapY = useMemo((): number => {
     if (isWalkPreview) return snapWalkPreview
     if (isWalkNavigating) return snapCollapsed
-    if (viewMode === 'nearby') return SNAP_EXPANDED
     if (selectedSighting !== null) return SNAP_EXPANDED
-    if (viewMode === 'sightings' && hasSightings) return SNAP_EXPANDED
+    // List views open at the medium state — map stays visible, list has room,
+    // and the user can drag up to full or down to peek.
+    if (viewMode === 'nearby') return snapMedium
+    if (viewMode === 'sightings' && hasSightings) return snapMedium
     return snapCollapsed
-  }, [hasSightings, isWalkNavigating, isWalkPreview, selectedSighting, snapCollapsed, snapWalkPreview, viewMode])
+  }, [hasSightings, isWalkNavigating, isWalkPreview, selectedSighting, snapCollapsed, snapMedium, snapWalkPreview, viewMode])
 
   useEffect(() => {
     translateY.value = withSpring(sheetSnapY, SPRING)
@@ -482,21 +492,37 @@ export function MapScreenContent() {
             return
           }
 
-          const mid = (snapCollapsed + snapExpandedY) / 2
-          if (e.velocityY < -500 || translateY.value < mid) {
-            translateY.value = withSpring(snapExpandedY, SPRING)
-            return
-          }
+          // Selected pin detail keeps its expand / dismiss-to-list behavior.
           if (selectedSightingRef.current !== null) {
-            runOnJS(dismissSheetDetail)()
+            const mid = (snapCollapsed + snapExpandedYRef.current) / 2
+            if (e.velocityY < -500 || translateY.value < mid) {
+              translateY.value = withSpring(snapExpandedYRef.current, SPRING)
+            } else {
+              runOnJS(dismissSheetDetail)()
+            }
             return
           }
-          translateY.value = withSpring(snapCollapsed, SPRING)
+
+          // List sheet (nearby / sightings): three-state snap — full / medium / peek.
+          const full = snapExpandedYRef.current
+          const medium = snapMediumRef.current
+          const peek = snapCollapsed
+          const y = translateY.value
+          let target = full
+          if (e.velocityY < -650) {
+            target = full
+          } else if (e.velocityY > 650) {
+            target = peek
+          } else {
+            if (Math.abs(medium - y) < Math.abs(target - y)) target = medium
+            if (Math.abs(peek - y) < Math.abs(target - y)) target = peek
+          }
+          translateY.value = withSpring(target, SPRING)
         })
         .onFinalize(() => {
           runOnJS(setSheetDragging)(false)
         }),
-    [context, dismissSheetDetail, gestureStartedInHandle, listScrollY, sheetExpandable, snapCollapsed, snapExpandedY, translateY],
+    [context, dismissSheetDetail, gestureStartedInHandle, listScrollY, sheetExpandable, snapCollapsed, snapExpandedY, snapMedium, translateY],
   )
 
   const handleClearSheetSelection = useCallback(() => {
