@@ -39,6 +39,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import BottomSheet, { BottomSheetFlatList } from '@gorhom/bottom-sheet'
 
 import { KingdomMapPin } from '@/components/map/KingdomMapPin'
 import { LocationAccessBanner } from '@/components/map/LocationAccessBanner'
@@ -369,6 +370,17 @@ export function MapScreenContent() {
         || selectedSighting !== null
         || (viewMode === 'sightings' && hasSightings)))
 
+  // The list view (Sightings/Nearby) uses a @gorhom/bottom-sheet with real
+  // peek/medium/full snap points. Pin detail + walk keep the existing hand-rolled
+  // sheet — they're mutually exclusive states, so only one sheet renders at a time.
+  const listSheetRef = useRef<BottomSheet>(null)
+  const listSnapPoints = useMemo(() => ['14%', '52%', '92%'], [])
+  const isListMode =
+    !isWalkNavigating
+    && !isWalkPreview
+    && selectedSighting === null
+    && (viewMode === 'nearby' || viewMode === 'sightings')
+
   const walkSessionRef = useRef(walkSession)
   walkSessionRef.current = walkSession
   const snapWalkPreviewCollapsedRef = useRef(snapWalkPreviewCollapsed)
@@ -378,12 +390,10 @@ export function MapScreenContent() {
   const snapExpandedYRef = useRef(snapExpandedY)
   snapExpandedYRef.current = snapExpandedY
   const [walkDirectionsScrollEnabled, setWalkDirectionsScrollEnabled] = useState(false)
-  const [sightingsListScrollEnabled, setSightingsListScrollEnabled] = useState(false)
 
-  // Refs for NativeViewGestureHandler wrappers around each scrollable area inside
-  // the sheet. Added to simultaneousWithExternalGesture so scroll and pan co-exist.
-  const sightingsListRef = useRef<NativeViewGestureHandler>(null)
-  const nearbyListRef = useRef<NativeViewGestureHandler>(null)
+  // Ref for the pin-detail scroll area (hand-rolled sheet). Added to
+  // simultaneousWithExternalGesture so scroll and pan co-exist. The list views now
+  // use @gorhom/bottom-sheet, which manages its own scroll/drag coordination.
   const detailScrollRef = useRef<NativeViewGestureHandler>(null)
   // Tracks whether the current gesture started inside the handle/top-strip area.
   // Only gestures that start in the handle zone are allowed to move the sheet —
@@ -395,7 +405,6 @@ export function MapScreenContent() {
     () => translateY.value < 12,
     (isExpanded) => {
       runOnJS(setWalkDirectionsScrollEnabled)(isExpanded)
-      runOnJS(setSightingsListScrollEnabled)(isExpanded)
     },
     [translateY],
   )
@@ -430,7 +439,7 @@ export function MapScreenContent() {
         // Allow the pan gesture and inner scroll gestures to run simultaneously.
         // onUpdate gates movement so only handle-area drags actually move the sheet.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .simultaneousWithExternalGesture(sightingsListRef as React.RefObject<any>, nearbyListRef as React.RefObject<any>, detailScrollRef as React.RefObject<any>)
+        .simultaneousWithExternalGesture(detailScrollRef as React.RefObject<any>)
         .activeOffsetY([-PAN_ACTIVE_OFFSET_Y, PAN_ACTIVE_OFFSET_Y])
         .failOffsetX([...PAN_FAIL_OFFSET_X])
         .onStart((e) => {
@@ -787,8 +796,8 @@ export function MapScreenContent() {
   }, [refreshLocation])
 
   const handleExpandSightingsSheet = useCallback(() => {
-    translateY.value = withSpring(SNAP_EXPANDED, SPRING)
-  }, [translateY])
+    listSheetRef.current?.snapToIndex(2)
+  }, [])
 
   const handleToggleStyle = () => {
     setMapStyle((s) => s === 'light' ? 'terrain' : 'light')
@@ -1123,8 +1132,47 @@ export function MapScreenContent() {
         </>
       ) : null}
 
-      {/* ── Bottom sheet ── */}
-      {!isWalkNavigating ? (
+      {/* ── List sheet (gorhom): peek / medium / full ── */}
+      {isListMode ? (
+        <BottomSheet
+          ref={listSheetRef}
+          index={1}
+          snapPoints={listSnapPoints}
+          enablePanDownToClose={false}
+          bottomInset={tabBarClearance}
+          backgroundStyle={styles.gorhomBackground}
+          handleIndicatorStyle={styles.gorhomHandleIndicator}>
+          {viewMode === 'sightings' ? (
+            <SightingsSheet
+              items={filteredSightings}
+              selectedSighting={null}
+              distanceUnit={distanceUnit}
+              onSelectSighting={handleSelectMapSighting}
+              onClearSelection={handleClearSheetSelection}
+              searchQuery={normalizedQuery}
+              onExpandSheet={handleExpandSightingsSheet}
+            />
+          ) : (
+            <NearbySheet
+              items={filteredNearby}
+              isLoading={nearbyLoading}
+              error={nearbyError}
+              distanceUnit={distanceUnit}
+              priorityMiles={NEARBY_PRIORITY_MILES}
+              searchQuery={normalizedQuery}
+              hasLiveLocation={hasLiveLocation}
+              selectedSighting={null}
+              onSelectSighting={handleSelectMapSighting}
+              onClearSelection={handleClearSheetSelection}
+              onTakeMeThere={handleOpenWalkPreview}
+              onExpandSheet={handleExpandSightingsSheet}
+            />
+          )}
+        </BottomSheet>
+      ) : null}
+
+      {/* ── Pin detail / walk sheet (hand-rolled) ── */}
+      {!isWalkNavigating && !isListMode ? (
       <>
       <GestureDetector gesture={panGesture}>
         <Animated.View
@@ -1195,13 +1243,10 @@ export function MapScreenContent() {
                 items={filteredSightings}
                 selectedSighting={selectedSighting}
                 distanceUnit={distanceUnit}
-                listScrollEnabled={sightingsListScrollEnabled}
                 onSelectSighting={handleSelectMapSighting}
                 onClearSelection={handleClearSheetSelection}
                 searchQuery={normalizedQuery}
                 onExpandSheet={handleExpandSightingsSheet}
-                listGestureRef={sightingsListRef}
-                onListScroll={(y) => { listScrollY.value = y }}
                 detailScrollGestureRef={detailScrollRef}
                 onDetailScroll={(y) => { listScrollY.value = y }}
               />
@@ -1219,9 +1264,6 @@ export function MapScreenContent() {
                 onClearSelection={handleClearSheetSelection}
                 onTakeMeThere={handleOpenWalkPreview}
                 onExpandSheet={handleExpandSightingsSheet}
-                listScrollEnabled={sightingsListScrollEnabled}
-                listGestureRef={nearbyListRef}
-                onListScroll={(y) => { listScrollY.value = y }}
                 detailScrollGestureRef={detailScrollRef}
                 onDetailScroll={(y) => { listScrollY.value = y }}
               />
@@ -1245,14 +1287,11 @@ interface SightingsSheetProps {
   selectedSighting: NearbyMapSighting | null
   distanceUnit: DistanceUnit
   searchQuery: string
-  listScrollEnabled: boolean
   onSelectSighting: (sighting: NearbyMapSighting) => void
   onClearSelection: () => void
   onExpandSheet: () => void
-  listGestureRef: React.RefObject<NativeViewGestureHandler | null>
-  onListScroll: (y: number) => void
-  detailScrollGestureRef: React.RefObject<NativeViewGestureHandler | null>
-  onDetailScroll: (y: number) => void
+  detailScrollGestureRef?: React.RefObject<NativeViewGestureHandler | null>
+  onDetailScroll?: (y: number) => void
 }
 
 function SightingsSheet({
@@ -1260,12 +1299,9 @@ function SightingsSheet({
   selectedSighting,
   distanceUnit,
   searchQuery,
-  listScrollEnabled,
   onSelectSighting,
   onClearSelection,
   onExpandSheet,
-  listGestureRef,
-  onListScroll,
   detailScrollGestureRef,
   onDetailScroll,
 }: SightingsSheetProps) {
@@ -1317,58 +1353,52 @@ function SightingsSheet({
 
   return (
     <View style={styles.sheetInner}>
-      <View style={styles.handle} />
       <Text style={styles.sheetTitle}>My Sightings</Text>
       <Text style={[styles.sheetSub, { marginBottom: space[16] }]}>{subtitle}</Text>
-      <NativeViewGestureHandler ref={listGestureRef}>
-        <FlatList
-          data={visibleItems}
-          keyExtractor={(item) => item.id}
-          scrollEnabled={listScrollEnabled}
-          style={styles.nearbyList}
-          showsVerticalScrollIndicator={false}
-          scrollEventThrottle={16}
-          onScroll={({ nativeEvent }) => onListScroll(nativeEvent.contentOffset.y)}
-          ListEmptyComponent={null}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          ListFooterComponent={
-            hasMore ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Show ${Math.min(SIGHTINGS_PAGE_SIZE, remaining)} more sightings`}
-                onPress={handleShowMore}
-                style={({ pressed }) => [styles.showMoreBtn, pressed && styles.showMorePressed]}>
-                <Text style={styles.showMoreLabel}>
-                  Show more ({remaining} remaining)
-                </Text>
-                <Ionicons name="chevron-down" size={14} color={colors.greenLight} />
-              </Pressable>
-            ) : null
-          }
-          renderItem={({ item }) => (
+      <BottomSheetFlatList
+        data={visibleItems}
+        keyExtractor={(item) => item.id}
+        style={styles.nearbyList}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={null}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ListFooterComponent={
+          hasMore ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`View ${item.name}`}
-              onPress={() => onSelectSighting(item)}
-              style={({ pressed }) => [styles.nearbyRowPressable, pressed && styles.nearbyRowPressed]}>
-              <View style={styles.nearbyRow}>
-                <View style={styles.nearbyMeta}>
-                  <View style={styles.nearbyNameRow}>
-                    <NearbySpeciesName name={item.name} style={styles.nearbyName} />
-                    {item.isNew && (
-                      <View style={styles.newTag}>
-                        <Text style={styles.newTagText}>NEW</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.nearbyDist}>{item.date}</Text>
-                </View>
-                <KingdomBadge kind={item.kingdom} />
-              </View>
+              accessibilityLabel={`Show ${Math.min(SIGHTINGS_PAGE_SIZE, remaining)} more sightings`}
+              onPress={handleShowMore}
+              style={({ pressed }) => [styles.showMoreBtn, pressed && styles.showMorePressed]}>
+              <Text style={styles.showMoreLabel}>
+                Show more ({remaining} remaining)
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={colors.greenLight} />
             </Pressable>
-          )}
-        />
-      </NativeViewGestureHandler>
+          ) : null
+        }
+        renderItem={({ item }) => (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`View ${item.name}`}
+            onPress={() => onSelectSighting(item)}
+            style={({ pressed }) => [styles.nearbyRowPressable, pressed && styles.nearbyRowPressed]}>
+            <View style={styles.nearbyRow}>
+              <View style={styles.nearbyMeta}>
+                <View style={styles.nearbyNameRow}>
+                  <NearbySpeciesName name={item.name} style={styles.nearbyName} />
+                  {item.isNew && (
+                    <View style={styles.newTag}>
+                      <Text style={styles.newTagText}>NEW</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.nearbyDist}>{item.date}</Text>
+              </View>
+              <KingdomBadge kind={item.kingdom} />
+            </View>
+          </Pressable>
+        )}
+      />
     </View>
   )
 }
@@ -1386,11 +1416,8 @@ interface NearbySheetProps {
   onClearSelection: () => void
   onTakeMeThere: (sighting: NearbyMapSighting) => void
   onExpandSheet: () => void
-  listScrollEnabled: boolean
-  listGestureRef: React.RefObject<NativeViewGestureHandler | null>
-  onListScroll: (y: number) => void
-  detailScrollGestureRef: React.RefObject<NativeViewGestureHandler | null>
-  onDetailScroll: (y: number) => void
+  detailScrollGestureRef?: React.RefObject<NativeViewGestureHandler | null>
+  onDetailScroll?: (y: number) => void
 }
 
 function nearbyListSubtitle(item: NearbyMapSighting, distanceUnit: DistanceUnit): string {
@@ -1445,9 +1472,6 @@ function NearbySheet({
   onClearSelection,
   onTakeMeThere,
   onExpandSheet,
-  listScrollEnabled,
-  listGestureRef,
-  onListScroll,
   detailScrollGestureRef,
   onDetailScroll,
 }: NearbySheetProps) {
@@ -1502,22 +1526,17 @@ function NearbySheet({
 
   return (
     <View style={styles.sheetInner}>
-      <View style={styles.handle} />
       <Text style={styles.sheetTitle}>Nearby Species</Text>
       <Text style={[styles.sheetSub, { marginBottom: space[16] }]}>
         {hasLiveLocation
           ? "Let's explore what is near you and start collecting."
           : 'Waiting for GPS…'}
       </Text>
-      <NativeViewGestureHandler ref={listGestureRef}>
-        <FlatList
+      <BottomSheetFlatList
           data={visibleItems}
           keyExtractor={(item) => item.id}
-          scrollEnabled={listScrollEnabled}
           style={styles.nearbyList}
           showsVerticalScrollIndicator={false}
-          scrollEventThrottle={16}
-          onScroll={({ nativeEvent }) => onListScroll(nativeEvent.contentOffset.y)}
           ListEmptyComponent={<Text style={styles.sheetSub}>{emptyMessage}</Text>}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           ListFooterComponent={
@@ -1575,7 +1594,6 @@ function NearbySheet({
             </Pressable>
           )}
         />
-      </NativeViewGestureHandler>
     </View>
   )
 }
@@ -1853,6 +1871,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     ...slideUpSheetRadius,
     ...shadow.sheetUp,
+  },
+  gorhomBackground: {
+    backgroundColor: colors.card,
+    ...slideUpSheetRadius,
+  },
+  gorhomHandleIndicator: {
+    backgroundColor: colors.hairline,
+    width: 40,
   },
   sheetSurface: {
     flex: 1,
