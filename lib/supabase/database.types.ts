@@ -110,10 +110,12 @@ export type Database = {
           longitude?: number
           privacy?: string
           report_count?: number
+          source_user_sighting_id?: string | null
           species_id?: string | null
           species_name?: string
           spotted_at?: string
           user_id?: string | null
+          was_user_confirmed_pin?: boolean
         }
         Relationships: [
           {

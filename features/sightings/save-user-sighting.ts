@@ -207,7 +207,7 @@ export async function saveUserSighting(
   const { data: profileRow } = await supabase
     .from('profiles')
     .select(
-      'xp, streak_days, last_spotted_at, spots_captured, badges_count, claimed_quests, age_group, requires_parent_setup, nearby_sharing_enabled, location_sharing_active, nearby_terms_accepted_at, nearby_share_identity, confirmed_share_latitude, confirmed_share_longitude',
+      'xp, streak_days, last_spotted_at, spots_captured, badges_count, claimed_quests, age_group, requires_parent_setup',
     )
     .eq('id', userId)
     .maybeSingle()
@@ -282,29 +282,25 @@ export async function saveUserSighting(
     .eq('id', userId)
 
   // ─── Nearby (community_sightings) gate ──────────────────────────────────────
-  // A sighting is NEVER made public just by Add to Collection. Public sharing
-  // requires the user to have completed the Confirm Pin flow, which sets these
-  // profile fields. We use the confirmed pin coordinates — never raw device GPS.
+  // Sharing is PER-IMAGE. A capture becomes public ONLY if the user explicitly
+  // shared THIS capture via Confirm Pin (publishToMap + a confirmed pin). We use
+  // the confirmed pin coordinates — never raw device GPS. Children never share.
   const isChild =
     (profileRow?.age_group ?? '').toLowerCase().includes('under') ||
     profileRow?.requires_parent_setup === true
-  const confirmedLat = profileRow?.confirmed_share_latitude ?? null
-  const confirmedLng = profileRow?.confirmed_share_longitude ?? null
+  const confirmedLat = input.manualLatitude ?? null
+  const confirmedLng = input.manualLongitude ?? null
   const hasConfirmedPin = confirmedLat != null && confirmedLng != null
-  const termsAccepted = profileRow?.nearby_terms_accepted_at != null
-  const nearbySharingEnabled = profileRow?.nearby_sharing_enabled === true
-  const locationSharingActive = profileRow?.location_sharing_active === true
-  const shareIdentity = profileRow?.nearby_share_identity === 'public' ? 'public' : 'anonymous'
+  const optedIntoShare = input.publishToMap === true
+  const shareIdentity = input.shareAnonymously === false ? 'public' : 'anonymous'
 
-  const willCreateCommunitySighting =
-    !isChild && locationSharingActive && nearbySharingEnabled && termsAccepted && hasConfirmedPin
+  const willCreateCommunitySighting = !isChild && optedIntoShare && hasConfirmedPin
 
   console.log('ADD TO COLLECTION PRIVACY CHECK', {
     userId,
-    locationSharingActive,
-    nearbySharingEnabled,
-    termsAccepted,
+    optedIntoShare,
     hasConfirmedPin,
+    isChild,
     willCreateCommunitySighting,
   })
 
@@ -333,15 +329,7 @@ export async function saveUserSighting(
     })
   } else {
     console.log('COMMUNITY SIGHTING CREATE SKIPPED', {
-      reason: isChild
-        ? 'child_account'
-        : !nearbySharingEnabled || !locationSharingActive
-          ? 'nearby_sharing_inactive'
-          : !termsAccepted
-            ? 'terms_not_accepted'
-            : !hasConfirmedPin
-              ? 'no_confirmed_pin'
-              : 'unknown',
+      reason: isChild ? 'child_account' : !optedIntoShare ? 'not_shared' : 'no_confirmed_pin',
     })
   }
 

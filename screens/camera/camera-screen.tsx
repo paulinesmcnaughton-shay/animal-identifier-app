@@ -39,7 +39,6 @@ import { slugifySpeciesName } from '@/data/species-catalog'
 import { identifyAnimalOrPlant } from '@/features/identify/identify-image'
 import type { IdentResult } from '@/features/identify/types'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
-import { disableNearbySharing, saveNearbySharingSettings } from '@/features/sightings/nearby-sharing'
 import { loadSettingsPreferences } from '@/features/settings/preferences'
 import { sharingPrefsFromSightingsVisibility } from '@/features/settings/sightings-sharing-prefs'
 
@@ -695,22 +694,13 @@ export function CameraScreen() {
         defaultShareAnonymously={shareAnonymously}
         onClose={() => setShowLocationPicker(false)}
         onConfirm={(lat, lng, publish, anonymous) => {
+          // Per-image: this only sets THIS capture's share decision + confirmed pin.
+          // Add to Collection uses these; nothing is shared until then.
           setPinnedCoords({ lat, lng })
           setPublishToMap(publish)
           setShareAnonymously(anonymous)
           setIsPublished(publish)
           setShowLocationPicker(false)
-          // Confirm Pin persists the sharing decision to the profile. Only with
-          // sharing ON + a confirmed pin will Add to Collection create a public row.
-          if (publish) {
-            void saveNearbySharingSettings({
-              identity: anonymous ? 'anonymous' : 'public',
-              latitude: lat,
-              longitude: lng,
-            })
-          } else {
-            void disableNearbySharing()
-          }
         }}
       />
 

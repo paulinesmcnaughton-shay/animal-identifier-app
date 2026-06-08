@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import * as Location from 'expo-location'
 import { router, useLocalSearchParams } from 'expo-router'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {
@@ -19,6 +19,12 @@ import { resolveRouteParam } from '@/data/species-catalog'
 import { isPlaceholderDexNumber } from '@/features/species/resolve-dex-number'
 import { getLocalSpeciesHeroImage } from '@/features/species/resolve-species-hero-image'
 import { useSpeciesUserSightings } from '@/features/sightings/use-species-user-sightings'
+import {
+  isUserSightingShared,
+  shareUserSighting,
+  unshareUserSighting,
+} from '@/features/sightings/nearby-sharing'
+import { LocationPickerModal } from '@/components/capture/LocationPickerModal'
 import { useSpeciesDetail } from '@/features/species/use-species-detail'
 import { getSightingPhotoUri } from '@/features/species/get-display-image-uri'
 import { useReferenceImage } from '@/features/species/use-reference-image'
@@ -121,6 +127,51 @@ export function SpeciesDetailScreen() {
     { screen: 'species-detail', component: 'HeroImage' },
   )
   const userSightings = useSpeciesUserSightings(id)
+  const primarySighting = userSightings[0] ?? null
+  const primarySightingId = primarySighting?.id ?? null
+  const [isShared, setIsShared] = useState(false)
+  const [shareModalOpen, setShareModalOpen] = useState(false)
+
+  useEffect(() => {
+    if (!primarySightingId) {
+      setIsShared(false)
+      return
+    }
+    let cancelled = false
+    void isUserSightingShared(primarySightingId).then((shared) => {
+      if (!cancelled) setIsShared(shared)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [primarySightingId])
+
+  const handleNearbySharePress = () => {
+    if (!primarySightingId) return
+    if (!isShared) {
+      console.log('GPS ICON PRESSED', {
+        source: 'species-detail',
+        userSightingId: primarySightingId,
+        isShared,
+      })
+      setShareModalOpen(true)
+      return
+    }
+    Alert.alert(
+      'Shared on Nearby',
+      'This sighting is on the Nearby map. Remove it? Your photo stays in My Sightings and your Wild Dex.',
+      [
+        {
+          text: 'Remove from Nearby',
+          style: 'destructive',
+          onPress: () => {
+            void unshareUserSighting(primarySightingId).then(() => setIsShared(false))
+          },
+        },
+        { text: 'Keep public', style: 'cancel' },
+      ],
+    )
+  }
 
   const kingdomMeta = KINGDOM[species.kingdom]
 
@@ -261,6 +312,31 @@ export function SpeciesDetailScreen() {
                 <Text style={styles.savedBannerText}>Added to Wild Dex & My Sightings</Text>
               </View>
             ) : null}
+            {primarySightingId ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isShared
+                    ? 'Manage Nearby sharing for this sighting'
+                    : 'Share this sighting on Nearby'
+                }
+                onPress={handleNearbySharePress}
+                style={[styles.nearbyShareRow, isShared && styles.nearbyShareRowActive]}>
+                <Ionicons
+                  name={isShared ? 'location' : 'location-outline'}
+                  size={16}
+                  color={isShared ? colors.green : colors.dim}
+                />
+                <Text style={[styles.nearbyShareText, isShared && styles.nearbyShareTextActive]}>
+                  {isShared ? 'Shared on Nearby — tap to manage' : 'Share this sighting on Nearby'}
+                </Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={isShared ? colors.green : colors.dim}
+                />
+              </Pressable>
+            ) : null}
             {showNeedsIdHint ? (
               <View style={styles.needsIdBanner}>
                 <Ionicons name="information-circle-outline" size={16} color={colors.dim} />
@@ -315,6 +391,28 @@ export function SpeciesDetailScreen() {
           </View>
         </View>
       ) : null}
+
+      <LocationPickerModal
+        visible={shareModalOpen}
+        initialCoordinate={
+          primarySighting?.latitude != null && primarySighting?.longitude != null
+            ? [primarySighting.longitude, primarySighting.latitude]
+            : null
+        }
+        defaultPublishToMap
+        defaultShareAnonymously
+        onClose={() => setShareModalOpen(false)}
+        onConfirm={(lat, lng, publish, anonymous) => {
+          setShareModalOpen(false)
+          if (!publish || !primarySightingId) return
+          void shareUserSighting({
+            userSightingId: primarySightingId,
+            identity: anonymous ? 'anonymous' : 'public',
+            latitude: lat,
+            longitude: lng,
+          }).then(() => setIsShared(true))
+        }}
+      />
     </View>
   )
 }
@@ -569,6 +667,31 @@ const styles = StyleSheet.create({
     fontSize: typeTokens.size.bodySM,
     fontWeight: typeTokens.body.weights.bold,
     color: colors.ink2,
+  },
+  nearbyShareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[8],
+    marginBottom: space[8],
+    paddingVertical: space[8],
+    paddingHorizontal: space[16],
+    backgroundColor: colors.bg2,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+  },
+  nearbyShareRowActive: {
+    borderColor: colors.greenLight,
+  },
+  nearbyShareText: {
+    flex: 1,
+    fontFamily: typeTokens.body.family,
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.ink2,
+  },
+  nearbyShareTextActive: {
+    color: colors.green,
   },
   profileBody: {
     position: 'relative',

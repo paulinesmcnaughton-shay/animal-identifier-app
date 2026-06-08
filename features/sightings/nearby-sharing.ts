@@ -1,63 +1,110 @@
-import { notifyAccountProfileChanged } from '@/features/settings/account-profile-events'
+import { notifySightingsChanged } from '@/features/sightings/sightings-events'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
 export type NearbyShareIdentity = 'anonymous' | 'public'
 
-export interface NearbySharingSettings {
+export interface ShareSightingArgs {
+  userSightingId: string
   identity: NearbyShareIdentity
   /** Confirmed pin coordinates — NOT raw device GPS. */
   latitude: number
   longitude: number
-  radiusMeters?: number | null
+}
+
+/** Is this specific sighting currently live on the Nearby map? */
+export async function isUserSightingShared(userSightingId: string): Promise<boolean> {
+  const supabase = getSupabaseClient()
+  if (!supabase || !userSightingId) return false
+  const { data } = await supabase
+    .from('community_sightings')
+    .select('id')
+    .eq('source_user_sighting_id', userSightingId)
+    .eq('is_deleted', false)
+    .is('deleted_at', null)
+    .limit(1)
+  return (data ?? []).length > 0
 }
 
 /**
- * Persist the Confirm Pin result: enables Nearby sharing, records terms
- * acceptance, the chosen identity, and the confirmed (user-adjusted) coordinates.
- * After this, future Add to Collection saves create community_sightings.
+ * Publish (or re-publish) a single saved sighting to Nearby using its confirmed
+ * pin. If a (possibly removed) row already exists for this sighting, it's revived
+ * and its pin/identity updated; otherwise a new row is created.
  */
-export async function saveNearbySharingSettings(settings: NearbySharingSettings): Promise<void> {
+export async function shareUserSighting(args: ShareSightingArgs): Promise<boolean> {
   const supabase = getSupabaseClient()
-  if (!supabase) return
-  const { data } = await supabase.auth.getUser()
-  const userId = data.user?.id
-  if (!userId) return
+  if (!supabase) return false
+  const { data: auth } = await supabase.auth.getUser()
+  const userId = auth.user?.id
+  if (!userId) return false
 
-  const termsAcceptedAt = new Date().toISOString()
-  await supabase
-    .from('profiles')
-    .update({
-      nearby_sharing_enabled: true,
-      location_sharing_active: true,
-      nearby_terms_accepted_at: termsAcceptedAt,
-      nearby_share_identity: settings.identity,
-      confirmed_share_latitude: settings.latitude,
-      confirmed_share_longitude: settings.longitude,
-      confirmed_share_radius_meters: settings.radiusMeters ?? null,
+  const { data: sighting } = await supabase
+    .from('user_sightings')
+    .select('species_id, species_name, kingdom, spotted_at')
+    .eq('id', args.userSightingId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (!sighting) return false
+
+  const { data: existing } = await supabase
+    .from('community_sightings')
+    .select('id')
+    .eq('source_user_sighting_id', args.userSightingId)
+    .limit(1)
+    .maybeSingle()
+
+  const fields = {
+    species_name: sighting.species_name,
+    species_id: sighting.species_id,
+    kingdom: sighting.kingdom,
+    latitude: args.latitude,
+    longitude: args.longitude,
+    privacy: args.identity,
+    user_id: userId,
+    was_user_confirmed_pin: true,
+    is_deleted: false,
+    deleted_at: null,
+  }
+
+  if (existing?.id) {
+    await supabase.from('community_sightings').update(fields).eq('id', existing.id)
+  } else {
+    await supabase.from('community_sightings').insert({
+      ...fields,
+      report_count: 1,
+      spotted_at: sighting.spotted_at,
+      source_user_sighting_id: args.userSightingId,
     })
-    .eq('id', userId)
+  }
 
-  console.log('CONFIRM PIN SAVED', {
-    confirmedLatitude: settings.latitude,
-    confirmedLongitude: settings.longitude,
-    radiusMeters: settings.radiusMeters ?? null,
-    identity: settings.identity,
-    termsAcceptedAt,
+  console.log('COMMUNITY SIGHTING CREATED', {
+    sourceUserSightingId: args.userSightingId,
+    latitude: args.latitude,
+    longitude: args.longitude,
+    privacy: args.identity,
+    wasUserConfirmedPin: true,
   })
-  notifyAccountProfileChanged()
+  notifySightingsChanged()
+  return true
 }
 
-/** Turn Nearby sharing off — future saves are private only. Existing rows remain. */
-export async function disableNearbySharing(): Promise<void> {
+/**
+ * Remove a sighting from Nearby WITHOUT deleting it. Soft-deletes the
+ * community_sightings row; the sighting stays in user_sightings + Dex + My Sightings.
+ */
+export async function unshareUserSighting(userSightingId: string): Promise<boolean> {
   const supabase = getSupabaseClient()
-  if (!supabase) return
-  const { data } = await supabase.auth.getUser()
-  const userId = data.user?.id
-  if (!userId) return
+  if (!supabase) return false
+  const { data: auth } = await supabase.auth.getUser()
+  const userId = auth.user?.id
+  if (!userId) return false
 
   await supabase
-    .from('profiles')
-    .update({ location_sharing_active: false, nearby_sharing_enabled: false })
-    .eq('id', userId)
-  notifyAccountProfileChanged()
+    .from('community_sightings')
+    .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+    .eq('source_user_sighting_id', userSightingId)
+    .eq('user_id', userId)
+
+  console.log('COMMUNITY SIGHTING REMOVED', { sourceUserSightingId: userSightingId })
+  notifySightingsChanged()
+  return true
 }
