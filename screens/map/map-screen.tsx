@@ -419,6 +419,10 @@ export function MapScreenContent() {
     translateY.value = withSpring(sheetSnapY, SPRING)
   }, [sheetSnapY, translateY])
 
+  // While the sheet is being dragged, disable the map's native pan/zoom/rotate so
+  // it can't steal the gesture (caused the map to move + the sheet to feel laggy).
+  const [sheetDragging, setSheetDragging] = useState(false)
+
   const panGesture = useMemo(
     () =>
       Gesture.Pan()
@@ -434,6 +438,7 @@ export function MapScreenContent() {
           // e.y is relative to the GestureDetector's view (top of the bottom sheet).
           // The handle pill sits in the first ~56px — only allow sheet movement from there.
           gestureStartedInHandle.value = e.y < 56
+          runOnJS(setSheetDragging)(true)
         })
         .onUpdate((e) => {
           // If the touch started outside the handle zone (i.e. in scrollable content),
@@ -487,6 +492,9 @@ export function MapScreenContent() {
             return
           }
           translateY.value = withSpring(snapCollapsed, SPRING)
+        })
+        .onFinalize(() => {
+          runOnJS(setSheetDragging)(false)
         }),
     [context, dismissSheetDetail, gestureStartedInHandle, listScrollY, sheetExpandable, snapCollapsed, snapExpandedY, translateY],
   )
@@ -818,16 +826,16 @@ export function MapScreenContent() {
           ref={mapRef}
           style={StyleSheet.absoluteFill}
           styleURL={activeMapStyleUrl}
-          scrollEnabled
-          zoomEnabled
+          scrollEnabled={!sheetDragging}
+          zoomEnabled={!sheetDragging}
           pitchEnabled={false}
-          rotateEnabled
+          rotateEnabled={!sheetDragging}
           requestDisallowInterceptTouchEvent
           gestureSettings={{
-            pinchZoomEnabled: true,
-            pinchPanEnabled: true,
-            panEnabled: true,
-            rotateEnabled: true,
+            pinchZoomEnabled: !sheetDragging,
+            pinchPanEnabled: !sheetDragging,
+            panEnabled: !sheetDragging,
+            rotateEnabled: !sheetDragging,
           }}
           logoEnabled={false}
           attributionEnabled={false}
