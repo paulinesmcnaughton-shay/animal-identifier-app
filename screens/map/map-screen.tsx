@@ -1139,7 +1139,7 @@ export function MapScreenContent() {
           index={1}
           snapPoints={listSnapPoints}
           enablePanDownToClose={false}
-          bottomInset={tabBarClearance}
+          bottomInset={insets.bottom + TAB_BAR_HEIGHT}
           backgroundStyle={styles.gorhomBackground}
           handleIndicatorStyle={styles.gorhomHandleIndicator}>
           {viewMode === 'sightings' ? (
