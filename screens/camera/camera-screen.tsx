@@ -39,6 +39,7 @@ import { slugifySpeciesName } from '@/data/species-catalog'
 import { identifyAnimalOrPlant } from '@/features/identify/identify-image'
 import type { IdentResult } from '@/features/identify/types'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
+import { loadDefaultShareAnonymously } from '@/features/sightings/nearby-sharing'
 
 type Facing = 'back' | 'front'
 
@@ -84,7 +85,11 @@ export function CameraScreen() {
   }, [isFocused])
 
   // Sharing is per-image and opt-in: every capture starts private. publishToMap
-  // only becomes true when the user taps GPS → Confirm Pin for THIS photo.
+  // only becomes true when the user taps GPS → Confirm Pin for THIS photo. We
+  // only pre-load the default IDENTITY (anonymous vs username) — never publish.
+  useEffect(() => {
+    void loadDefaultShareAnonymously().then(setShareAnonymously)
+  }, [])
 
   const [permission, requestPermission] = useCameraPermissions()
   const [facing, setFacing] = useState<Facing>('back')

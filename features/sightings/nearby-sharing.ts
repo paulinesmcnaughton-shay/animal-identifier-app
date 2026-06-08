@@ -1,7 +1,18 @@
 import { notifySightingsChanged } from '@/features/sightings/sightings-events'
+import { loadSettingsPreferences } from '@/features/settings/preferences'
+import { sharingPrefsFromSightingsVisibility } from '@/features/settings/sightings-sharing-prefs'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
 export type NearbyShareIdentity = 'anonymous' | 'public'
+
+/**
+ * The user's default identity preference (Settings → Nearby sharing), used only
+ * to pre-select anonymous/public in the Confirm Pin sheet. Never auto-publishes.
+ */
+export async function loadDefaultShareAnonymously(): Promise<boolean> {
+  const prefs = await loadSettingsPreferences()
+  return !sharingPrefsFromSightingsVisibility(prefs.sightingsVisibility).showUsername
+}
 
 export interface ShareSightingArgs {
   userSightingId: string

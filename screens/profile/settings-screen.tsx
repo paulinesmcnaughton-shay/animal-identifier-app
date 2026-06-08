@@ -288,7 +288,7 @@ export function SettingsScreenContent() {
           <SettingsRow
             icon="eye"
             iconBg={colors.greenLight}
-            title="Nearby map sharing"
+            title="Nearby sharing"
             subtitle={rowSubtitles.sightingsVisibility}
             action={{ type: 'chevron', onPress: () => router.push('/settings-sightings-visibility') }}
           />

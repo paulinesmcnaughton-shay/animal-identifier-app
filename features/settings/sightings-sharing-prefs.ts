@@ -28,7 +28,7 @@ export function sharingPrefsFromSightingsVisibility(
 
 export function sightingsVisibilitySummary(visibility: SightingsVisibility): string {
   const prefs = sharingPrefsFromSightingsVisibility(visibility)
-  if (!prefs.shareFindings) return 'Not on Nearby map'
-  if (!prefs.showUsername) return 'On map · anonymous'
-  return 'On map · with username'
+  // Sharing is per-sighting now; this preference is only the default identity
+  // pre-selected when the user shares a sighting via the GPS icon.
+  return prefs.showUsername ? 'Default: username shown' : 'Default: anonymous'
 }

@@ -25,6 +25,7 @@ import type { IdentResult, PipelineCategory } from '@/features/identify/types'
 import { MANUAL_PICKER_CONFIDENCE_THRESHOLD } from '@/features/identify/types'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
+import { loadDefaultShareAnonymously } from '@/features/sightings/nearby-sharing'
 
 export function ResultScreen() {
   const insets = useSafeAreaInsets()
@@ -79,7 +80,11 @@ export function ResultScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current
 
   // Sharing is per-image and opt-in: every capture starts private. publishToMap
-  // only becomes true when the user taps GPS → Confirm Pin for THIS photo.
+  // only becomes true when the user taps GPS → Confirm Pin for THIS photo. We
+  // only pre-load the default IDENTITY (anonymous vs username) — never publish.
+  useEffect(() => {
+    void loadDefaultShareAnonymously().then(setShareAnonymously)
+  }, [])
 
   const runIdentification = useCallback(async (imageUri: string) => {
     setIsLoading(true)

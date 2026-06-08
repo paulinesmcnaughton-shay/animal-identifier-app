@@ -3,11 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { SightingsSharingFields } from '@/components/settings/SightingsSharingFields'
 import { SettingsDetailShell } from '@/components/settings/SettingsDetailShell'
-import {
-  loadSettingsPreferences,
-  saveSightingsVisibility,
-  type SightingsVisibility,
-} from '@/features/settings/preferences'
+import { loadSettingsPreferences, saveSightingsVisibility } from '@/features/settings/preferences'
 import {
   sharingPrefsFromSightingsVisibility,
   sightingsVisibilityFromSharingPrefs,
@@ -15,13 +11,11 @@ import {
 
 export function SightingsVisibilityScreenContent() {
   const router = useRouter()
-  const [shareFindings, setShareFindings] = useState(true)
   const [showUsername, setShowUsername] = useState(true)
 
   const load = useCallback(async () => {
     const prefs = await loadSettingsPreferences()
     const sharing = sharingPrefsFromSightingsVisibility(prefs.sightingsVisibility)
-    setShareFindings(sharing.shareFindings)
     setShowUsername(sharing.showUsername)
   }, [])
 
@@ -29,37 +23,21 @@ export function SightingsVisibilityScreenContent() {
     void load()
   }, [load])
 
-  const persist = async (nextShare: boolean, nextShowName: boolean) => {
-    const visibility: SightingsVisibility = sightingsVisibilityFromSharingPrefs(
-      nextShare,
-      nextShowName,
-    )
-    await saveSightingsVisibility(visibility)
-  }
-
-  const handleShareFindingsChange = (next: boolean) => {
-    setShareFindings(next)
-    const nextShowName = next ? showUsername : false
-    if (!next) setShowUsername(false)
-    void persist(next, nextShowName)
-  }
-
   const handleShowUsernameChange = (next: boolean) => {
     setShowUsername(next)
-    void persist(shareFindings, next)
+    // Identity-only preference: sharing itself is per-sighting via the GPS icon.
+    // 'public' = username shown by default, 'anonymous' = anonymous by default.
+    void saveSightingsVisibility(sightingsVisibilityFromSharingPrefs(true, next))
   }
 
   return (
     <SettingsDetailShell
-      title="Nearby map sharing"
+      title="Nearby sharing"
       onBack={() => router.back()}
       sectionLabel="NEARBY MAP">
       <SightingsSharingFields
-        shareFindings={shareFindings}
         showUsername={showUsername}
-        onShareFindingsChange={handleShareFindingsChange}
         onShowUsernameChange={handleShowUsernameChange}
-        variant="settings"
       />
     </SettingsDetailShell>
   )

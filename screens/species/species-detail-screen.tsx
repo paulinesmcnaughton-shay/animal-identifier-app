@@ -21,6 +21,7 @@ import { getLocalSpeciesHeroImage } from '@/features/species/resolve-species-her
 import { useSpeciesUserSightings } from '@/features/sightings/use-species-user-sightings'
 import {
   isUserSightingShared,
+  loadDefaultShareAnonymously,
   shareUserSighting,
   unshareUserSighting,
 } from '@/features/sightings/nearby-sharing'
@@ -131,6 +132,11 @@ export function SpeciesDetailScreen() {
   const primarySightingId = primarySighting?.id ?? null
   const [isShared, setIsShared] = useState(false)
   const [shareModalOpen, setShareModalOpen] = useState(false)
+  const [defaultAnonymous, setDefaultAnonymous] = useState(true)
+
+  useEffect(() => {
+    void loadDefaultShareAnonymously().then(setDefaultAnonymous)
+  }, [])
 
   useEffect(() => {
     if (!primarySightingId) {
@@ -400,7 +406,7 @@ export function SpeciesDetailScreen() {
             : null
         }
         defaultPublishToMap
-        defaultShareAnonymously
+        defaultShareAnonymously={defaultAnonymous}
         onClose={() => setShareModalOpen(false)}
         onConfirm={(lat, lng, publish, anonymous) => {
           setShareModalOpen(false)
