@@ -134,6 +134,29 @@ export async function assignNewUserAvatar(): Promise<void> {
   notifyAccountProfileChanged()
 }
 
+/**
+ * Revert to the generic WildKind avatar. Clears the user's saved photo locally and
+ * remotely (avatar_url + the stored file) so the default shows again. Uploading a new
+ * photo later replaces the default just like before.
+ */
+export async function resetToDefaultAvatar(): Promise<void> {
+  await storage.delete(PROFILE_PHOTO_PATH_KEY)
+  await storage.delete(AVATAR_KIND_KEY)
+  await storage.delete(AVATAR_PRESET_ID_KEY)
+  await markAvatarInitialized()
+
+  const supabase = getSupabaseClient()
+  if (supabase) {
+    const { data } = await supabase.auth.getUser()
+    const userId = data.user?.id
+    if (userId) {
+      await supabase.from('profiles').update({ avatar_url: null }).eq('id', userId)
+      await supabase.storage.from('profile-photos').remove([`${userId}/avatar.jpg`])
+    }
+  }
+  notifyAccountProfileChanged()
+}
+
 export async function assignTesterAvatar(): Promise<ProfileAvatarSource> {
   const preset = getAvatarPreset(TESTER_AVATAR_PRESET_ID)
   if (!preset) throw new Error('Alex Riley avatar preset is missing.')

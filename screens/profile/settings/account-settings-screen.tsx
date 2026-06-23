@@ -21,6 +21,7 @@ import {
 import { getSupabaseClient } from '@/lib/supabase/client'
 import {
   type ProfileAvatarSource,
+  resetToDefaultAvatar,
   saveProfilePhotoFromSource,
 } from '@/features/settings/profile-avatar'
 
@@ -72,6 +73,17 @@ export function AccountSettingsScreenContent() {
     try {
       const next = await saveProfilePhotoFromSource(source)
       if (next) setAvatarSource(next)
+    } finally {
+      setPickingPhoto(false)
+    }
+  }
+
+  const handleUseDefaultAvatar = async () => {
+    setPhotoSheetOpen(false)
+    setPickingPhoto(true)
+    try {
+      await resetToDefaultAvatar()
+      setAvatarSource(null)
     } finally {
       setPickingPhoto(false)
     }
@@ -287,6 +299,7 @@ export function AccountSettingsScreenContent() {
       onClose={() => setPhotoSheetOpen(false)}
       onSelectCamera={() => void handlePickPhoto('camera')}
       onSelectLibrary={() => void handlePickPhoto('library')}
+      onUseDefault={() => void handleUseDefaultAvatar()}
     />
     </>
   )

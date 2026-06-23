@@ -9,6 +9,8 @@ interface ProfilePhotoPickerSheetProps {
   onClose: () => void
   onSelectCamera: () => void
   onSelectLibrary: () => void
+  /** Revert to the generic WildKind avatar. Hidden when not provided. */
+  onUseDefault?: () => void
 }
 
 const SHEET = {
@@ -50,6 +52,7 @@ export function ProfilePhotoPickerSheet({
   onClose,
   onSelectCamera,
   onSelectLibrary,
+  onUseDefault,
 }: ProfilePhotoPickerSheetProps) {
   const insets = useSafeAreaInsets()
   const { width: screenWidth } = useWindowDimensions()
@@ -79,7 +82,14 @@ export function ProfilePhotoPickerSheet({
           ]}>
           <View style={styles.actionsBlock}>
             <SheetRow label="Take Photo" onPress={onSelectCamera} showSeparator />
-            <SheetRow label="Photo Library" onPress={onSelectLibrary} />
+            <SheetRow
+              label="Photo Library"
+              onPress={onSelectLibrary}
+              showSeparator={!!onUseDefault}
+            />
+            {onUseDefault ? (
+              <SheetRow label="Use WildKind Avatar" onPress={onUseDefault} />
+            ) : null}
           </View>
           <View style={styles.gap} />
           <View style={styles.cancelBlock}>
