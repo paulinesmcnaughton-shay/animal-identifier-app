@@ -2,12 +2,14 @@ import { Image, type ImageProps } from 'expo-image'
 import { useEffect, useState } from 'react'
 import { View, type StyleProp, type ViewStyle } from 'react-native'
 
-import { WildKindAvatarDefault } from '@/components/profile/WildKindAvatarDefault'
 import { subscribeAccountProfile } from '@/features/settings/account-profile-events'
 import {
   type ProfileAvatarSource,
   resolveProfileAvatarSource,
 } from '@/features/settings/profile-avatar'
+
+/** Generic profile picture shown for everyone until they set their own photo. */
+const WILDKIND_DEFAULT_AVATAR = require('@/assets/images/wildkind-avatar.png')
 
 interface ProfileAvatarProps {
   size: number
@@ -57,7 +59,12 @@ export function ProfileAvatar({
   if (!source) {
     return (
       <View style={[circleStyle, style]}>
-        <WildKindAvatarDefault size={size} />
+        <Image
+          source={WILDKIND_DEFAULT_AVATAR}
+          style={{ width: size, height: size }}
+          contentFit="cover"
+          accessibilityIgnoresInvertColors
+        />
       </View>
     )
   }
