@@ -2,37 +2,40 @@ import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
 import { useMemo, useState } from 'react'
-import {
-  Dimensions,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native'
+import { Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import {
-  filterAchievementBadges,
-  mockAchievementBadges,
-  mockBadgeStats,
-  mockLatestUnlock,
-  type AchievementBadge,
-  type BadgeFilterKey,
-  type BadgeTier,
-} from '@/data/mock-badges'
+import { BADGES, type Badge, type BadgeGroup } from '@/data/badges'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
-import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
-import { badgeImageForTier, type CollectorTier } from '@/lib/collector-tier'
+import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { earnedBadgeIds } from '@/features/achievements/badge-earned'
+import { useAccountProfile } from '@/features/settings/account-profile'
 
-const FILTERS: { key: BadgeFilterKey; label: string }[] = [
+type BadgeFilter = 'all' | 'earned' | 'locked'
+
+const FILTERS: { key: BadgeFilter; label: string }[] = [
   { key: 'all', label: 'All' },
-  { key: 'bronze', label: 'Bronze' },
-  { key: 'silver', label: 'Silver' },
-  { key: 'gold', label: 'Gold' },
-  { key: 'platinum', label: 'Platinum' },
-  { key: 'in_progress', label: 'In Progress' },
+  { key: 'earned', label: 'Earned' },
+  { key: 'locked', label: 'Locked' },
 ]
+
+const GROUP_ORDER: BadgeGroup[] = [
+  'milestones',
+  'species',
+  'streaks',
+  'places',
+  'collection',
+  'explorer',
+]
+
+const GROUP_LABEL: Record<BadgeGroup, string> = {
+  milestones: 'Milestones',
+  species: 'Species',
+  streaks: 'Streaks',
+  places: 'Places',
+  collection: 'Collection',
+  explorer: 'Explorer',
+}
 
 const GRID_COLUMNS = 3
 const GRID_GAP = space[8]
@@ -40,56 +43,20 @@ const H_PAD = screenLayout.padH
 const SCREEN_W = Dimensions.get('window').width
 const BADGE_CARD_W = (SCREEN_W - H_PAD * 2 - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS
 
-const TIER_MEDAL: Record<BadgeTier, CollectorTier> = {
-  bronze: 'bronze',
-  silver: 'silver',
-  gold: 'gold',
-  platinum: 'gold',
-}
-
-function BadgeMedalIcon({
-  tier,
-  symbol,
-  size,
-}: {
-  tier: BadgeTier
-  symbol: keyof typeof Ionicons.glyphMap
-  size: number
-}) {
-  const imageTier = TIER_MEDAL[tier]
+const BadgeCard = ({ badge, earned }: { badge: Badge; earned: boolean }) => {
   return (
-    <View style={[styles.medalWrap, { width: size, height: size }]}>
-      <Image
-        source={badgeImageForTier(imageTier)}
-        style={{ width: size, height: size }}
-        contentFit="contain"
-      />
-      <View style={styles.medalSymbol}>
-        <Ionicons name={symbol} size={size * 0.28} color={colors.card} />
+    <View style={[styles.card, { width: BADGE_CARD_W }]}>
+      <View style={[styles.imageWrap, !earned && styles.imageLocked]}>
+        <Image source={badge.image} style={styles.image} contentFit="contain" />
+        {!earned ? (
+          <View style={styles.lockChip}>
+            <Ionicons name="lock-closed" size={11} color={colors.card} />
+          </View>
+        ) : null}
       </View>
-    </View>
-  )
-}
-
-function BadgeGridCard({ badge }: { badge: AchievementBadge }) {
-  const isInProgress = badge.progressPercent !== undefined
-
-  return (
-    <View style={[styles.gridCard, { width: BADGE_CARD_W }]}>
-      <BadgeMedalIcon tier={badge.tier} symbol={badge.symbol} size={52} />
-      <Text style={styles.gridName} numberOfLines={2}>
+      <Text style={[styles.name, !earned && styles.nameLocked]} numberOfLines={2}>
         {badge.name}
       </Text>
-      {isInProgress ? (
-        <View style={styles.progressBlock}>
-          <Text style={styles.progressLabel}>{badge.progressPercent}% done</Text>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${badge.progressPercent ?? 0}%` }]} />
-          </View>
-        </View>
-      ) : (
-        <Text style={styles.earnedDate}>{badge.earnedDate}</Text>
-      )}
     </View>
   )
 }
@@ -97,12 +64,28 @@ function BadgeGridCard({ badge }: { badge: AchievementBadge }) {
 export function BadgesScreenContent() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const [activeFilter, setActiveFilter] = useState<BadgeFilterKey>('all')
+  const { spotsCaptured, streakDays } = useAccountProfile()
+  const [filter, setFilter] = useState<BadgeFilter>('all')
 
-  const filteredBadges = useMemo(
-    () => filterAchievementBadges(mockAchievementBadges, activeFilter),
-    [activeFilter],
+  const earned = useMemo(
+    () => earnedBadgeIds(BADGES, { spotsCaptured, streakDays }),
+    [spotsCaptured, streakDays],
   )
+
+  const sections = useMemo(() => {
+    const visible = BADGES.filter((b) => {
+      if (filter === 'earned') return earned.has(b.id)
+      if (filter === 'locked') return !earned.has(b.id)
+      return true
+    })
+    return GROUP_ORDER.map((group) => ({
+      group,
+      items: visible.filter((b) => b.group === group),
+    })).filter((s) => s.items.length > 0)
+  }, [filter, earned])
+
+  const earnedCount = earned.size
+  const remaining = BADGES.length - earnedCount
 
   return (
     <View style={styles.screen}>
@@ -126,55 +109,44 @@ export function BadgesScreenContent() {
 
         <Text style={styles.heroTitle}>Badges</Text>
         <Text style={styles.heroSub}>
-          {mockBadgeStats.earned} earned · {mockBadgeStats.remaining} to go
+          {earnedCount} earned · {remaining} to go
         </Text>
-
-        <View style={styles.latestCard}>
-          <BadgeMedalIcon
-            tier={mockLatestUnlock.tier}
-            symbol={mockLatestUnlock.symbol}
-            size={56}
-          />
-          <View style={styles.latestText}>
-            <Text style={styles.latestLabel}>LATEST UNLOCK</Text>
-            <Text style={styles.latestName}>{mockLatestUnlock.name}</Text>
-            <Text style={styles.latestDetail}>{mockLatestUnlock.detail}</Text>
-          </View>
-        </View>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingBottom: insets.bottom + space[24] },
-        ]}>
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + space[24] }]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}>
-          {FILTERS.map((filter) => {
-            const isActive = activeFilter === filter.key
+          {FILTERS.map((f) => {
+            const isActive = filter === f.key
             return (
               <Pressable
-                key={filter.key}
-                onPress={() => setActiveFilter(filter.key)}
+                key={f.key}
+                onPress={() => setFilter(f.key)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isActive }}
                 style={[styles.filterPill, isActive && styles.filterPillActive]}>
                 <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
-                  {filter.label}
+                  {f.label}
                 </Text>
               </Pressable>
             )
           })}
         </ScrollView>
 
-        <View style={styles.grid}>
-          {filteredBadges.map((badge) => (
-            <BadgeGridCard key={badge.id} badge={badge} />
-          ))}
-        </View>
+        {sections.map((section) => (
+          <View key={section.group} style={styles.section}>
+            <Text style={styles.sectionTitle}>{GROUP_LABEL[section.group]}</Text>
+            <View style={styles.grid}>
+              {section.items.map((badge) => (
+                <BadgeCard key={badge.id} badge={badge} earned={earned.has(badge.id)} />
+              ))}
+            </View>
+          </View>
+        ))}
       </ScrollView>
     </View>
   )
@@ -221,36 +193,6 @@ const styles = StyleSheet.create({
     fontSize: typeTokens.size.bodySM,
     fontWeight: typeTokens.body.weights.bold,
     color: colors.ink2,
-    marginBottom: space[16],
-  },
-  latestCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[16],
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: space[16],
-    ...shadow.card,
-  },
-  latestText: {
-    flex: 1,
-    gap: space[4],
-  },
-  latestLabel: {
-    fontSize: typeTokens.size.micro,
-    fontWeight: typeTokens.body.weights.black,
-    color: colors.sun,
-    letterSpacing: 0.5,
-  },
-  latestName: {
-    fontSize: typeTokens.size.title,
-    fontWeight: typeTokens.body.weights.extra,
-    color: colors.ink,
-  },
-  latestDetail: {
-    fontSize: typeTokens.size.caption,
-    fontWeight: typeTokens.body.weights.medium,
-    color: colors.dim,
   },
   scroll: {
     paddingTop: space[16],
@@ -277,62 +219,59 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: colors.card,
   },
+  section: {
+    paddingHorizontal: H_PAD,
+    marginBottom: space[24],
+  },
+  sectionTitle: {
+    fontSize: typeTokens.size.displaySM,
+    fontFamily: typeTokens.display.family,
+    fontWeight: typeTokens.display.weight,
+    color: colors.ink,
+    marginBottom: space[16],
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: GRID_GAP,
-    paddingHorizontal: H_PAD,
   },
-  gridCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    paddingVertical: space[16],
-    paddingHorizontal: space[8],
+  card: {
     alignItems: 'center',
     gap: space[8],
-    ...shadow.card,
+    marginBottom: space[8],
   },
-  medalWrap: {
+  imageWrap: {
+    width: '100%',
+    aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  medalSymbol: {
-    ...StyleSheet.absoluteFillObject,
+  imageLocked: {
+    opacity: 0.4,
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  lockChip: {
+    position: 'absolute',
+    bottom: 6,
+    right: '24%',
+    width: 20,
+    height: 20,
+    borderRadius: radius.pill,
+    backgroundColor: colors.ink2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  gridName: {
+  name: {
     fontSize: typeTokens.size.caption,
     fontWeight: typeTokens.body.weights.bold,
     color: colors.ink,
     textAlign: 'center',
     minHeight: 32,
   },
-  earnedDate: {
-    fontSize: typeTokens.size.micro,
-    fontWeight: typeTokens.body.weights.bold,
+  nameLocked: {
     color: colors.dim,
-  },
-  progressBlock: {
-    width: '100%',
-    gap: space[4],
-    paddingHorizontal: space[4],
-  },
-  progressLabel: {
-    fontSize: typeTokens.size.micro,
-    fontWeight: typeTokens.body.weights.bold,
-    color: colors.dim,
-    textAlign: 'center',
-  },
-  progressTrack: {
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.hairline,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: radius.pill,
-    backgroundColor: colors.green,
   },
 })
