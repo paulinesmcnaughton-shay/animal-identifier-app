@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { CollectorTierBadge } from '@/components/CollectorTierBadge'
+import { HomeBadge } from '@/components/home/HomeBadge'
 import { RecentSpotsSection } from '@/components/profile/RecentSpotsSection'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
@@ -53,7 +53,7 @@ function Header({
           onPress={onBadgePress}
           accessibilityRole="button"
           accessibilityLabel="View badges">
-          <CollectorTierBadge captureCount={spotsCaptured} size={52} />
+          <HomeBadge spotsCaptured={spotsCaptured} streakDays={streakDays} size={52} />
         </Pressable>
         <View style={styles.headerTextCol}>
           <Text style={styles.greeting}>{greeting}</Text>

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -9,6 +9,7 @@ import { BADGES, type Badge, type BadgeGroup } from '@/data/badges'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import { earnedBadgeIds } from '@/features/achievements/badge-earned'
+import { markBadgesSeen } from '@/features/achievements/badge-progress'
 import { useAccountProfile } from '@/features/settings/account-profile'
 
 type BadgeFilter = 'all' | 'earned' | 'locked'
@@ -71,6 +72,11 @@ export function BadgesScreenContent() {
     () => earnedBadgeIds(BADGES, { spotsCaptured, streakDays }),
     [spotsCaptured, streakDays],
   )
+
+  // Opening this screen clears the "new badge" highlight on the home screen.
+  useEffect(() => {
+    void markBadgesSeen({ spotsCaptured, streakDays })
+  }, [spotsCaptured, streakDays])
 
   const sections = useMemo(() => {
     const visible = BADGES.filter((b) => {
