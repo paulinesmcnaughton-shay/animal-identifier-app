@@ -23,7 +23,7 @@ export default function BottomNav({ activeTab, onTabPress, onCapture }: Props) {
     { key: 'spot' as Tab, label: 'Home', icon: 'home-outline', iconActive: 'home' },
     { key: 'dex' as Tab, label: 'Dex', icon: 'grid-outline', iconActive: 'grid' },
     { key: 'map' as Tab, label: 'Map', icon: 'map-outline', iconActive: 'map' },
-    { key: 'me' as Tab, label: 'Profile', icon: 'person-outline', iconActive: 'person' },
+    { key: 'me' as Tab, label: 'Explorer', icon: 'person-outline', iconActive: 'person' },
   ]
 
   const renderTab = (tab: (typeof tabs)[0]) => {
