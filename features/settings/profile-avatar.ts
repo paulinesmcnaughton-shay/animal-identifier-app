@@ -239,7 +239,10 @@ async function uploadProfilePhotoToStorage(
     }
 
     const { data } = supabase.storage.from('profile-photos').getPublicUrl(path)
-    return data.publicUrl
+    // The storage path is reused on every upload, so the public URL never changes.
+    // Append a unique query param to bust the image cache — otherwise expo-image
+    // keeps serving the previously cached version (incl. an earlier broken one).
+    return `${data.publicUrl}?v=${Date.now()}`
   } catch (err) {
     if (__DEV__) console.warn('[WildKind] profile photo upload error:', err)
     return null
