@@ -219,13 +219,19 @@ async function uploadProfilePhotoToStorage(
   uri: string,
 ): Promise<string | null> {
   try {
+    // RN: read the file as an ArrayBuffer (NOT .blob() — Blob uploads 0 bytes in RN,
+    // which left the avatar URL broken and falling back to the default).
     const response = await fetch(uri)
-    const blob = await response.blob()
+    const arrayBuffer = await response.arrayBuffer()
+    if (arrayBuffer.byteLength === 0) {
+      if (__DEV__) console.warn('[WildKind] avatar arrayBuffer is 0 bytes — using local copy')
+      return null
+    }
     const path = `${userId}/avatar.jpg`
 
     const { error } = await supabase.storage
       .from('profile-photos')
-      .upload(path, blob, { contentType: 'image/jpeg', upsert: true })
+      .upload(path, arrayBuffer, { contentType: 'image/jpeg', upsert: true })
 
     if (error) {
       if (__DEV__) console.warn('[WildKind] profile photo upload failed:', error.message)
