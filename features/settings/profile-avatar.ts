@@ -72,6 +72,10 @@ export async function loadProfilePhotoUri(): Promise<string | null> {
   try {
     const storedPath = await storage.getString(PROFILE_PHOTO_PATH_KEY)
     if (!storedPath) return null
+    // Remote (Supabase) avatars are URLs, not local files — return as-is. The
+    // getInfoAsync existence check below is only valid for local file paths and
+    // would wrongly delete a remote URL (reverting the avatar to the default).
+    if (storedPath.startsWith('http')) return storedPath
     const info = await getInfoAsync(storedPath)
     if (!info.exists) {
       await storage.delete(PROFILE_PHOTO_PATH_KEY)
