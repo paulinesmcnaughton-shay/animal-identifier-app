@@ -20,6 +20,7 @@ interface UserSightingsDataState {
   mapPins: NearbyMapSighting[]
   dexEntries: DexCardSpecies[]
   recentCards: DexCardSpecies[]
+  rows: UserSightingRow[]
   isLoading: boolean
 }
 
@@ -123,6 +124,7 @@ export function useUserSightingsData(): UserSightingsDataState {
     mapPins,
     dexEntries,
     recentCards: dexEntries.slice(0, 8),
+    rows,
     isLoading,
   }
 }

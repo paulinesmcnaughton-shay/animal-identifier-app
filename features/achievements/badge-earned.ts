@@ -7,6 +7,15 @@ export interface BadgeStats {
   kingdomCounts: Record<string, number>
   /** Total distinct species in the Wild Dex. */
   distinctSpecies: number
+  /** Distinct species by collection/category. */
+  domesticCount: number
+  wildCount: number
+  farmCount: number
+  /** Whether any capture happened in each time window. */
+  hasEarlyBird: boolean
+  hasMorning: boolean
+  hasNight: boolean
+  hasWeekend: boolean
 }
 
 // Badge label (singular or plural) → kingdom key used on sightings.
@@ -71,6 +80,22 @@ export function isBadgeEarned(name: string, stats: BadgeStats): boolean {
 
   const tier = COLLECTION_TIERS[name]
   if (tier !== undefined) return stats.distinctSpecies >= tier
+
+  const domestic = /^(\d+) Domestic Animals$/.exec(name)
+  if (domestic) return stats.domesticCount >= Number(domestic[1])
+  if (name === 'First Domestic Animal') return stats.domesticCount >= 1
+
+  const farm = /^(\d+) Farm Animals$/.exec(name)
+  if (farm) return stats.farmCount >= Number(farm[1])
+  if (name === 'First Farm Animal') return stats.farmCount >= 1
+
+  if (name === 'First Wild Animal') return stats.wildCount >= 1
+  if (name === 'First Mushroom') return (stats.kingdomCounts.fungi ?? 0) >= 1
+
+  if (name === 'Early Bird') return stats.hasEarlyBird
+  if (name === 'Morning Explorer') return stats.hasMorning
+  if (name === 'Night Explorer') return stats.hasNight
+  if (name === 'Weekend Explorer') return stats.hasWeekend
 
   return false
 }
