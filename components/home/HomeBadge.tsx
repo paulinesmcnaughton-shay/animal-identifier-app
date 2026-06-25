@@ -6,17 +6,17 @@ import { StyleSheet, View } from 'react-native'
 import { BADGES } from '@/data/badges'
 import { colors } from '@/design/tokens'
 import { getNewlyEarnedCount, topEarnedBadge } from '@/features/achievements/badge-progress'
+import { useBadgeStats } from '@/features/achievements/use-badge-stats'
 
 const FALLBACK_BADGE = BADGES.find((b) => b.id === 'first-sighting') ?? BADGES[0]
 
 interface HomeBadgeProps {
-  spotsCaptured: number
-  streakDays: number
   size?: number
 }
 
-export function HomeBadge({ spotsCaptured, streakDays, size = 52 }: HomeBadgeProps) {
-  const earned = topEarnedBadge({ spotsCaptured, streakDays })
+export function HomeBadge({ size = 52 }: HomeBadgeProps) {
+  const stats = useBadgeStats()
+  const earned = topEarnedBadge(stats)
   const badge = earned ?? FALLBACK_BADGE
   const [hasNew, setHasNew] = useState(false)
 
@@ -24,13 +24,13 @@ export function HomeBadge({ spotsCaptured, streakDays, size = 52 }: HomeBadgePro
   useFocusEffect(
     useCallback(() => {
       let cancelled = false
-      void getNewlyEarnedCount({ spotsCaptured, streakDays }).then((n) => {
+      void getNewlyEarnedCount(stats).then((n) => {
         if (!cancelled) setHasNew(n > 0)
       })
       return () => {
         cancelled = true
       }
-    }, [spotsCaptured, streakDays]),
+    }, [stats]),
   )
 
   return (

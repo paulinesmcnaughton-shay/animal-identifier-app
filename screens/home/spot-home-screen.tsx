@@ -53,7 +53,7 @@ function Header({
           onPress={onBadgePress}
           accessibilityRole="button"
           accessibilityLabel="View badges">
-          <HomeBadge spotsCaptured={spotsCaptured} streakDays={streakDays} size={52} />
+          <HomeBadge size={52} />
         </Pressable>
         <View style={styles.headerTextCol}>
           <Text style={styles.greeting}>{greeting}</Text>

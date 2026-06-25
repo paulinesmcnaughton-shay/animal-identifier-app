@@ -10,7 +10,7 @@ import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import { earnedBadgeIds } from '@/features/achievements/badge-earned'
 import { markBadgesSeen } from '@/features/achievements/badge-progress'
-import { useAccountProfile } from '@/features/settings/account-profile'
+import { useBadgeStats } from '@/features/achievements/use-badge-stats'
 
 type BadgeFilter = 'all' | 'earned' | 'locked'
 
@@ -65,18 +65,15 @@ const BadgeCard = ({ badge, earned }: { badge: Badge; earned: boolean }) => {
 export function BadgesScreenContent() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { spotsCaptured, streakDays } = useAccountProfile()
+  const stats = useBadgeStats()
   const [filter, setFilter] = useState<BadgeFilter>('all')
 
-  const earned = useMemo(
-    () => earnedBadgeIds(BADGES, { spotsCaptured, streakDays }),
-    [spotsCaptured, streakDays],
-  )
+  const earned = useMemo(() => earnedBadgeIds(BADGES, stats), [stats])
 
   // Opening this screen clears the "new badge" highlight on the home screen.
   useEffect(() => {
-    void markBadgesSeen({ spotsCaptured, streakDays })
-  }, [spotsCaptured, streakDays])
+    void markBadgesSeen(stats)
+  }, [stats])
 
   const sections = useMemo(() => {
     const visible = BADGES.filter((b) => {
