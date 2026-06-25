@@ -49,32 +49,32 @@ const KINGDOM_BY_LABEL: Record<string, string> = {
 const DISTINCT_TIERS: Record<string, number> = {
   'New Species Found': 1,
   'Curious Explorer': 5,
-  'Starter Collection': 5,
+  'Starter Collection': 10,
   'Mini Naturalist': 10,
-  'Growing Collection': 15,
-  'Big Collection': 30,
-  'Family Collection': 50,
-  'Nature Collector': 100,
-  'Dex Builder': 150,
+  'Growing Collection': 25,
+  'Big Collection': 50,
+  'Family Collection': 100,
+  'Nature Collector': 150,
+  'Dex Builder': 200,
 }
 
 // Themed badges → distinct species in the given kingdom(s) ≥ min.
 const KINGDOM_PROXY: Record<string, { kingdoms: string[]; min: number }> = {
   'Feather Finder': { kingdoms: ['bird'], min: 1 },
-  'Sky Watcher': { kingdoms: ['bird'], min: 5 },
-  'Water Watcher': { kingdoms: ['fish'], min: 5 },
+  'Sky Watcher': { kingdoms: ['bird'], min: 10 },
+  'Water Watcher': { kingdoms: ['fish'], min: 10 },
   'First Bloom': { kingdoms: ['flower'], min: 1 },
   'First Wildflower': { kingdoms: ['flower'], min: 1 },
-  'Wildflower Finder': { kingdoms: ['flower'], min: 5 },
-  'Garden Explorer': { kingdoms: ['flower'], min: 5 },
+  'Wildflower Finder': { kingdoms: ['flower'], min: 10 },
+  'Garden Explorer': { kingdoms: ['flower'], min: 10 },
   'Bloom Collector': { kingdoms: ['flower'], min: 10 },
-  'Pollinator Pal': { kingdoms: ['insect'], min: 3 },
+  'Pollinator Pal': { kingdoms: ['insect'], min: 10 },
   'Tiny Creature': { kingdoms: ['insect', 'arachnid'], min: 1 },
   'Shell Spotter': { kingdoms: ['mollusc'], min: 1 },
-  'Forest Explorer': { kingdoms: ['tree'], min: 5 },
-  'Native Tree Scout': { kingdoms: ['tree'], min: 5 },
+  'Forest Explorer': { kingdoms: ['tree'], min: 10 },
+  'Native Tree Scout': { kingdoms: ['tree'], min: 10 },
   'Canopy Collector': { kingdoms: ['tree'], min: 10 },
-  'Big Creature': { kingdoms: ['mammal'], min: 5 },
+  'Big Creature': { kingdoms: ['mammal'], min: 10 },
 }
 
 // Sub-type badges → earned if any collected species name contains a keyword.
@@ -150,7 +150,7 @@ export function isBadgeEarned(name: string, stats: BadgeStats): boolean {
   if (name === 'Night Explorer') return stats.hasNight
   if (name === 'Weekend Explorer') return stats.hasWeekend
   if (name === 'Autumn Watcher') return stats.hasAutumn
-  if (name === 'Photo Journaler') return stats.photoCount >= 5
+  if (name === 'Photo Journaler') return stats.photoCount >= 50
 
   return false
 }
