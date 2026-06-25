@@ -6,6 +6,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOp
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { HomeBadge } from '@/components/home/HomeBadge'
+import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
+import { useReferenceImage } from '@/features/species/use-reference-image'
 import { RecentSpotsSection } from '@/components/profile/RecentSpotsSection'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
@@ -190,17 +192,31 @@ interface CreatureOfWeekCardProps {
 }
 
 function CreatureOfWeekCard({ creature, onInfoPress }: CreatureOfWeekCardProps) {
-  const { commonName, scientificName, kingdom, description, bonusXp, heroImage } = creature
+  const { id, commonName, scientificName, kingdom, dexNumber, description, bonusXp, heroImage } =
+    creature
   const router = useRouter()
+  const kingdomKey = kingdom.toLowerCase() as KingdomKey
+  const { uri, onImageError } = useReferenceImage({
+    speciesId: id,
+    commonName,
+    scientificName,
+    kingdom: kingdomKey,
+    dexNum: dexNumber,
+  })
 
   return (
     <View style={styles.creatureCardOuter}>
       <View style={styles.creatureCard}>
       <View style={styles.creatureArt}>
-        <Image source={heroImage} style={StyleSheet.absoluteFill} contentFit="cover" />
+        <Image
+          source={uri ? { uri } : heroImage}
+          onError={() => onImageError(uri)}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+        />
         <View style={styles.creatureBadges}>
           <View style={styles.kingdomBadge}>
-            <Text style={styles.kingdomEmoji}>🦎</Text>
+            <Text style={styles.kingdomEmoji}>{KINGDOM[kingdomKey]?.emoji ?? '🦎'}</Text>
             <Text style={styles.kingdomText}>{kingdom.toUpperCase()}</Text>
           </View>
           <View style={styles.featuredBadge}>
