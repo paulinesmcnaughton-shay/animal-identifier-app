@@ -6,6 +6,7 @@ import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import { STREAK_WINDOW_MS } from '@/features/profile/streak'
 import type { Collection, CollectionLookup } from '@/features/collections/collections'
 import { computeQuestRewardDelta, questCountsFromSightings } from '@/features/quests/quests'
+import { storeHabitatsForSighting } from '@/features/sightings/classify-habitat'
 import { notifyAccountProfileChanged } from '@/features/settings/account-profile-events'
 import { loadSettingsPreferences } from '@/features/settings/preferences'
 import { getSupabaseClient } from '@/lib/supabase/client'
@@ -207,7 +208,7 @@ export async function saveUserSighting(
   const { data: profileRow } = await supabase
     .from('profiles')
     .select(
-      'xp, streak_days, last_spotted_at, spots_captured, badges_count, claimed_quests, age_group, requires_parent_setup',
+      'xp, streak_days, last_spotted_at, spots_captured, badges_count, claimed_quests, age_group, requires_parent_setup, latitude, longitude',
     )
     .eq('id', userId)
     .maybeSingle()
@@ -330,6 +331,17 @@ export async function saveUserSighting(
   } else {
     console.log('COMMUNITY SIGHTING CREATE SKIPPED', {
       reason: isChild ? 'child_account' : !optedIntoShare ? 'not_shared' : 'no_confirmed_pin',
+    })
+  }
+
+  // Classify the sighting's habitat in the background (Places badges). Never blocks save.
+  if (insertedSighting?.id && latitude != null && longitude != null) {
+    void storeHabitatsForSighting({
+      sightingId: insertedSighting.id,
+      latitude,
+      longitude,
+      homeLatitude: profileRow?.latitude ?? null,
+      homeLongitude: profileRow?.longitude ?? null,
     })
   }
 

@@ -21,6 +21,24 @@ export interface BadgeStats {
   hasNight: boolean
   hasWeekend: boolean
   hasAutumn: boolean
+  /** Habitat tags seen across all sightings (forest, beach, out-of-state, …). */
+  habitats: Set<string>
+}
+
+// Places badge → the habitat tag that unlocks it (set when a sighting is geocoded).
+const HABITAT_BY_BADGE: Record<string, string> = {
+  'First Forest Sighting': 'forest',
+  'First Beach Sighting': 'beach',
+  'First River Sighting': 'river',
+  'First Lake Sighting': 'lake',
+  'First Mountain Sighting': 'mountain',
+  'First Park Sighting': 'park',
+  'First Trail Sighting': 'trail',
+  'First Backyard Sighting': 'backyard',
+  'First Farm Sighting': 'farm',
+  'First Zoo Sighting': 'zoo',
+  'First International Sighting': 'international',
+  'First Out-of-State Sighting': 'out-of-state',
 }
 
 // Badge label (singular or plural) → kingdom key used on sightings.
@@ -151,6 +169,9 @@ export function isBadgeEarned(name: string, stats: BadgeStats): boolean {
   if (name === 'Weekend Explorer') return stats.hasWeekend
   if (name === 'Autumn Watcher') return stats.hasAutumn
   if (name === 'Photo Journaler') return stats.photoCount >= 50
+
+  const habitat = HABITAT_BY_BADGE[name]
+  if (habitat) return stats.habitats.has(habitat)
 
   return false
 }

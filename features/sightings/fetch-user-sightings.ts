@@ -36,6 +36,7 @@ export interface UserSightingRow {
   photo_uri: string | null
   latitude: number | null
   longitude: number | null
+  habitats: string[] | null
   spotted_at: string
   is_pinned: boolean
   notes: string | null
@@ -89,7 +90,7 @@ export async function fetchUserSightings(): Promise<UserSightingRow[] | null> {
   const { data, error } = await supabase
     .from('user_sightings')
     .select(
-      'id, species_id, species_name, kingdom, latin_name, dex_number, confidence, is_domestic, photo_uri, latitude, longitude, spotted_at, is_pinned, notes, journal_entry, user_caption, is_favorite, is_deleted, deleted_at',
+      'id, species_id, species_name, kingdom, latin_name, dex_number, confidence, is_domestic, photo_uri, latitude, longitude, habitats, spotted_at, is_pinned, notes, journal_entry, user_caption, is_favorite, is_deleted, deleted_at',
     )
     .eq('user_id', userId)
     .eq('is_deleted', false)

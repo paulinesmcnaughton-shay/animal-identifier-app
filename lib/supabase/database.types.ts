@@ -560,6 +560,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           dex_number: string | null
+          habitats: string[] | null
           id: string
           is_deleted: boolean
           is_domestic: boolean
@@ -583,6 +584,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           dex_number?: string | null
+          habitats?: string[] | null
           id?: string
           is_deleted?: boolean
           is_domestic?: boolean
@@ -606,6 +608,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           dex_number?: string | null
+          habitats?: string[] | null
           id?: string
           is_deleted?: boolean
           is_domestic?: boolean

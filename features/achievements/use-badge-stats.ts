@@ -18,6 +18,7 @@ export function useBadgeStats(): BadgeStats {
     const wild = new Set<string>()
     const farm = new Set<string>()
     const speciesNames: string[] = []
+    const habitats = new Set<string>()
     let photoCount = 0
     let hasEarlyBird = false
     let hasMorning = false
@@ -26,6 +27,8 @@ export function useBadgeStats(): BadgeStats {
     let hasAutumn = false
 
     for (const r of rows) {
+      for (const h of r.habitats ?? []) habitats.add(h)
+
       // Time/season flags use every sighting (device-local interpretation of UTC).
       const at = new Date(r.spotted_at)
       const hour = at.getHours()
@@ -71,6 +74,7 @@ export function useBadgeStats(): BadgeStats {
       hasNight,
       hasWeekend,
       hasAutumn,
+      habitats,
     }
   }, [spotsCaptured, streakDays, rows, lookup])
 }
