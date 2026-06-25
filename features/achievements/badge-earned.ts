@@ -11,11 +11,16 @@ export interface BadgeStats {
   domesticCount: number
   wildCount: number
   farmCount: number
-  /** Whether any capture happened in each time window. */
+  /** Lowercased common + scientific names of every collected species. */
+  speciesNames: string[]
+  /** Number of sightings that have a photo. */
+  photoCount: number
+  /** Whether any capture happened in each window. */
   hasEarlyBird: boolean
   hasMorning: boolean
   hasNight: boolean
   hasWeekend: boolean
+  hasAutumn: boolean
 }
 
 // Badge label (singular or plural) → kingdom key used on sightings.
@@ -40,21 +45,62 @@ const KINGDOM_BY_LABEL: Record<string, string> = {
   Flowers: 'flower',
 }
 
-// Distinct-species thresholds for the collection-tier badges. Tunable.
-const COLLECTION_TIERS: Record<string, number> = {
+// Distinct-species thresholds. Tunable game-design numbers.
+const DISTINCT_TIERS: Record<string, number> = {
+  'New Species Found': 1,
+  'Curious Explorer': 5,
   'Starter Collection': 5,
+  'Mini Naturalist': 10,
   'Growing Collection': 15,
   'Big Collection': 30,
   'Family Collection': 50,
-  'Nature Collection': 100,
+  'Nature Collector': 100,
   'Dex Builder': 150,
 }
 
+// Themed badges → distinct species in the given kingdom(s) ≥ min.
+const KINGDOM_PROXY: Record<string, { kingdoms: string[]; min: number }> = {
+  'Feather Finder': { kingdoms: ['bird'], min: 1 },
+  'Sky Watcher': { kingdoms: ['bird'], min: 5 },
+  'Water Watcher': { kingdoms: ['fish'], min: 5 },
+  'First Bloom': { kingdoms: ['flower'], min: 1 },
+  'First Wildflower': { kingdoms: ['flower'], min: 1 },
+  'Wildflower Finder': { kingdoms: ['flower'], min: 5 },
+  'Garden Explorer': { kingdoms: ['flower'], min: 5 },
+  'Bloom Collector': { kingdoms: ['flower'], min: 10 },
+  'Pollinator Pal': { kingdoms: ['insect'], min: 3 },
+  'Tiny Creature': { kingdoms: ['insect', 'arachnid'], min: 1 },
+  'Shell Spotter': { kingdoms: ['mollusc'], min: 1 },
+  'Forest Explorer': { kingdoms: ['tree'], min: 5 },
+  'Native Tree Scout': { kingdoms: ['tree'], min: 5 },
+  'Canopy Collector': { kingdoms: ['tree'], min: 10 },
+  'Big Creature': { kingdoms: ['mammal'], min: 5 },
+}
+
+// Sub-type badges → earned if any collected species name contains a keyword.
+const NAME_KEYWORDS: Record<string, string[]> = {
+  'First Pine': ['pine', 'pinus'],
+  'First Oak': ['oak', 'quercus'],
+  'First Maple': ['maple', 'acer'],
+  'First Palm': ['palm', 'arecaceae'],
+  'First Fern': ['fern'],
+  'First Moss': ['moss'],
+  'First Vine': ['vine'],
+  'First Succulent': ['succulent', 'cactus', 'cacti', 'aloe', 'agave', 'echeveria'],
+  'First Grass': ['grass'],
+  'First Evergreen': ['pine', 'spruce', 'fir', 'cedar', 'cypress', 'conifer', 'evergreen'],
+  'First Deciduous': ['maple', 'oak', 'birch', 'elm', 'aspen', 'willow', 'beech'],
+  'First Fruit Tree': ['apple', 'cherry', 'orange', 'lemon', 'lime', 'peach', 'pear', 'fig', 'plum', 'citrus', 'mango', 'avocado'],
+  'Acorn Scout': ['oak', 'quercus'],
+  'Pinecone Finder': ['pine', 'pinus', 'spruce', 'fir', 'conifer'],
+  'Ancient Tree': ['sequoia', 'redwood', 'bristlecone', 'cypress', 'cedar', 'baobab', 'ginkgo', 'oak'],
+}
+
 /**
- * Whether a badge is earned from real progress. Covered today: total sightings,
- * day streaks, per-kingdom counts ("100 Birds"), first-of-kingdom ("First Mammal"),
- * and collection tiers. Habitat firsts, species sub-types (First Pine), care/explorer,
- * and category badges (Farm/Marine/Nocturnal) stay locked until their rules are added.
+ * Whether a badge is earned from real progress. Intentionally LEFT LOCKED (no signal
+ * exists yet): habitat firsts (no biome data), care/ethics badges (no behaviour
+ * tracking), weather (Rainy Day), rarity (Rare Species/Bloom), Marine/Nocturnal,
+ * Camouflage Finder, and a few ambiguous plant types.
  */
 export function isBadgeEarned(name: string, stats: BadgeStats): boolean {
   const sightings = /^(\d+) Sightings$/.exec(name)
@@ -67,19 +113,14 @@ export function isBadgeEarned(name: string, stats: BadgeStats): boolean {
   const kingdomCount =
     /^(\d+) (Mammals|Birds|Fish|Reptiles|Amphibians|Insects|Plants|Trees|Flowers)$/.exec(name)
   if (kingdomCount) {
-    const key = KINGDOM_BY_LABEL[kingdomCount[2]]
-    return (stats.kingdomCounts[key] ?? 0) >= Number(kingdomCount[1])
+    return (stats.kingdomCounts[KINGDOM_BY_LABEL[kingdomCount[2]]] ?? 0) >= Number(kingdomCount[1])
   }
 
   const firstOfKingdom =
     /^First (Mammal|Bird|Fish|Reptile|Amphibian|Insect|Arachnid|Plant|Tree|Flower)$/.exec(name)
   if (firstOfKingdom) {
-    const key = KINGDOM_BY_LABEL[firstOfKingdom[1]]
-    return (stats.kingdomCounts[key] ?? 0) >= 1
+    return (stats.kingdomCounts[KINGDOM_BY_LABEL[firstOfKingdom[1]]] ?? 0) >= 1
   }
-
-  const tier = COLLECTION_TIERS[name]
-  if (tier !== undefined) return stats.distinctSpecies >= tier
 
   const domestic = /^(\d+) Domestic Animals$/.exec(name)
   if (domestic) return stats.domesticCount >= Number(domestic[1])
@@ -92,10 +133,24 @@ export function isBadgeEarned(name: string, stats: BadgeStats): boolean {
   if (name === 'First Wild Animal') return stats.wildCount >= 1
   if (name === 'First Mushroom') return (stats.kingdomCounts.fungi ?? 0) >= 1
 
+  const tier = DISTINCT_TIERS[name]
+  if (tier !== undefined) return stats.distinctSpecies >= tier
+
+  const proxy = KINGDOM_PROXY[name]
+  if (proxy) {
+    const total = proxy.kingdoms.reduce((sum, k) => sum + (stats.kingdomCounts[k] ?? 0), 0)
+    return total >= proxy.min
+  }
+
+  const keywords = NAME_KEYWORDS[name]
+  if (keywords) return stats.speciesNames.some((n) => keywords.some((k) => n.includes(k)))
+
   if (name === 'Early Bird') return stats.hasEarlyBird
   if (name === 'Morning Explorer') return stats.hasMorning
   if (name === 'Night Explorer') return stats.hasNight
   if (name === 'Weekend Explorer') return stats.hasWeekend
+  if (name === 'Autumn Watcher') return stats.hasAutumn
+  if (name === 'Photo Journaler') return stats.photoCount >= 5
 
   return false
 }
