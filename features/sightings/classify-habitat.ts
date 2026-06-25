@@ -38,9 +38,10 @@ interface GeoResult {
 
 async function reverseGeocode(lat: number, lng: number, token: string): Promise<GeoResult | null> {
   try {
+    // NB: reverse geocoding rejects `limit` when multiple `types` are given.
     const url =
       `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json` +
-      `?access_token=${token}&types=poi,place,locality,neighborhood,region,country&limit=10`
+      `?access_token=${token}&types=poi,place,locality,neighborhood,region,country`
     const res = await fetch(url)
     if (!res.ok) return null
     const data = (await res.json()) as { features?: GeoFeature[] }
