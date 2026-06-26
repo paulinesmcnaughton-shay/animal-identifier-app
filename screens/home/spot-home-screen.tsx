@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOp
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { HomeBadge } from '@/components/home/HomeBadge'
+import { StreakHeroCard, localDateKey } from '@/components/home/StreakHeroCard'
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { useReferenceImage } from '@/features/species/use-reference-image'
 import { RecentSpotsSection } from '@/components/profile/RecentSpotsSection'
@@ -31,7 +32,6 @@ interface HeaderProps {
   greeting: DayPeriodGreeting
   firstName: string
   level: number
-  streakDays: number
   spotsCaptured: number
   onBadgePress: () => void
   onBellPress: () => void
@@ -42,7 +42,6 @@ function Header({
   greeting,
   firstName,
   level,
-  streakDays,
   spotsCaptured,
   onBadgePress,
   onBellPress,
@@ -70,10 +69,6 @@ function Header({
         </View>
       </View>
       <View style={styles.headerRight}>
-        <View style={styles.streakPill}>
-          <Ionicons name="flame" size={14} color={colors.coral} />
-          <Text style={styles.streakText}>{streakDays}</Text>
-        </View>
         <TouchableOpacity
           style={styles.bellBtn}
           activeOpacity={0.7}
@@ -266,7 +261,11 @@ export function SpotHomeScreen() {
   const router = useRouter()
   const { firstName, timeZone, level, streakDays, spotsCaptured, isReady, isLoading } =
     useAccountProfile()
-  const { recentCards, dexEntries } = useUserSightingsData()
+  const { recentCards, dexEntries, rows } = useUserSightingsData()
+  const sightingDates = useMemo(
+    () => new Set(rows.map((r) => localDateKey(new Date(r.spotted_at)))),
+    [rows],
+  )
   const collectionLookup = useCollectionLookup()
   const quests = useMemo(
     () =>
@@ -325,12 +324,12 @@ export function SpotHomeScreen() {
           greeting={greeting}
           firstName={firstName}
           level={level}
-          streakDays={streakDays}
           spotsCaptured={spotsCaptured}
           onBadgePress={handleOpenBadges}
           onBellPress={handleOpenNotifications}
           hasUnreadNotifications={hasUnreadNotifications}
         />
+        <StreakHeroCard streakDays={streakDays} sightingDates={sightingDates} />
         <QuestsCarousel quests={quests} />
         <Pressable
           accessibilityRole="button"
@@ -441,20 +440,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[8],
-  },
-  streakPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: `${colors.coral}18`,
-    paddingHorizontal: space[8],
-    paddingVertical: space[8],
-    borderRadius: radius.pill,
-  },
-  streakText: {
-    fontSize: typeTokens.size.bodySM,
-    fontWeight: '800',
-    color: colors.coral,
   },
   bellBtn: {
     width: 40,
