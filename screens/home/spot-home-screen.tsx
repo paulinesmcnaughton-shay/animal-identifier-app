@@ -1,29 +1,27 @@
 import { Ionicons } from '@expo/vector-icons'
-import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
 import { useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { HomeBadge } from '@/components/home/HomeBadge'
+import { CreatureStamp } from '@/components/home/CreatureStamp'
+import { DailyChestCard } from '@/components/home/DailyChestCard'
 import { ExploreVenuesCard } from '@/components/home/ExploreVenuesCard'
+import { RewardChest } from '@/components/home/RewardChest'
 import { StreakCalendar, localDateKey } from '@/components/home/StreakCalendar'
-import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
-import { useReferenceImage } from '@/features/species/use-reference-image'
 import { RecentSpotsSection } from '@/components/profile/RecentSpotsSection'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
 import { useCreatureOfWeek } from '@/features/home/creature-of-week'
-import type { CreatureRosterItem } from '@/features/home/creature-of-week'
 import { useCollectionLookup } from '@/features/collections/collections'
 import {
   buildQuestProgress,
   questCountsFromSightings,
   type QuestProgress,
 } from '@/features/quests/quests'
-import { dexCardHairline } from '@/design/dex-card-shell'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
-import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
+import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import type { DayPeriodGreeting } from '@/features/profile/time-greeting'
 import { useSpotGreeting } from '@/features/profile/use-spot-greeting'
 import { useAccountProfile } from '@/features/settings/account-profile'
@@ -182,81 +180,6 @@ function QuestCard({ progress, width }: QuestCardProps) {
   )
 }
 
-interface CreatureOfWeekCardProps {
-  creature: CreatureRosterItem
-  onInfoPress: () => void
-}
-
-function CreatureOfWeekCard({ creature, onInfoPress }: CreatureOfWeekCardProps) {
-  const { id, commonName, scientificName, kingdom, dexNumber, description, bonusXp, heroImage } =
-    creature
-  const router = useRouter()
-  const kingdomKey = kingdom.toLowerCase() as KingdomKey
-  const { uri, onImageError } = useReferenceImage({
-    speciesId: id,
-    commonName,
-    scientificName,
-    kingdom: kingdomKey,
-    dexNum: dexNumber,
-  })
-
-  return (
-    <View style={styles.creatureCardOuter}>
-      <View style={styles.creatureCard}>
-      <View style={styles.creatureArt}>
-        <Image
-          source={uri ? { uri } : heroImage}
-          onError={() => onImageError(uri)}
-          style={StyleSheet.absoluteFill}
-          contentFit="cover"
-        />
-        <View style={styles.creatureBadges}>
-          <View style={styles.kingdomBadge}>
-            <Text style={styles.kingdomEmoji}>{KINGDOM[kingdomKey]?.emoji ?? '🦎'}</Text>
-            <Text style={styles.kingdomText}>{kingdom.toUpperCase()}</Text>
-          </View>
-          <View style={styles.featuredBadge}>
-            <Ionicons name="star" size={11} color={colors.ink} />
-            <Text style={styles.featuredText}>FEATURED</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.creatureInfo}>
-        <View style={styles.creatureNameRow}>
-          <View style={styles.creatureNameCol}>
-            <Text style={styles.creatureName}>{commonName}</Text>
-            <Text style={styles.creatureScientific}>{scientificName}</Text>
-          </View>
-          <View>
-            <Text style={styles.bonusLabel}>BONUS</Text>
-            <Text style={styles.bonusXp}>+{bonusXp} XP</Text>
-          </View>
-        </View>
-        <Text style={styles.creatureDesc}>{description}</Text>
-        <View style={styles.creatureActions}>
-          <TouchableOpacity
-            style={styles.seeOneBtn}
-            activeOpacity={0.85}
-            onPress={() => router.push('/capture/scan' as never)}>
-            <Ionicons name="scan-circle-outline" size={20} color="#fff" />
-            <Text style={styles.seeOneBtnText}>I SEE ONE!</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.infoBtn}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={`More about ${commonName}`}
-            onPress={onInfoPress}>
-            <Ionicons name="information-circle-outline" size={24} color={colors.ink2} />
-          </TouchableOpacity>
-        </View>
-      </View>
-      </View>
-    </View>
-  )
-}
-
 export function SpotHomeScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
@@ -287,6 +210,7 @@ export function SpotHomeScreen() {
   const greeting = useSpotGreeting(timeZone)
   const creatureOfWeek = useCreatureOfWeek()
   const [creatureInfoOpen, setCreatureInfoOpen] = useState(false)
+  const [rewardOpen, setRewardOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true)
 
@@ -338,7 +262,14 @@ export function SpotHomeScreen() {
             <Text style={styles.sectionTitle}>Creature of the week</Text>
             <Text style={styles.newEvery}>NEW EVERY WEEK</Text>
           </View>
-          <CreatureOfWeekCard creature={creatureOfWeek} onInfoPress={() => setCreatureInfoOpen(true)} />
+          <CreatureStamp creature={creatureOfWeek} onInfoPress={() => setCreatureInfoOpen(true)} />
+        </View>
+        <View style={styles.sectionGap}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Daily chest</Text>
+            <Text style={styles.chestReady}>{`READY · DAY ${Math.max(streakDays, 1)}`}</Text>
+          </View>
+          <DailyChestCard onOpen={() => setRewardOpen(true)} />
         </View>
         <RecentSpotsSection
           title="Recent finds"
@@ -353,6 +284,13 @@ export function SpotHomeScreen() {
         visible={creatureInfoOpen}
         creature={creatureOfWeek}
         onClose={() => setCreatureInfoOpen(false)}
+      />
+
+      <RewardChest
+        visible={rewardOpen}
+        day={Math.max(streakDays, 1)}
+        onAddToDex={() => setRewardOpen(false)}
+        onDismiss={() => setRewardOpen(false)}
       />
 
       <HomeNotificationsPopover
@@ -624,141 +562,16 @@ const styles = StyleSheet.create({
     color: colors.green,
     letterSpacing: 0.4,
   },
+  chestReady: {
+    fontSize: typeTokens.size.micro,
+    fontWeight: '800',
+    color: colors.flame,
+    letterSpacing: 0.8,
+  },
   seeAll: {
     fontSize: typeTokens.size.bodySM,
     fontWeight: '800',
     color: colors.green,
   },
 
-  // Creature of the day — outer shell casts shadow; inner clips image corners
-  creatureCardOuter: {
-    borderRadius: radius.xl,
-    backgroundColor: colors.card,
-    ...shadow.featured,
-  },
-  creatureCard: {
-    borderRadius: radius.xl,
-    overflow: 'hidden',
-    backgroundColor: colors.card,
-    ...dexCardHairline,
-  },
-  creatureArt: {
-    height: 200,
-    padding: space[16],
-    justifyContent: 'space-between',
-    overflow: 'hidden',
-    backgroundColor: colors.hairline,
-  },
-  creatureBadges: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    zIndex: 2,
-  },
-  kingdomBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-    paddingHorizontal: space[8],
-    paddingVertical: space[4],
-    borderRadius: radius.pill,
-  },
-  kingdomEmoji: {
-    fontSize: 11,
-  },
-  kingdomText: {
-    fontSize: typeTokens.size.micro,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: 0.5,
-  },
-  featuredBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.sun,
-    paddingHorizontal: space[8],
-    paddingVertical: space[4],
-    borderRadius: radius.pill,
-  },
-  featuredText: {
-    fontSize: typeTokens.size.micro,
-    fontWeight: '800',
-    color: colors.ink,
-    letterSpacing: 0.5,
-  },
-  creatureInfo: {
-    padding: space[16],
-    gap: space[8],
-  },
-  creatureNameRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  creatureNameCol: {
-    flex: 1,
-    gap: 2,
-  },
-  creatureName: {
-    fontSize: typeTokens.size.displaySM,
-    fontWeight: '800',
-    color: colors.ink,
-  },
-  creatureScientific: {
-    fontSize: typeTokens.size.bodySM,
-    fontStyle: 'italic',
-    color: colors.dim,
-  },
-  bonusLabel: {
-    fontSize: typeTokens.size.micro,
-    fontWeight: '800',
-    color: colors.dim,
-    letterSpacing: 0.5,
-    textAlign: 'right',
-  },
-  bonusXp: {
-    fontSize: typeTokens.size.bodyLG,
-    fontWeight: '900',
-    color: colors.coral,
-    textAlign: 'right',
-  },
-  creatureDesc: {
-    fontSize: typeTokens.size.bodySM,
-    fontWeight: '500',
-    color: colors.ink2,
-    lineHeight: 20,
-  },
-  creatureActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[8],
-    marginTop: space[4],
-  },
-  seeOneBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[8],
-    backgroundColor: colors.green,
-    paddingVertical: space[16],
-    borderRadius: radius.lg,
-  },
-  seeOneBtnText: {
-    fontSize: typeTokens.size.bodySM,
-    fontWeight: '900',
-    color: '#fff',
-    letterSpacing: 0.5,
-  },
-  infoBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.md,
-    backgroundColor: colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Recent finds
 })
