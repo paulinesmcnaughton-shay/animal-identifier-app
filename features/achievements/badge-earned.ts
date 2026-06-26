@@ -112,6 +112,10 @@ const NAME_KEYWORDS: Record<string, string[]> = {
   'Acorn Scout': ['oak', 'quercus'],
   'Pinecone Finder': ['pine', 'pinus', 'spruce', 'fir', 'conifer'],
   'Ancient Tree': ['sequoia', 'redwood', 'bristlecone', 'cypress', 'cedar', 'baobab', 'ginkgo', 'oak'],
+  'First Marine Animal': ['dolphin', 'whale', 'shark', 'octopus', 'seal', 'sea lion', 'penguin', 'jellyfish', 'coral', 'manta', 'stingray', ' ray', 'manatee', 'orca', 'walrus', 'lobster', 'starfish', 'sea star', 'anemone', 'tuna', 'marlin', 'seahorse', 'clownfish', 'squid', 'urchin', 'sea turtle', 'narwhal', 'swordfish'],
+  'First Nocturnal Animal': ['owl', 'bat', 'raccoon', 'opossum', 'possum', 'moth', 'firefly', 'hedgehog', 'badger', 'coyote', 'tarsier', 'aye-aye', 'lemur', 'flying squirrel', 'nightjar', 'gecko', 'ocelot', 'kinkajou', 'sugar glider', 'wombat', 'armadillo'],
+  'Camouflage Finder': ['chameleon', 'stick insect', 'walking stick', 'leaf insect', 'katydid', 'octopus', 'cuttlefish', 'flounder', 'stonefish', 'mantis', 'seahorse', 'leaf-tailed', 'stick bug', 'peppered moth', 'dead leaf', 'flatfish'],
+  'Rare Species': ['tiger', 'panda', 'rhino', 'gorilla', 'orangutan', 'snow leopard', 'leopard', 'cheetah', 'jaguar', 'elephant', 'axolotl', 'kakapo', 'condor', 'koala', 'sloth', 'pangolin', 'okapi', 'tapir', 'red panda', 'lynx', 'wolverine', 'manatee', 'dugong', 'quetzal', 'kiwi', 'platypus', 'tasmanian', 'bonobo', 'gibbon', 'vaquita', 'saola'],
 }
 
 /**
