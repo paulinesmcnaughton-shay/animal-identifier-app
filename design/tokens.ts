@@ -29,6 +29,23 @@ export const colors = {
   hairline:   '#E7EDF3',
   /** Toggle switch track — off (use with `greenLight` for on). See `ToggleSwitch`. */
   switchOff:  '#B5C2CE',
+
+  // ── Home redesign palette (Safari hifi) — used by the new home cards ──
+  inkGreen:    '#16321F', // redesign primary dark green (CTAs, FAB, headings)
+  cream:       '#FBF1DA', // redesign surface
+  forest:      '#1E5C3A', // section meta labels, LVL accent
+  muted:       '#9AA49E', // secondary text on redesign cards
+  slate:       '#8A93A0', // stat labels
+  gold:        '#FAD24E',
+  goldDeep:    '#F0B814',
+  goldBevel:   '#B98708',
+  goldInk:     '#3A2A00', // text on gold buttons
+  flame:       '#E9604A', // streak flame / coral pills (redesign)
+  flameSoft:   '#FBE3D8', // coral-soft pill bg
+  grape:       '#7B3FE4',
+  grapeLight:  '#9B5DE5',
+  grapeDeep:   '#5B2BC9',
+  badgePurple: '#7C5CFC',
 } as const
 
 /** @deprecated Use `colors` */

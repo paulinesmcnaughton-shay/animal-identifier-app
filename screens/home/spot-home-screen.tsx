@@ -6,7 +6,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOp
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { HomeBadge } from '@/components/home/HomeBadge'
-import { StreakHeroCard, localDateKey } from '@/components/home/StreakHeroCard'
+import { ExploreVenuesCard } from '@/components/home/ExploreVenuesCard'
+import { StreakCalendar, localDateKey } from '@/components/home/StreakCalendar'
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { useReferenceImage } from '@/features/species/use-reference-image'
 import { RecentSpotsSection } from '@/components/profile/RecentSpotsSection'
@@ -329,20 +330,9 @@ export function SpotHomeScreen() {
           onBellPress={handleOpenNotifications}
           hasUnreadNotifications={hasUnreadNotifications}
         />
-        <StreakHeroCard streakDays={streakDays} sightingDates={sightingDates} />
+        <StreakCalendar streakDays={streakDays} sightingDates={sightingDates} />
         <QuestsCarousel quests={quests} />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Explore venues"
-          onPress={() => router.push('/venues')}
-          style={({ pressed }) => [styles.venuesCard, pressed && styles.venuesCardPressed]}>
-          <Text style={styles.venuesEmoji}>🦒</Text>
-          <View style={styles.venuesText}>
-            <Text style={styles.venuesTitle}>Explore venues</Text>
-            <Text style={styles.venuesSub}>Zoos, aquariums &amp; safari parks</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.dim} />
-        </Pressable>
+        <ExploreVenuesCard />
         <View style={styles.sectionGap}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Creature of the week</Text>
