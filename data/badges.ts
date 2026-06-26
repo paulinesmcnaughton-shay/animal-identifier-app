@@ -112,8 +112,6 @@ export const BADGES: Badge[] = [
   { id: 'first-marine-animal', name: 'First Marine Animal', image: require('@/assets/images/badges/first-marine-animal.png'), group: 'species' },
   { id: 'first-moss', name: 'First Moss', image: require('@/assets/images/badges/first-moss.png'), group: 'species' },
   { id: 'first-mushroom', name: 'First Mushroom', image: require('@/assets/images/badges/first-mushroom.png'), group: 'species' },
-  { id: 'first-native-flower', name: 'First Native Flower', image: require('@/assets/images/badges/first-native-flower.png'), group: 'species' },
-  { id: 'first-native-tree', name: 'First Native Tree', image: require('@/assets/images/badges/first-native-tree.png'), group: 'species' },
   { id: 'first-nocturnal-animal', name: 'First Nocturnal Animal', image: require('@/assets/images/badges/first-nocturnal-animal.png'), group: 'species' },
   { id: 'first-oak', name: 'First Oak', image: require('@/assets/images/badges/first-oak.png'), group: 'species' },
   { id: 'first-palm', name: 'First Palm', image: require('@/assets/images/badges/first-palm.png'), group: 'species' },

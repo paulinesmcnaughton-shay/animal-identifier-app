@@ -93,6 +93,8 @@ const KINGDOM_PROXY: Record<string, { kingdoms: string[]; min: number }> = {
   'Native Tree Scout': { kingdoms: ['tree'], min: 10 },
   'Canopy Collector': { kingdoms: ['tree'], min: 10 },
   'Big Creature': { kingdoms: ['mammal'], min: 10 },
+  'First Leafy Plant': { kingdoms: ['plant'], min: 1 },
+  'First Garden Flower': { kingdoms: ['flower'], min: 1 },
 }
 
 // Sub-type badges → earned if any collected species name contains a keyword.
