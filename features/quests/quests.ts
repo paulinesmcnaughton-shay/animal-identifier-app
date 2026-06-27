@@ -41,35 +41,61 @@ export interface Quest {
 
 const VENUE_COLLECTIONS = new Set<Collection>(['safari', 'zoo', 'aquarium', 'petting_zoo'])
 
-// Deep pool (> 10). Every quest maps to one of the 10 layouts; layouts repeat. The
-// home shows the first N unfinished quests, so completed ones rotate out and the next
-// tier rotates in. Ordered easiest → hardest.
-export const QUESTS: Quest[] = [
-  { id: 'insect-3',  type: 'insect',  theme: 'greenTopo',      eyebrow: '🏆 WEEKLY · INSECTS',   title: 'Spot 3 insects',        target: 3,  pips: 3, xpReward: 50 },
-  { id: 'bird-3',    type: 'bird',    theme: 'goldTicket',     eyebrow: '📸 DAILY · BIRD',        title: 'Photograph a bird',     target: 3,  pips: 3, xpReward: 75 },
-  { id: 'reptile-2', type: 'reptile', theme: 'tealLagoon',     eyebrow: '🦎 WEEKLY · REPTILE',    title: 'Find a reptile',        target: 2,  pips: 2, xpReward: 60 },
-  { id: 'venue-2',   type: 'venue',   theme: 'coralSunset',    eyebrow: '📍 VENUE QUEST',         title: 'Visit 2 venues',        target: 2,  pips: 2, xpReward: 80 },
-  { id: 'mammal-3',  type: 'mammal',  theme: 'forestInk',      eyebrow: '🦌 WEEKLY · MAMMAL',     title: 'Log 3 mammals',         target: 3,  pips: 3, xpReward: 50 },
-  { id: 'dusk-2',    type: 'dusk',    theme: 'nightSky',       eyebrow: '🌙 NIGHT QUEST',         title: 'Spot 2 at dusk',        target: 2,  pips: 2, xpReward: 90 },
-  { id: 'flower-2',  type: 'flower',  theme: 'sageSoft',       eyebrow: '🌸 WEEKLY · FLORA',      title: 'Identify 2 flowers',    target: 2,  pips: 2, xpReward: 40 },
-  { id: 'water-3',   type: 'water',   theme: 'aquaWater',      eyebrow: '💧 WATER QUEST',         title: 'Spot 3 in water',       target: 3,  pips: 3, xpReward: 70 },
-  { id: 'streak-7',  type: 'streak',  theme: 'streakConfetti', eyebrow: '🔥 STREAK BONUS',        title: 'Keep a 7-day streak',   target: 7,  pips: 3, xpReward: 120 },
-  { id: 'rare-1',    type: 'rare',    theme: 'premiumGold',    eyebrow: '✦ RARE FIND',            title: 'Catch a rare creature', target: 1,  pips: 1, xpReward: 150 },
-  { id: 'insect-8',  type: 'insect',  theme: 'goldTicket',     eyebrow: '🐝 COLLECTOR · INSECTS', title: 'Spot 8 insects',        target: 8,  pips: 3, xpReward: 120 },
-  { id: 'bird-10',   type: 'bird',    theme: 'tealLagoon',     eyebrow: '🪶 COLLECTOR · BIRDS',   title: 'Spot 10 birds',         target: 10, pips: 3, xpReward: 140 },
-  { id: 'mammal-8',  type: 'mammal',  theme: 'coralSunset',    eyebrow: '🐾 COLLECTOR · MAMMALS', title: 'Spot 8 mammals',        target: 8,  pips: 3, xpReward: 120 },
-  { id: 'reptile-5', type: 'reptile', theme: 'forestInk',      eyebrow: '🦎 COLLECTOR · REPTILE', title: 'Find 5 reptiles',       target: 5,  pips: 3, xpReward: 110 },
-  { id: 'water-8',   type: 'water',   theme: 'nightSky',       eyebrow: '🐟 COLLECTOR · WATER',   title: 'Spot 8 in water',       target: 8,  pips: 3, xpReward: 120 },
-  { id: 'flower-6',  type: 'flower',  theme: 'sageSoft',       eyebrow: '🌷 COLLECTOR · FLORA',   title: 'Identify 6 flowers',    target: 6,  pips: 3, xpReward: 100 },
-  { id: 'dusk-5',    type: 'dusk',    theme: 'aquaWater',      eyebrow: '🌙 NIGHT OWL',           title: 'Spot 5 at dusk',        target: 5,  pips: 3, xpReward: 140 },
-  { id: 'venue-4',   type: 'venue',   theme: 'streakConfetti', eyebrow: '📍 EXPLORER',            title: 'Visit 4 venues',        target: 4,  pips: 3, xpReward: 150 },
-  { id: 'rare-3',    type: 'rare',    theme: 'premiumGold',    eyebrow: '✦ COLLECTOR · RARE',     title: 'Catch 3 rare creatures', target: 3, pips: 3, xpReward: 300 },
-  { id: 'streak-14', type: 'streak',  theme: 'greenTopo',      eyebrow: '🔥 STREAK MASTER',       title: 'Keep a 14-day streak',  target: 14, pips: 3, xpReward: 250 },
-  { id: 'insect-15', type: 'insect',  theme: 'nightSky',       eyebrow: '🦋 NATURALIST · INSECTS', title: 'Spot 15 insects',      target: 15, pips: 3, xpReward: 200 },
-  { id: 'bird-20',   type: 'bird',    theme: 'greenTopo',      eyebrow: '🦅 NATURALIST · BIRDS',  title: 'Spot 20 birds',         target: 20, pips: 3, xpReward: 240 },
-  { id: 'mammal-15', type: 'mammal',  theme: 'tealLagoon',     eyebrow: '🦁 NATURALIST · MAMMALS', title: 'Spot 15 mammals',      target: 15, pips: 3, xpReward: 200 },
-  { id: 'water-15',  type: 'water',   theme: 'coralSunset',    eyebrow: '🐙 NATURALIST · WATER',  title: 'Spot 15 in water',      target: 15, pips: 3, xpReward: 200 },
+// The 10 layouts, in order. A quest's design = THEME_ORDER[(typeIndex + tier) % 10],
+// so tier 1 reproduces the original design pairing and higher tiers rotate the look.
+const THEME_ORDER: QuestThemeKey[] = [
+  'greenTopo', 'goldTicket', 'tealLagoon', 'coralSunset', 'forestInk',
+  'nightSky', 'sageSoft', 'aquaWater', 'streakConfetti', 'premiumGold',
 ]
+const TYPE_ORDER: QuestType[] = ['insect', 'bird', 'reptile', 'venue', 'mammal', 'dusk', 'flower', 'water', 'streak', 'rare']
+const TIER_LABEL = ['STARTER', 'COLLECTOR', 'NATURALIST', 'EXPERT', 'MASTER']
+
+interface TypeMeta {
+  emoji: string
+  label: string
+  verb: string
+  noun: string
+  targets: [number, number, number, number, number]
+  xp: [number, number, number, number, number]
+}
+
+const TYPE_META: Record<QuestType, TypeMeta> = {
+  insect:  { emoji: '🐝', label: 'INSECTS',  verb: 'Spot',     noun: 'insects',       targets: [3, 8, 15, 25, 40],   xp: [50, 120, 200, 280, 360] },
+  bird:    { emoji: '🪶', label: 'BIRDS',    verb: 'Spot',     noun: 'birds',         targets: [3, 10, 20, 35, 50],  xp: [75, 140, 240, 320, 420] },
+  reptile: { emoji: '🦎', label: 'REPTILES', verb: 'Find',     noun: 'reptiles',      targets: [2, 5, 10, 18, 30],   xp: [60, 110, 190, 270, 360] },
+  venue:   { emoji: '📍', label: 'VENUES',   verb: 'Visit',    noun: 'venues',        targets: [2, 4, 6, 9, 12],     xp: [80, 150, 220, 300, 400] },
+  mammal:  { emoji: '🐾', label: 'MAMMALS',  verb: 'Log',      noun: 'mammals',       targets: [3, 8, 15, 25, 40],   xp: [50, 120, 200, 280, 360] },
+  dusk:    { emoji: '🌙', label: 'DUSK',     verb: 'Spot',     noun: 'at dusk',       targets: [2, 5, 10, 18, 30],   xp: [90, 140, 220, 300, 380] },
+  flower:  { emoji: '🌸', label: 'FLORA',    verb: 'Identify', noun: 'flowers',       targets: [2, 6, 12, 20, 32],   xp: [40, 100, 180, 260, 340] },
+  water:   { emoji: '💧', label: 'WATER',    verb: 'Spot',     noun: 'in water',      targets: [3, 8, 15, 25, 40],   xp: [70, 120, 200, 280, 360] },
+  streak:  { emoji: '🔥', label: 'STREAK',   verb: '',         noun: '',              targets: [7, 14, 30, 60, 100], xp: [120, 250, 400, 600, 900] },
+  rare:    { emoji: '✦', label: 'RARE',      verb: 'Catch',    noun: 'rare creatures', targets: [1, 3, 6, 10, 15],   xp: [150, 300, 450, 600, 800] },
+}
+
+function questTitle(type: QuestType, target: number): string {
+  if (type === 'streak') return `Keep a ${target}-day streak`
+  if (type === 'rare' && target === 1) return 'Catch a rare creature'
+  const m = TYPE_META[type]
+  return `${m.verb} ${target} ${m.noun}`
+}
+
+// 50-quest pool: 5 tiers × 10 types, tier-major so the visible window mixes types.
+export const QUESTS: Quest[] = TIER_LABEL.flatMap((tierLabel, tier) =>
+  TYPE_ORDER.map((type, pos) => {
+    const m = TYPE_META[type]
+    const target = m.targets[tier]
+    return {
+      id: `${type}-${target}`,
+      type,
+      theme: THEME_ORDER[(pos + tier) % THEME_ORDER.length],
+      eyebrow: `${m.emoji} ${tierLabel} · ${m.label}`,
+      title: questTitle(type, target),
+      target,
+      pips: target <= 1 ? 1 : target === 2 ? 2 : 3,
+      xpReward: m.xp[tier],
+    }
+  }),
+)
 
 export interface SightingLike {
   kingdom?: string | null
