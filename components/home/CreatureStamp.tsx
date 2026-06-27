@@ -10,15 +10,16 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated'
+import Svg, { Path } from 'react-native-svg'
 
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import type { CreatureRosterItem } from '@/features/home/creature-of-week'
 import { useReferenceImage } from '@/features/species/use-reference-image'
 
-// Perforated stamp edge — bg-coloured circles punched along all four edges.
-const NOTCH = 12
-const NOTCH_GAP = 18
+// Perforated stamp edge — semicircle notches cut into the white shape.
+const NOTCH_R = 6
+const NOTCH_GAP = 17
 
 interface CreatureStampProps {
   creature: CreatureRosterItem
@@ -52,10 +53,15 @@ export function CreatureStamp({ creature, isCollected, weekLabel, onInfoPress }:
     const { width, height } = e.nativeEvent.layout
     setDim((d) => (d.w === width && d.h === height ? d : { w: width, h: height }))
   }
-  const notches = useMemo(() => buildNotches(dim.w, dim.h), [dim])
+  const stampPath = useMemo(() => scallopPath(dim.w, dim.h), [dim])
 
   return (
     <Animated.View style={[styles.stamp, floatStyle]} onLayout={handleLayout}>
+      {dim.w > 0 ? (
+        <Svg width={dim.w} height={dim.h} style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Path d={stampPath} fill={colors.card} />
+        </Svg>
+      ) : null}
       <View style={styles.photo}>
         <Image
           source={uri ? { uri } : heroImage}
@@ -103,50 +109,61 @@ export function CreatureStamp({ creature, isCollected, weekLabel, onInfoPress }:
           </Pressable>
         </View>
       </View>
-
-      {notches.map((n, i) => (
-        <View key={i} pointerEvents="none" style={[styles.notch, { left: n.left, top: n.top }]} />
-      ))}
     </Animated.View>
   )
 }
 
-function buildNotches(w: number, h: number): { left: number; top: number }[] {
-  if (!w || !h) return []
-  const out: { left: number; top: number }[] = []
-  const cols = Math.max(2, Math.round(w / NOTCH_GAP))
-  const rows = Math.max(2, Math.round(h / NOTCH_GAP))
-  const stepX = w / cols
-  const stepY = h / rows
-  const r = NOTCH / 2
-  for (let i = 0; i <= cols; i++) {
-    const x = i * stepX - r
-    out.push({ left: x, top: -r }, { left: x, top: h - r })
+// Even notch centres along an edge, leaving a margin from each corner.
+function notchCentres(len: number): number[] {
+  const n = Math.max(1, Math.round(len / NOTCH_GAP) - 1)
+  const step = len / (n + 1)
+  return Array.from({ length: n }, (_, i) => (i + 1) * step)
+}
+
+// A rectangle whose four edges are scalloped with inward semicircle notches.
+function scallopPath(w: number, h: number): string {
+  if (!w || !h) return ''
+  const r = NOTCH_R
+  const SEG = 6
+  let d = 'M 0 0 '
+  const run = (centres: number[], point: (c: number, t: number) => [number, number]) => {
+    for (const c of centres) {
+      for (let k = 0; k <= SEG; k++) {
+        const [x, y] = point(c, k / SEG)
+        d += `L ${x.toFixed(1)} ${y.toFixed(1)} `
+      }
+    }
   }
-  for (let j = 1; j < rows; j++) {
-    const y = j * stepY - r
-    out.push({ left: -r, top: y }, { left: w - r, top: y })
-  }
-  return out
+  run(notchCentres(w), (cx, t) => {
+    const th = Math.PI * (1 - t)
+    return [cx + r * Math.cos(th), r * Math.sin(th)]
+  })
+  d += `L ${w} 0 `
+  run(notchCentres(h), (cy, t) => {
+    const a = Math.PI * t
+    return [w - r * Math.sin(a), cy - r * Math.cos(a)]
+  })
+  d += `L ${w} ${h} `
+  run(notchCentres(w).reverse(), (cx, t) => {
+    const b = Math.PI * t
+    return [cx + r * Math.cos(b), h - r * Math.sin(b)]
+  })
+  d += `L 0 ${h} `
+  run(notchCentres(h).reverse(), (cy, t) => {
+    const g = Math.PI * t
+    return [r * Math.sin(g), cy + r * Math.cos(g)]
+  })
+  return d + 'Z'
 }
 
 const styles = StyleSheet.create({
   stamp: {
-    backgroundColor: colors.card,
     padding: space[8],
-    borderRadius: radius.sm,
     shadowColor: '#143C1E',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.26,
-    shadowRadius: 18,
-    elevation: 8,
-  },
-  notch: {
-    position: 'absolute',
-    width: NOTCH,
-    height: NOTCH,
-    borderRadius: NOTCH / 2,
-    backgroundColor: colors.bg,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 6,
   },
   photo: {
     height: 198,
