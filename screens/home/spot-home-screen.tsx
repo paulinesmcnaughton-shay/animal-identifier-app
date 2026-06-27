@@ -152,7 +152,6 @@ export function SpotHomeScreen() {
           speciesId: r.species_id,
           speciesName: r.species_name,
           scientificName: r.latin_name,
-          spottedAt: r.spotted_at,
         })),
         { lookup: collectionLookup, streakDays },
       ),

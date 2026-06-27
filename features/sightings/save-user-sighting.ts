@@ -215,11 +215,11 @@ export async function saveUserSighting(
 
   const { data: allSpeciesRows } = await supabase
     .from('user_sightings')
-    .select('species_id, kingdom, dex_number, is_domestic, species_name, latin_name, spotted_at')
+    .select('species_id, kingdom, dex_number, is_domestic, species_name, latin_name')
     .eq('user_id', userId)
 
-  // Raw sightings drive quest counts (counted distinct per quest internally), so
-  // per-sighting facts like dusk-time survive. seenSpecies still gives the spots total.
+  // Quest counts are computed distinct-per-type internally, so pass all rows.
+  // seenSpecies still gives the spots total.
   const seenSpecies = new Set<string>()
   const questSightings: SightingLike[] = (allSpeciesRows ?? []).map((row) => ({
     kingdom: row.kingdom,
@@ -227,7 +227,6 @@ export async function saveUserSighting(
     speciesId: row.species_id,
     speciesName: row.species_name,
     scientificName: row.latin_name,
-    spottedAt: row.spotted_at,
   }))
   for (const row of allSpeciesRows ?? []) {
     if (seenSpecies.has(row.species_id)) continue

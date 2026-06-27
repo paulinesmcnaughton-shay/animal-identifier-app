@@ -100,6 +100,9 @@ const KINGDOM_PROXY: Record<string, { kingdoms: string[]; min: number }> = {
 // Species whose name marks them as a rare find — shared with the Rare Find quest.
 export const RARE_SPECIES_KEYWORDS = ['tiger', 'panda', 'rhino', 'gorilla', 'orangutan', 'snow leopard', 'leopard', 'cheetah', 'jaguar', 'elephant', 'axolotl', 'kakapo', 'condor', 'koala', 'sloth', 'pangolin', 'okapi', 'tapir', 'red panda', 'lynx', 'wolverine', 'manatee', 'dugong', 'quetzal', 'kiwi', 'platypus', 'tasmanian', 'bonobo', 'gibbon', 'vaquita', 'saola'] as const
 
+// Nocturnal species by name — shared with the Dusk quest.
+export const NOCTURNAL_SPECIES_KEYWORDS = ['owl', 'bat', 'raccoon', 'opossum', 'possum', 'moth', 'firefly', 'hedgehog', 'badger', 'coyote', 'tarsier', 'aye-aye', 'lemur', 'flying squirrel', 'nightjar', 'gecko', 'ocelot', 'kinkajou', 'sugar glider', 'wombat', 'armadillo'] as const
+
 // Sub-type badges → earned if any collected species name contains a keyword.
 const NAME_KEYWORDS: Record<string, string[]> = {
   'First Pine': ['pine', 'pinus'],
@@ -118,7 +121,7 @@ const NAME_KEYWORDS: Record<string, string[]> = {
   'Pinecone Finder': ['pine', 'pinus', 'spruce', 'fir', 'conifer'],
   'Ancient Tree': ['sequoia', 'redwood', 'bristlecone', 'cypress', 'cedar', 'baobab', 'ginkgo', 'oak'],
   'First Marine Animal': ['dolphin', 'whale', 'shark', 'octopus', 'seal', 'sea lion', 'penguin', 'jellyfish', 'coral', 'manta', 'stingray', ' ray', 'manatee', 'orca', 'walrus', 'lobster', 'starfish', 'sea star', 'anemone', 'tuna', 'marlin', 'seahorse', 'clownfish', 'squid', 'urchin', 'sea turtle', 'narwhal', 'swordfish'],
-  'First Nocturnal Animal': ['owl', 'bat', 'raccoon', 'opossum', 'possum', 'moth', 'firefly', 'hedgehog', 'badger', 'coyote', 'tarsier', 'aye-aye', 'lemur', 'flying squirrel', 'nightjar', 'gecko', 'ocelot', 'kinkajou', 'sugar glider', 'wombat', 'armadillo'],
+  'First Nocturnal Animal': [...NOCTURNAL_SPECIES_KEYWORDS],
   'Camouflage Finder': ['chameleon', 'stick insect', 'walking stick', 'leaf insect', 'katydid', 'octopus', 'cuttlefish', 'flounder', 'stonefish', 'mantis', 'seahorse', 'leaf-tailed', 'stick bug', 'peppered moth', 'dead leaf', 'flatfish'],
   'Rare Species': [...RARE_SPECIES_KEYWORDS],
 }
