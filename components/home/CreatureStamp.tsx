@@ -38,13 +38,12 @@ export function CreatureStamp({ creature, onInfoPress }: CreatureStampProps) {
     bob.value = withRepeat(withTiming(1, { duration: 2400, easing: Easing.inOut(Easing.ease) }), -1, true)
   }, [bob])
   const floatStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: '1.5deg' }, { translateY: -3 + bob.value * 6 }],
+    transform: [{ translateY: -3 + bob.value * 6 }],
   }))
 
   return (
-    <View style={styles.center}>
-      <Animated.View style={[styles.stamp, floatStyle]}>
-        <View style={styles.photo}>
+    <Animated.View style={[styles.stamp, floatStyle]}>
+      <View style={styles.photo}>
           <Image
             source={uri ? { uri } : heroImage}
             onError={() => onImageError(uri)}
@@ -85,20 +84,12 @@ export function CreatureStamp({ creature, onInfoPress }: CreatureStampProps) {
             </Pressable>
           </View>
         </View>
-      </Animated.View>
-    </View>
+    </Animated.View>
   )
 }
 
-const STAMP_WIDTH = 328
-
 const styles = StyleSheet.create({
-  center: {
-    alignItems: 'center',
-    marginTop: space[4],
-  },
   stamp: {
-    width: STAMP_WIDTH,
     backgroundColor: colors.card,
     paddingHorizontal: space[8],
     paddingTop: space[8],

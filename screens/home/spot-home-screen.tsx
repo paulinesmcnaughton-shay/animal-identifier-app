@@ -21,7 +21,7 @@ import {
   visibleQuests,
   type QuestProgress,
 } from '@/features/quests/quests'
-import { contentTopInset, screenLayout } from '@/design/screen-layout'
+import { contentTopInset } from '@/design/screen-layout'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
 import type { DayPeriodGreeting } from '@/features/profile/time-greeting'
 import { useSpotGreeting } from '@/features/profile/use-spot-greeting'
@@ -96,7 +96,7 @@ interface QuestsCarouselProps {
 
 function QuestsCarousel({ quests }: QuestsCarouselProps) {
   const { width } = useWindowDimensions()
-  const cardWidth = width - screenLayout.padH - 60
+  const cardWidth = width - space[24] * 2
   const snap = cardWidth + space[8]
   const [activeIndex, setActiveIndex] = useState(0)
 
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   content: {
-    paddingHorizontal: screenLayout.padH,
+    paddingHorizontal: space[24],
     gap: space[24],
   },
 
@@ -366,11 +366,11 @@ const styles = StyleSheet.create({
   // Quest carousel
   questCarouselWrap: {
     gap: space[8],
-    marginHorizontal: -screenLayout.padH,
+    marginHorizontal: -space[24],
   },
   questCarousel: {
     gap: space[8],
-    paddingHorizontal: screenLayout.padH,
+    paddingHorizontal: space[24],
   },
   dots: {
     flexDirection: 'row',
