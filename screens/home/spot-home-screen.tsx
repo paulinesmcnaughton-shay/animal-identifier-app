@@ -11,7 +11,6 @@ import { DailyChestCard } from '@/components/home/DailyChestCard'
 import { ExploreVenuesCard } from '@/components/home/ExploreVenuesCard'
 import { RewardChest } from '@/components/home/RewardChest'
 import { StreakCalendar, localDateKey } from '@/components/home/StreakCalendar'
-import { RecentSpotsSection } from '@/components/profile/RecentSpotsSection'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
 import { useCreatureOfWeek } from '@/features/home/creature-of-week'
@@ -33,7 +32,7 @@ interface HeaderProps {
   greeting: DayPeriodGreeting
   firstName: string
   level: number
-  spotsCaptured: number
+  streakDays: number
   onBadgePress: () => void
   onBellPress: () => void
   hasUnreadNotifications: boolean
@@ -43,7 +42,7 @@ function Header({
   greeting,
   firstName,
   level,
-  spotsCaptured,
+  streakDays,
   onBadgePress,
   onBellPress,
   hasUnreadNotifications,
@@ -70,6 +69,11 @@ function Header({
         </View>
       </View>
       <View style={styles.headerRight}>
+        {streakDays > 0 ? (
+          <View style={styles.streakChip}>
+            <Text style={styles.streakChipText}>🔥 {streakDays}</Text>
+          </View>
+        ) : null}
         <TouchableOpacity
           style={styles.bellBtn}
           activeOpacity={0.7}
@@ -92,7 +96,7 @@ interface QuestsCarouselProps {
 
 function QuestsCarousel({ quests }: QuestsCarouselProps) {
   const { width } = useWindowDimensions()
-  const cardWidth = width - screenLayout.padH * 2 - space[24]
+  const cardWidth = width - screenLayout.padH - 60
   const snap = cardWidth + space[8]
   const [activeIndex, setActiveIndex] = useState(0)
 
@@ -135,9 +139,9 @@ function QuestsCarousel({ quests }: QuestsCarouselProps) {
 export function SpotHomeScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { firstName, timeZone, level, streakDays, spotsCaptured, claimedQuests, isReady, isLoading } =
+  const { firstName, timeZone, level, streakDays, claimedQuests, isReady, isLoading } =
     useAccountProfile()
-  const { recentCards, rows } = useUserSightingsData()
+  const { rows } = useUserSightingsData()
   const sightingDates = useMemo(
     () => new Set(rows.map((r) => localDateKey(new Date(r.spotted_at)))),
     [rows],
@@ -200,13 +204,21 @@ export function SpotHomeScreen() {
           greeting={greeting}
           firstName={firstName}
           level={level}
-          spotsCaptured={spotsCaptured}
+          streakDays={streakDays}
           onBadgePress={handleOpenBadges}
           onBellPress={handleOpenNotifications}
           hasUnreadNotifications={hasUnreadNotifications}
         />
+        <View style={styles.sectionGap}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Your quests</Text>
+            <Text style={styles.newEvery}>
+              {quests.length > 0 ? `SWIPE · ${quests.length} ACTIVE` : 'ALL DONE'}
+            </Text>
+          </View>
+          <QuestsCarousel quests={quests} />
+        </View>
         <StreakCalendar streakDays={streakDays} sightingDates={sightingDates} />
-        <QuestsCarousel quests={quests} />
         <ExploreVenuesCard />
         <View style={styles.sectionGap}>
           <View style={styles.sectionHeader}>
@@ -222,13 +234,6 @@ export function SpotHomeScreen() {
           </View>
           <DailyChestCard onOpen={() => setRewardOpen(true)} />
         </View>
-        <RecentSpotsSection
-          title="Recent finds"
-          spotsCaptured={spotsCaptured}
-          recentCards={recentCards}
-          cardWidth={120}
-          horizontalPadding={screenLayout.padH}
-        />
       </ScrollView>
 
       <CreatureInfoOverlay
@@ -292,15 +297,15 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   levelBadge: {
-    backgroundColor: colors.sun,
-    borderRadius: radius.pill,
+    backgroundColor: colors.forest,
+    borderRadius: radius.sm,
     paddingHorizontal: space[8],
     paddingVertical: 2,
   },
   levelText: {
     fontSize: typeTokens.size.caption,
     fontWeight: typeTokens.body.weights.black,
-    color: colors.ink,
+    color: colors.card,
   },
   greeting: {
     fontSize: typeTokens.size.caption,
@@ -319,6 +324,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[8],
+  },
+  streakChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.flameSoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: space[8],
+    paddingVertical: space[8],
+  },
+  streakChipText: {
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.extra,
+    color: colors.flame,
   },
   bellBtn: {
     width: 40,
@@ -348,10 +366,11 @@ const styles = StyleSheet.create({
   // Quest carousel
   questCarouselWrap: {
     gap: space[8],
+    marginHorizontal: -screenLayout.padH,
   },
   questCarousel: {
     gap: space[8],
-    paddingRight: space[24],
+    paddingHorizontal: screenLayout.padH,
   },
   dots: {
     flexDirection: 'row',
@@ -369,7 +388,6 @@ const styles = StyleSheet.create({
     width: 18,
   },
   questsEmpty: {
-    marginHorizontal: screenLayout.padH,
     backgroundColor: colors.card,
     borderRadius: radius.xl,
     paddingVertical: space[32],

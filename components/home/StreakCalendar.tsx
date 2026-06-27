@@ -127,7 +127,6 @@ export function StreakCalendar({ streakDays, sightingDates }: StreakCalendarProp
 
 const styles = StyleSheet.create({
   card: {
-    marginHorizontal: space[16],
     backgroundColor: colors.card,
     borderRadius: 20,
     padding: space[16],

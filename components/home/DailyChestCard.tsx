@@ -76,9 +76,7 @@ export function DailyChestCard({ onOpen }: { onOpen: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    marginHorizontal: space[16],
-  },
+  wrap: {},
   pressed: {
     transform: [{ translateY: 2 }],
   },

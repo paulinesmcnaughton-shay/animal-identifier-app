@@ -42,9 +42,7 @@ export function ExploreVenuesCard() {
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    marginHorizontal: space[16],
-  },
+  wrap: {},
   pressed: {
     transform: [{ translateY: 2 }],
   },
