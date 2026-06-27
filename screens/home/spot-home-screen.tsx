@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -13,7 +13,8 @@ import { RewardChest } from '@/components/home/RewardChest'
 import { StreakCalendar, localDateKey } from '@/components/home/StreakCalendar'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
-import { useCreatureOfWeek } from '@/features/home/creature-of-week'
+import { useCreatureOfWeek, useCreatureWeekMeta } from '@/features/home/creature-of-week'
+import { claimCreatureBonus } from '@/features/home/claim-creature-bonus'
 import { useCollectionLookup } from '@/features/collections/collections'
 import {
   buildQuestProgress,
@@ -164,6 +165,22 @@ export function SpotHomeScreen() {
   }, [rows, collectionLookup, streakDays, claimedQuests])
   const greeting = useSpotGreeting(timeZone)
   const creatureOfWeek = useCreatureOfWeek()
+  const weekMeta = useCreatureWeekMeta()
+  const isCreatureCollected = useMemo(() => {
+    const cid = creatureOfWeek.id.toLowerCase()
+    const cname = creatureOfWeek.commonName.trim().toLowerCase()
+    const cdex = creatureOfWeek.dexNumber.replace(/^#/, '')
+    return rows.some(
+      (r) =>
+        (r.species_id ?? '').toLowerCase() === cid ||
+        (r.species_name ?? '').trim().toLowerCase() === cname ||
+        (r.dex_number ?? '').replace(/^#/, '') === cdex,
+    )
+  }, [rows, creatureOfWeek])
+  const isCreatureClaimed = claimedQuests.includes(weekMeta.key)
+  const handleClaimCreature = useCallback(() => {
+    void claimCreatureBonus({ weekKey: weekMeta.key, bonusXp: creatureOfWeek.bonusXp })
+  }, [weekMeta.key, creatureOfWeek.bonusXp])
   const [creatureInfoOpen, setCreatureInfoOpen] = useState(false)
   const [rewardOpen, setRewardOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -225,7 +242,14 @@ export function SpotHomeScreen() {
             <Text style={styles.sectionTitle}>Creature of the week</Text>
             <Text style={styles.newEvery}>NEW EVERY WEEK</Text>
           </View>
-          <CreatureStamp creature={creatureOfWeek} onInfoPress={() => setCreatureInfoOpen(true)} />
+          <CreatureStamp
+            creature={creatureOfWeek}
+            isCollected={isCreatureCollected}
+            isClaimed={isCreatureClaimed}
+            weekLabel={weekMeta.label}
+            onClaim={handleClaimCreature}
+            onInfoPress={() => setCreatureInfoOpen(true)}
+          />
         </View>
         <View style={styles.sectionGap}>
           <View style={styles.sectionHeader}>

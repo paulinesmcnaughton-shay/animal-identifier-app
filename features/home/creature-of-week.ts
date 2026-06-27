@@ -146,3 +146,27 @@ export function useCreatureOfWeek(): CreatureRosterItem {
 
   return useMemo(() => getCreatureOfWeek(timezone), [timezone])
 }
+
+export interface WeekMeta {
+  week: number
+  year: number
+  key: string // claim key stored in profiles.claimed_quests
+  label: string // postmark label, e.g. 'WK 26 2026'
+}
+
+export function getWeekMeta(timezone: string): WeekMeta {
+  const localDate = getLocalDateInTimezone(timezone)
+  const week = isoWeekNumber(localDate)
+  const year = localDate.getFullYear()
+  return { week, year, key: `cotw:${year}-W${week}`, label: `WK ${week} ${year}` }
+}
+
+export function useCreatureWeekMeta(): WeekMeta {
+  const [timezone, setTimezone] = useState(() => detectDeviceTimezone())
+
+  useEffect(() => {
+    void loadTimezone().then(setTimezone)
+  }, [])
+
+  return useMemo(() => getWeekMeta(timezone), [timezone])
+}
