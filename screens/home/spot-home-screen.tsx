@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { HomeBadge } from '@/components/home/HomeBadge'
 import { CreatureStamp } from '@/components/home/CreatureStamp'
+import { QuestCard } from '@/components/home/QuestCard'
 import { DailyChestCard } from '@/components/home/DailyChestCard'
 import { ExploreVenuesCard } from '@/components/home/ExploreVenuesCard'
 import { RewardChest } from '@/components/home/RewardChest'
@@ -119,73 +120,12 @@ function QuestsCarousel({ quests }: QuestsCarouselProps) {
   )
 }
 
-interface QuestCardProps {
-  progress: QuestProgress
-  width: number
-}
-
-function QuestCard({ progress, width }: QuestCardProps) {
-  const { quest, count, badgeEarned, bonusEarned } = progress
-  const pct = Math.min(count, quest.bonusTarget) / quest.bonusTarget
-  const reward = bonusEarned ? `+${quest.bonusXp} XP` : badgeEarned ? 'Badge earned' : `+${quest.xpReward} XP`
-
-  return (
-    <View style={[styles.questCard, { width, backgroundColor: quest.accent }]}>
-      <View style={styles.questTop}>
-        <View style={styles.questTitleRow}>
-          <Ionicons name="trophy" size={14} color={colors.sun} />
-          <Text style={styles.questLabel}>QUEST</Text>
-        </View>
-        <Text style={styles.questTitle}>{quest.title}</Text>
-      </View>
-
-      <View style={styles.questBottom}>
-        <View style={styles.progressBarTrack}>
-          <View style={[styles.progressBarFill, { width: `${pct * 100}%` }]} />
-        </View>
-        <View style={styles.questMeta}>
-          <View style={styles.progressEmojis}>
-            {Array.from({ length: quest.bonusTarget }).map((_, i) => {
-              const filled = i < count
-              const isBonusSlot = i === quest.bonusTarget - 1
-              return (
-                <View
-                  key={i}
-                  style={[
-                    styles.emojiCircle,
-                    !filled && styles.emojiCircleEmpty,
-                    isBonusSlot && styles.emojiCircleBonus,
-                    isBonusSlot && filled && styles.emojiCircleBonusFilled,
-                  ]}>
-                  {filled ? (
-                    <Text style={styles.emojiText}>{isBonusSlot ? '⭐️' : quest.emoji}</Text>
-                  ) : (
-                    <Ionicons
-                      name={isBonusSlot ? 'star-outline' : 'add'}
-                      size={16}
-                      color="rgba(255,255,255,0.5)"
-                    />
-                  )}
-                </View>
-              )
-            })}
-          </View>
-          <View style={styles.xpPill}>
-            {badgeEarned ? <Ionicons name="ribbon" size={13} color={colors.ink} /> : null}
-            <Text style={styles.xpText}>{reward}</Text>
-          </View>
-        </View>
-      </View>
-    </View>
-  )
-}
-
 export function SpotHomeScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const { firstName, timeZone, level, streakDays, spotsCaptured, isReady, isLoading } =
     useAccountProfile()
-  const { recentCards, dexEntries, rows } = useUserSightingsData()
+  const { recentCards, rows } = useUserSightingsData()
   const sightingDates = useMemo(
     () => new Set(rows.map((r) => localDateKey(new Date(r.spotted_at)))),
     [rows],
@@ -195,17 +135,18 @@ export function SpotHomeScreen() {
     () =>
       buildQuestProgress(
         questCountsFromSightings(
-          dexEntries.map((e) => ({
-            kingdom: e.kingdom,
-            dexNumber: e.number,
-            speciesId: e.id,
-            speciesName: e.name,
-            scientificName: e.latin ?? null,
+          rows.map((r) => ({
+            kingdom: r.kingdom,
+            dexNumber: r.dex_number,
+            speciesId: r.species_id,
+            speciesName: r.species_name,
+            scientificName: r.latin_name,
+            spottedAt: r.spotted_at,
           })),
-          collectionLookup,
+          { lookup: collectionLookup, streakDays },
         ),
       ),
-    [dexEntries, collectionLookup],
+    [rows, collectionLookup, streakDays],
   )
   const greeting = useSpotGreeting(timeZone)
   const creatureOfWeek = useCreatureOfWeek()
@@ -434,104 +375,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   venuesSub: { fontSize: typeTokens.size.bodySM, color: colors.dim },
-  // Quest card
-  questCard: {
-    borderRadius: radius.xl,
-    padding: space[16],
-    gap: space[16],
-  },
-  questTop: {
-    gap: space[8],
-  },
-  questTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[8],
-  },
-  questLabel: {
-    fontSize: typeTokens.size.micro,
-    fontWeight: '800',
-    color: 'rgba(255,255,255,0.8)',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  questTitle: {
-    fontSize: typeTokens.size.displaySM,
-    fontWeight: '800',
-    color: '#fff',
-    lineHeight: 28,
-  },
-  questBottom: {
-    gap: space[8],
-  },
-  progressBarTrack: {
-    height: 8,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: radius.pill,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: colors.sun,
-    borderRadius: radius.pill,
-  },
-  questMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  progressEmojis: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[8],
-  },
-  progressLabel: {
-    fontSize: typeTokens.size.micro,
-    fontWeight: '800',
-    color: 'rgba(255,255,255,0.7)',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginRight: 2,
-  },
-  emojiCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emojiCircleEmpty: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.3)',
-    borderStyle: 'dashed',
-  },
-  emojiCircleBonus: {
-    borderWidth: 1.5,
-    borderColor: colors.sun,
-    borderStyle: 'solid',
-  },
-  emojiCircleBonusFilled: {
-    backgroundColor: 'rgba(255,201,60,0.35)',
-  },
-  emojiText: {
-    fontSize: 16,
-  },
-  xpPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[4],
-    backgroundColor: colors.sun,
-    paddingHorizontal: space[16],
-    paddingVertical: space[8],
-    borderRadius: radius.pill,
-  },
-  xpText: {
-    fontSize: typeTokens.size.bodySM,
-    fontWeight: '900',
-    color: colors.ink,
-  },
 
   // Section
   section: {

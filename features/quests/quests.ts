@@ -1,40 +1,45 @@
-import { colors } from '@/design/tokens'
+import { RARE_SPECIES_KEYWORDS } from '@/features/achievements/badge-earned'
 import type { Collection, CollectionLookup } from '@/features/collections/collections'
 
-// Kingdom-derived categories (matched from a sighting's kingdom/dex/name)…
-export type QuestCategory = 'insect' | 'mammal' | 'aquatic' | 'farm' | 'tree'
-// …plus collection quests (matched from the catalog's collection tags).
-export type QuestKey = QuestCategory | 'safari' | 'zoo' | 'aquarium' | 'petting_zoo'
+// The 10 home quests, matching the Quest Cards design set.
+export type QuestKey =
+  | 'insect'
+  | 'bird'
+  | 'reptile'
+  | 'venue'
+  | 'mammal'
+  | 'dusk'
+  | 'flower'
+  | 'water'
+  | 'streak'
+  | 'rare'
+
+// 'streak' is profile-driven (streak_days); every other quest counts distinct species.
+type QuestMetric = 'species' | 'streak'
 
 export interface Quest {
   id: QuestKey
-  kind: 'kingdom' | 'collection'
+  metric: QuestMetric
+  eyebrow: string // e.g. '🏆 WEEKLY · INSECTS' — rendered verbatim
   title: string
-  emoji: string
-  accent: string
-  target: number
-  bonusTarget: number
+  target: number // goal for the metric (species count, or streak days)
+  pips: number // milestone dots drawn on the card
   xpReward: number
-  bonusXp: number
 }
 
-export const QUEST_TARGET = 3
-export const QUEST_BONUS_TARGET = 4
-export const QUEST_XP_REWARD = 50
-export const QUEST_BONUS_XP = 150
-
-const base = { target: QUEST_TARGET, bonusTarget: QUEST_BONUS_TARGET, xpReward: QUEST_XP_REWARD, bonusXp: QUEST_BONUS_XP }
+const VENUE_COLLECTIONS = new Set<Collection>(['safari', 'zoo', 'aquarium', 'petting_zoo'])
 
 export const QUESTS: Quest[] = [
-  { id: 'insect',      kind: 'kingdom',    title: 'Spot 3 insects',         emoji: '🪲', accent: colors.plum,      ...base },
-  { id: 'mammal',      kind: 'kingdom',    title: 'Spot 3 mammals',         emoji: '🐾', accent: colors.earth,     ...base },
-  { id: 'aquatic',     kind: 'kingdom',    title: 'Spot 3 aquatic animals', emoji: '🐟', accent: colors.skyDeep,   ...base },
-  { id: 'farm',        kind: 'kingdom',    title: 'Spot 3 farm animals',    emoji: '🐄', accent: colors.coralDeep, ...base },
-  { id: 'tree',        kind: 'kingdom',    title: 'Spot 3 trees',           emoji: '🌳', accent: colors.green,     ...base },
-  { id: 'safari',      kind: 'collection', title: 'Spot 3 safari animals',  emoji: '🦁', accent: colors.earth,     ...base },
-  { id: 'zoo',         kind: 'collection', title: 'Spot 3 zoo animals',     emoji: '🦒', accent: colors.plum,      ...base },
-  { id: 'aquarium',    kind: 'collection', title: 'Spot 3 aquarium animals',emoji: '🐠', accent: colors.skyDeep,   ...base },
-  { id: 'petting_zoo', kind: 'collection', title: 'Spot 3 petting-zoo animals', emoji: '🐐', accent: colors.greenLight, ...base },
+  { id: 'insect',  metric: 'species', eyebrow: '🏆 WEEKLY · INSECTS',  title: 'Spot 3 insects',       target: 3, pips: 3, xpReward: 50 },
+  { id: 'bird',    metric: 'species', eyebrow: '📸 DAILY · BIRD',      title: 'Photograph a bird',    target: 3, pips: 3, xpReward: 75 },
+  { id: 'reptile', metric: 'species', eyebrow: '🦎 WEEKLY · REPTILE',  title: 'Find a reptile',       target: 2, pips: 2, xpReward: 60 },
+  { id: 'venue',   metric: 'species', eyebrow: '📍 VENUE QUEST',       title: 'Visit a new venue',    target: 2, pips: 2, xpReward: 80 },
+  { id: 'mammal',  metric: 'species', eyebrow: '🦌 WEEKLY · MAMMAL',   title: 'Log a mammal',         target: 3, pips: 3, xpReward: 50 },
+  { id: 'dusk',    metric: 'species', eyebrow: '🌙 NIGHT QUEST',       title: 'Spot at dusk',         target: 2, pips: 2, xpReward: 90 },
+  { id: 'flower',  metric: 'species', eyebrow: '🌸 WEEKLY · FLORA',    title: 'Identify a flower',    target: 2, pips: 2, xpReward: 40 },
+  { id: 'water',   metric: 'species', eyebrow: '💧 WATER QUEST',       title: 'Spot life in water',   target: 3, pips: 3, xpReward: 70 },
+  { id: 'streak',  metric: 'streak',  eyebrow: '🔥 STREAK BONUS',      title: 'Keep a 7-day streak',  target: 7, pips: 3, xpReward: 120 },
+  { id: 'rare',    metric: 'species', eyebrow: '✦ RARE FIND',          title: 'Catch a rare creature', target: 1, pips: 1, xpReward: 150 },
 ]
 
 export interface SightingLike {
@@ -43,35 +48,57 @@ export interface SightingLike {
   speciesId?: string | null
   speciesName?: string | null
   scientificName?: string | null
+  spottedAt?: string | null
 }
 
-const FARM_NAME_RE = /\b(horse|cow|cattle|bull|calf|sheep|lamb|pig|hog|goat|chicken|hen|rooster|duck|rabbit|donkey|turkey)\b/i
-
-function isFarm(s: SightingLike): boolean {
-  const dex = (s.dexNumber ?? '').replace(/^#/, '')
-  if (/^F\d/i.test(dex)) return true
-  const text = `${s.speciesId ?? ''} ${s.speciesName ?? ''}`
-  return FARM_NAME_RE.test(text)
+// Kingdom strings arrive inconsistently (e.g. 'mammal', 'Plantae', 'plant', 'tree'),
+// so each quest matches a normalized set of synonyms.
+const KINGDOM_SYNONYMS: Partial<Record<QuestKey, Set<string>>> = {
+  insect: new Set(['insect', 'insecta', 'bug']),
+  bird: new Set(['bird', 'aves']),
+  reptile: new Set(['reptile', 'reptilia']),
+  mammal: new Set(['mammal', 'mammalia']),
+  water: new Set(['fish', 'aquatic', 'water', 'actinopterygii', 'mollusc', 'amphibian']),
+  flower: new Set(['flower', 'flora', 'plant', 'plantae', 'tree']),
 }
 
-/**
- * Maps a captured species to the quest it advances, or null if none.
- * Farm is checked first so a cow/sheep counts as farm, not generic mammal.
- */
-export function categoryForSighting(s: SightingLike): QuestCategory | null {
-  if (isFarm(s)) return 'farm'
-  const k = (s.kingdom ?? '').toLowerCase()
-  if (k === 'insect') return 'insect'
-  if (k === 'mammal') return 'mammal'
-  if (k === 'fish') return 'aquatic'
-  if (k === 'tree') return 'tree'
-  return null
+function kingdomMatches(key: QuestKey, kingdom: string): boolean {
+  const set = KINGDOM_SYNONYMS[key]
+  return set ? set.has(kingdom) : false
+}
+
+/** Spotted after sunset or before dawn (local time). */
+function isDusk(spottedAt?: string | null): boolean {
+  if (!spottedAt) return false
+  const hour = new Date(spottedAt).getHours()
+  return hour >= 18 || hour < 6
+}
+
+function isRare(s: SightingLike): boolean {
+  const text = `${s.speciesName ?? ''} ${s.scientificName ?? ''} ${s.speciesId ?? ''}`.toLowerCase()
+  return RARE_SPECIES_KEYWORDS.some((k) => text.includes(k))
+}
+
+/** Species-level quest keys a single sighting satisfies (excludes the streak quest). */
+export function questsForSighting(s: SightingLike, lookup?: CollectionLookup): Set<QuestKey> {
+  const keys = new Set<QuestKey>()
+  const kingdom = (s.kingdom ?? '').trim().toLowerCase()
+
+  for (const key of ['insect', 'bird', 'reptile', 'mammal', 'water', 'flower'] as const) {
+    if (kingdomMatches(key, kingdom)) keys.add(key)
+  }
+  if (isDusk(s.spottedAt)) keys.add('dusk')
+  if (isRare(s)) keys.add('rare')
+  if (lookup) {
+    const cols = lookup({ commonName: s.speciesName, scientificName: s.scientificName ?? null }) as Collection[]
+    if (cols.some((c) => VENUE_COLLECTIONS.has(c))) keys.add('venue')
+  }
+  return keys
 }
 
 type QuestCounts = Record<QuestKey, number>
 
 const QUEST_KEYS = QUESTS.map((q) => q.id)
-const COLLECTION_QUEST_KEYS = new Set<string>(QUESTS.filter((q) => q.kind === 'collection').map((q) => q.id))
 
 function emptyCounts(): QuestCounts {
   const c = {} as QuestCounts
@@ -79,52 +106,51 @@ function emptyCounts(): QuestCounts {
   return c
 }
 
-/** All quest keys a single species satisfies (kingdom category + catalog collections). */
-export function questsForSighting(s: SightingLike, lookup?: CollectionLookup): Set<QuestKey> {
-  const keys = new Set<QuestKey>()
-  const cat = categoryForSighting(s)
-  if (cat) keys.add(cat)
-  if (lookup) {
-    const cols = lookup({ commonName: s.speciesName, scientificName: s.scientificName ?? null })
-    for (const col of cols as Collection[]) {
-      if (COLLECTION_QUEST_KEYS.has(col)) keys.add(col as QuestKey)
-    }
-  }
-  return keys
+interface QuestCountInput {
+  lookup?: CollectionLookup
+  streakDays?: number
 }
 
-/** Distinct-species counts per quest from a list of sightings (one count per quest per species). */
-export function questCountsFromSightings(sightings: SightingLike[], lookup?: CollectionLookup): QuestCounts {
-  const counts = emptyCounts()
+/**
+ * Counts each quest's progress. Species quests count DISTINCT species satisfying the
+ * quest (a species spotted twice counts once); the streak quest reflects streak_days.
+ * Pass raw sightings (not pre-deduped) so per-sighting facts like dusk are not lost.
+ */
+export function questCountsFromSightings(
+  sightings: SightingLike[],
+  { lookup, streakDays = 0 }: QuestCountInput = {},
+): QuestCounts {
+  const sets = {} as Record<QuestKey, Set<string>>
+  for (const k of QUEST_KEYS) sets[k] = new Set<string>()
+
   for (const s of sightings) {
-    for (const key of questsForSighting(s, lookup)) counts[key] += 1
+    const speciesId = s.speciesId ?? s.speciesName ?? ''
+    if (!speciesId) continue
+    for (const key of questsForSighting(s, lookup)) sets[key].add(speciesId)
   }
+
+  const counts = emptyCounts()
+  for (const k of QUEST_KEYS) counts[k] = sets[k].size
+  counts.streak = streakDays
   return counts
 }
 
 export interface QuestProgress {
   quest: Quest
   count: number
-  badgeEarned: boolean
-  bonusEarned: boolean
+  completed: boolean
 }
 
 export function buildQuestProgress(counts: QuestCounts): QuestProgress[] {
   return QUESTS.map((quest) => {
     const count = counts[quest.id]
-    return {
-      quest,
-      count,
-      badgeEarned: count >= quest.target,
-      bonusEarned: count >= quest.bonusTarget,
-    }
+    return { quest, count, completed: count >= quest.target }
   })
 }
 
 // ─── Reward crediting (awarded once via profiles.claimed_quests) ────────────────
 
-const badgeKey = (c: QuestKey): string => `${c}:badge`
-const bonusKey = (c: QuestKey): string => `${c}:bonus`
+const claimKey = (id: QuestKey): string => `${id}:done`
 
 export interface QuestRewardDelta {
   xpGain: number
@@ -138,15 +164,10 @@ export function computeQuestRewardDelta(counts: QuestCounts, claimed: string[]):
   let badgeGain = 0
 
   for (const quest of QUESTS) {
-    const count = counts[quest.id]
-    if (count >= quest.target && !claimedSet.has(badgeKey(quest.id))) {
-      claimedSet.add(badgeKey(quest.id))
+    if (counts[quest.id] >= quest.target && !claimedSet.has(claimKey(quest.id))) {
+      claimedSet.add(claimKey(quest.id))
       xpGain += quest.xpReward
       badgeGain += 1
-    }
-    if (count >= quest.bonusTarget && !claimedSet.has(bonusKey(quest.id))) {
-      claimedSet.add(bonusKey(quest.id))
-      xpGain += quest.bonusXp
     }
   }
 

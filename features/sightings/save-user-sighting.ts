@@ -5,7 +5,7 @@ import { slugifySpeciesName } from '@/data/species-catalog'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import { STREAK_WINDOW_MS } from '@/features/profile/streak'
 import type { Collection, CollectionLookup } from '@/features/collections/collections'
-import { computeQuestRewardDelta, questCountsFromSightings } from '@/features/quests/quests'
+import { computeQuestRewardDelta, questCountsFromSightings, type SightingLike } from '@/features/quests/quests'
 import { storeHabitatsForSighting } from '@/features/sightings/classify-habitat'
 import { notifyAccountProfileChanged } from '@/features/settings/account-profile-events'
 import { loadSettingsPreferences } from '@/features/settings/preferences'
@@ -215,28 +215,23 @@ export async function saveUserSighting(
 
   const { data: allSpeciesRows } = await supabase
     .from('user_sightings')
-    .select('species_id, kingdom, dex_number, is_domestic, species_name, latin_name')
+    .select('species_id, kingdom, dex_number, is_domestic, species_name, latin_name, spotted_at')
     .eq('user_id', userId)
 
-  // Distinct species (one row per species) for accurate counts.
+  // Raw sightings drive quest counts (counted distinct per quest internally), so
+  // per-sighting facts like dusk-time survive. seenSpecies still gives the spots total.
   const seenSpecies = new Set<string>()
-  const distinctRows: {
-    kingdom: string | null
-    dexNumber: string | null
-    speciesId: string | null
-    speciesName: string | null
-    scientificName: string | null
-  }[] = []
+  const questSightings: SightingLike[] = (allSpeciesRows ?? []).map((row) => ({
+    kingdom: row.kingdom,
+    dexNumber: row.dex_number,
+    speciesId: row.species_id,
+    speciesName: row.species_name,
+    scientificName: row.latin_name,
+    spottedAt: row.spotted_at,
+  }))
   for (const row of allSpeciesRows ?? []) {
     if (seenSpecies.has(row.species_id)) continue
     seenSpecies.add(row.species_id)
-    distinctRows.push({
-      kingdom: row.kingdom,
-      dexNumber: row.dex_number,
-      speciesId: row.species_id,
-      speciesName: row.species_name,
-      scientificName: row.latin_name,
-    })
   }
 
   // Collection lookup so safari/zoo/aquarium/petting-zoo quests credit correctly.
@@ -262,10 +257,10 @@ export async function saveUserSighting(
   )
   const xpGain = isNewSpecies ? XP_NEW_SPECIES : XP_REPEAT_SPECIES
 
-  // Quest rewards — credit badge (+XP) and bonus (+XP) once per category, tied to
-  // the actual species categories the user has caught.
+  // Quest rewards — credit each quest's badge (+XP) once when its goal is reached,
+  // tied to the species the user has caught and the current streak.
   const questDelta = computeQuestRewardDelta(
-    questCountsFromSightings(distinctRows, collectionLookup),
+    questCountsFromSightings(questSightings, { lookup: collectionLookup, streakDays: nextStreak }),
     profileRow?.claimed_quests ?? [],
   )
   const nextXp = (profileRow?.xp ?? 0) + xpGain + questDelta.xpGain
