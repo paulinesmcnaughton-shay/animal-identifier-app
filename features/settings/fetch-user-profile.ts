@@ -32,7 +32,7 @@ import { storage } from '@/util/storage'
 const AVATAR_PRESET_ID_KEY = 'settings.avatarPresetId'
 
 const PROFILE_SELECT =
-  'username, full_name, timezone, latitude, longitude, level, xp, streak_days, last_spotted_at, spots_captured, rare_spotted, badges_count, weekly_quest_title, weekly_quest_current, weekly_quest_total, weekly_quest_xp_reward, weekly_quest_started_at, avatar_url'
+  'username, full_name, timezone, latitude, longitude, level, xp, streak_days, last_spotted_at, spots_captured, rare_spotted, badges_count, claimed_quests, weekly_quest_title, weekly_quest_current, weekly_quest_total, weekly_quest_xp_reward, weekly_quest_started_at, avatar_url'
 
 export interface HomeUserProfile extends AccountProfile {
   timeZone: string | null
@@ -41,6 +41,7 @@ export interface HomeUserProfile extends AccountProfile {
   rareSpotted: number
   badgesCount: number
   streakDays: number
+  claimedQuests: string[]
   weeklyQuest: WeeklyQuestProgress
 }
 
@@ -57,6 +58,7 @@ interface SupabaseProfileRow {
   spots_captured: number | null
   rare_spotted: number | null
   badges_count: number | null
+  claimed_quests: string[] | null
   weekly_quest_title: string | null
   weekly_quest_current: number | null
   weekly_quest_total: number | null
@@ -128,7 +130,7 @@ async function maybePersistExpiredStreak(userId: string, row: SupabaseProfileRow
 
 function statsFromRow(row: SupabaseProfileRow | null): Pick<
   HomeUserProfile,
-  'level' | 'xp' | 'spotsCaptured' | 'rareSpotted' | 'badgesCount' | 'streakDays' | 'weeklyQuest'
+  'level' | 'xp' | 'spotsCaptured' | 'rareSpotted' | 'badgesCount' | 'streakDays' | 'claimedQuests' | 'weeklyQuest'
 > {
   if (!row) {
     return {
@@ -138,6 +140,7 @@ function statsFromRow(row: SupabaseProfileRow | null): Pick<
       rareSpotted: NEW_USER_RARE_SPOTTED,
       badgesCount: NEW_USER_BADGES_COUNT,
       streakDays: NEW_USER_STREAK_DAYS,
+      claimedQuests: [],
       weeklyQuest: newUserWeeklyQuest(),
     }
   }
@@ -151,6 +154,7 @@ function statsFromRow(row: SupabaseProfileRow | null): Pick<
     rareSpotted: row.rare_spotted ?? NEW_USER_RARE_SPOTTED,
     badgesCount: row.badges_count ?? NEW_USER_BADGES_COUNT,
     streakDays: resolveEffectiveStreakDays(storedStreak, row.last_spotted_at),
+    claimedQuests: row.claimed_quests ?? [],
     weeklyQuest: weeklyQuestFromRow(row),
   }
 }
@@ -255,6 +259,7 @@ export function demoHomeUserProfile(
     rareSpotted: 8,
     badgesCount: 23,
     streakDays: mockUser.streakDays,
+    claimedQuests: [],
     weeklyQuest: buildWeeklyQuestProgress({
       title: mockWeeklyQuest.title,
       current: mockWeeklyQuest.current,

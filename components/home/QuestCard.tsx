@@ -3,7 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { type DimensionValue, StyleSheet, Text, View } from 'react-native'
 
 import { radius, space, type as typeTokens } from '@/design/tokens'
-import type { QuestKey, QuestProgress } from '@/features/quests/quests'
+import type { QuestProgress, QuestThemeKey } from '@/features/quests/quests'
 
 interface QuestCardProps {
   progress: QuestProgress
@@ -12,7 +12,7 @@ interface QuestCardProps {
 
 export function QuestCard({ progress, width }: QuestCardProps) {
   const { quest, count } = progress
-  const theme = QUEST_THEME[quest.id]
+  const theme = QUEST_THEME[quest.theme]
   const pct = Math.max(0, Math.min(1, count / quest.target))
 
   const body = (
@@ -166,71 +166,71 @@ const PATTERN_DOTS: Record<'bubbles' | 'stars' | 'confetti' | 'forestDots', Dot[
 
 const GOLD_PILL = { bg: ['#FAD24E', '#F0B814'] as [string, string], fg: '#3A2A00', bevel: '#B98708' }
 
-export const QUEST_THEME: Record<QuestKey, QuestTheme> = {
-  insect: {
+export const QUEST_THEME: Record<QuestThemeKey, QuestTheme> = {
+  greenTopo: {
     bg: ['#1E6B41', '#0E3A23'], pattern: 'topo', shadowColor: '#0E3A23',
     eyebrowColor: 'rgba(255,255,255,0.7)', titleColor: '#fff',
     trackColor: 'rgba(255,255,255,0.18)', fillColor: '#FAD24E',
     pipBorder: 'rgba(255,255,255,0.45)', pipEmptyColor: 'rgba(255,255,255,0.6)', pipFillBg: '#FAD24E', pipFillFg: '#16321F',
     pill: GOLD_PILL,
   },
-  bird: {
+  goldTicket: {
     bg: ['#FAD24E', '#EFB60F'], pattern: null, shadowColor: '#BE8708',
     eyebrowColor: '#6b4f12', titleColor: '#2a2008',
     trackColor: 'rgba(90,60,20,0.22)', fillColor: '#16321F',
     pipBorder: 'rgba(90,60,20,0.5)', pipEmptyColor: 'rgba(90,60,20,0.6)', pipFillBg: '#16321F', pipFillFg: '#FAD24E',
     pill: { bg: '#16321F', fg: '#FAD24E', bevel: '#0a1f12' },
   },
-  reptile: {
+  tealLagoon: {
     bg: ['#1AA0A0', '#0C5152'], pattern: 'bubbles', shadowColor: '#0C5152',
     eyebrowColor: 'rgba(255,255,255,0.75)', titleColor: '#fff',
     trackColor: 'rgba(255,255,255,0.2)', fillColor: '#FAD24E',
     pipBorder: 'rgba(255,255,255,0.45)', pipEmptyColor: 'rgba(255,255,255,0.6)', pipFillBg: '#FAD24E', pipFillFg: '#0C5152',
     pill: GOLD_PILL,
   },
-  venue: {
+  coralSunset: {
     bg: ['#F4995A', '#E9604A'], pattern: 'sun', shadowColor: '#E9604A',
     eyebrowColor: 'rgba(255,255,255,0.8)', titleColor: '#fff',
     trackColor: 'rgba(255,255,255,0.28)', fillColor: '#fff',
     pipBorder: 'rgba(255,255,255,0.6)', pipEmptyColor: 'rgba(255,255,255,0.75)', pipFillBg: '#fff', pipFillFg: '#E9604A',
     pill: { bg: '#16321F', fg: '#FAD24E', bevel: '#0a1f12' },
   },
-  mammal: {
+  forestInk: {
     bg: '#16321F', pattern: 'forestDots', shadowColor: '#0E3A23',
     eyebrowColor: '#FAD24E', titleColor: '#fff',
     trackColor: 'rgba(255,255,255,0.15)', fillColor: '#FAD24E',
     pipBorder: 'rgba(250,210,78,0.5)', pipEmptyColor: 'rgba(250,210,78,0.7)', pipFillBg: '#FAD24E', pipFillFg: '#16321F',
     pill: GOLD_PILL,
   },
-  dusk: {
+  nightSky: {
     bg: ['#3B3D8F', '#191A3D'], pattern: 'stars', shadowColor: '#191A3D',
     eyebrowColor: 'rgba(255,255,255,0.7)', titleColor: '#fff',
     trackColor: 'rgba(255,255,255,0.18)', fillColor: '#FAD24E',
     pipBorder: 'rgba(255,255,255,0.4)', pipEmptyColor: 'rgba(255,255,255,0.6)', pipFillBg: '#FAD24E', pipFillFg: '#191A3D',
     pill: GOLD_PILL,
   },
-  flower: {
+  sageSoft: {
     bg: '#DCE7CE', pattern: null, shadowColor: 'rgba(60,90,46,0.5)',
     eyebrowColor: '#3c5a2e', titleColor: '#16321F',
     trackColor: 'rgba(30,92,58,0.18)', fillColor: '#1E5C3A',
     pipBorder: 'rgba(30,92,58,0.4)', pipEmptyColor: 'rgba(30,92,58,0.55)', pipFillBg: '#1E5C3A', pipFillFg: '#fff',
     pill: { bg: '#1E5C3A', fg: '#fff', bevel: '#123a25' },
   },
-  water: {
+  aquaWater: {
     bg: ['#4FB3CC', '#1E6F84'], pattern: 'bubbles', shadowColor: '#1E6F84',
     eyebrowColor: 'rgba(255,255,255,0.78)', titleColor: '#fff',
     trackColor: 'rgba(255,255,255,0.2)', fillColor: '#FAD24E',
     pipBorder: 'rgba(255,255,255,0.45)', pipEmptyColor: 'rgba(255,255,255,0.6)', pipFillBg: '#FAD24E', pipFillFg: '#1E6F84',
     pill: GOLD_PILL,
   },
-  streak: {
+  streakConfetti: {
     bg: '#16321F', pattern: 'confetti', shadowColor: '#0E3A23',
     eyebrowColor: '#FAD24E', titleColor: '#fff',
     trackColor: 'rgba(255,255,255,0.15)', fillColor: '#E9604A',
     pipBorder: 'rgba(255,255,255,0.4)', pipEmptyColor: 'rgba(255,255,255,0.6)', pipFillBg: '#E9604A', pipFillFg: '#fff',
     pill: GOLD_PILL,
   },
-  rare: {
+  premiumGold: {
     bg: ['#23231a', '#0b0b07'], pattern: 'glow', shadowColor: '#000', borderColor: 'rgba(250,210,78,0.45)',
     eyebrowColor: '#FAD24E', titleColor: '#FAD24E',
     trackColor: 'rgba(250,210,78,0.18)', fillColor: '#FAD24E',

@@ -19,10 +19,11 @@ import { useCollectionLookup } from '@/features/collections/collections'
 import {
   buildQuestProgress,
   questCountsFromSightings,
+  visibleQuests,
   type QuestProgress,
 } from '@/features/quests/quests'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
-import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
 import type { DayPeriodGreeting } from '@/features/profile/time-greeting'
 import { useSpotGreeting } from '@/features/profile/use-spot-greeting'
 import { useAccountProfile } from '@/features/settings/account-profile'
@@ -83,6 +84,8 @@ function Header({
   )
 }
 
+const MAX_VISIBLE_QUESTS = 8
+
 interface QuestsCarouselProps {
   quests: QuestProgress[]
 }
@@ -92,6 +95,15 @@ function QuestsCarousel({ quests }: QuestsCarouselProps) {
   const cardWidth = width - screenLayout.padH * 2 - space[24]
   const snap = cardWidth + space[8]
   const [activeIndex, setActiveIndex] = useState(0)
+
+  if (quests.length === 0)
+    return (
+      <View style={styles.questsEmpty}>
+        <Text style={styles.questsEmojiBig}>🎉</Text>
+        <Text style={styles.questsEmptyTitle}>All quests complete!</Text>
+        <Text style={styles.questsEmptySub}>Fresh ones are on the way — keep spotting.</Text>
+      </View>
+    )
 
   return (
     <View style={styles.questCarouselWrap}>
@@ -123,7 +135,7 @@ function QuestsCarousel({ quests }: QuestsCarouselProps) {
 export function SpotHomeScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { firstName, timeZone, level, streakDays, spotsCaptured, isReady, isLoading } =
+  const { firstName, timeZone, level, streakDays, spotsCaptured, claimedQuests, isReady, isLoading } =
     useAccountProfile()
   const { recentCards, rows } = useUserSightingsData()
   const sightingDates = useMemo(
@@ -131,23 +143,22 @@ export function SpotHomeScreen() {
     [rows],
   )
   const collectionLookup = useCollectionLookup()
-  const quests = useMemo(
-    () =>
-      buildQuestProgress(
-        questCountsFromSightings(
-          rows.map((r) => ({
-            kingdom: r.kingdom,
-            dexNumber: r.dex_number,
-            speciesId: r.species_id,
-            speciesName: r.species_name,
-            scientificName: r.latin_name,
-            spottedAt: r.spotted_at,
-          })),
-          { lookup: collectionLookup, streakDays },
-        ),
+  const quests = useMemo(() => {
+    const progress = buildQuestProgress(
+      questCountsFromSightings(
+        rows.map((r) => ({
+          kingdom: r.kingdom,
+          dexNumber: r.dex_number,
+          speciesId: r.species_id,
+          speciesName: r.species_name,
+          scientificName: r.latin_name,
+          spottedAt: r.spotted_at,
+        })),
+        { lookup: collectionLookup, streakDays },
       ),
-    [rows, collectionLookup, streakDays],
-  )
+    )
+    return visibleQuests(progress, claimedQuests, MAX_VISIBLE_QUESTS)
+  }, [rows, collectionLookup, streakDays, claimedQuests])
   const greeting = useSpotGreeting(timeZone)
   const creatureOfWeek = useCreatureOfWeek()
   const [creatureInfoOpen, setCreatureInfoOpen] = useState(false)
@@ -357,6 +368,30 @@ const styles = StyleSheet.create({
   dotActive: {
     backgroundColor: colors.green,
     width: 18,
+  },
+  questsEmpty: {
+    marginHorizontal: screenLayout.padH,
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    paddingVertical: space[32],
+    paddingHorizontal: space[24],
+    alignItems: 'center',
+    gap: space[4],
+    ...shadow.card,
+  },
+  questsEmojiBig: {
+    fontSize: 32,
+  },
+  questsEmptyTitle: {
+    fontSize: typeTokens.size.title,
+    fontWeight: '800',
+    color: colors.ink,
+  },
+  questsEmptySub: {
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: '600',
+    color: colors.dim,
+    textAlign: 'center',
   },
   venuesCard: {
     flexDirection: 'row',

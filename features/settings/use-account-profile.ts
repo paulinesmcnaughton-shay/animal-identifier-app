@@ -48,6 +48,7 @@ const EMPTY_HOME_PROFILE: HomeUserProfile = {
   rareSpotted: NEW_USER_RARE_SPOTTED,
   badgesCount: NEW_USER_BADGES_COUNT,
   streakDays: NEW_USER_STREAK_DAYS,
+  claimedQuests: [],
   weeklyQuest: newUserWeeklyQuest(),
 }
 
