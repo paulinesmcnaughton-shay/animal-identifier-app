@@ -29,7 +29,7 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     kingdom: 'Reptile',
     dexNumber: dexNum('gecko'),
     description: 'Look up — they cling to leaves and branches with sticky toe pads. Active at dusk in warm, humid spots.',
-    bonusXp: 20,
+    bonusXp: 100,
     heroImage: require('@/assets/images/crested_gecko_faq.webp'),
   },
   {
@@ -39,7 +39,7 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     kingdom: 'Mammal',
     dexNumber: dexNum('fox'),
     description: 'Adaptable and cunning, red foxes thrive across forests, fields, and city parks. Most active at dawn and dusk.',
-    bonusXp: 25,
+    bonusXp: 100,
     heroImage: require('@/assets/images/red-fox-hero.jpg'),
   },
   {
@@ -49,7 +49,7 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     kingdom: 'Insect',
     dexNumber: dexNum('monarch'),
     description: 'One of the great migrators — travels thousands of miles each year. Look for them near milkweed in summer.',
-    bonusXp: 30,
+    bonusXp: 100,
     heroImage: require('@/assets/images/crested-gecko-featured.jpg'),
   },
   {
@@ -59,7 +59,7 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     kingdom: 'Bird',
     dexNumber: dexNum('cardinal'),
     description: 'The male\'s vivid red plumage is unmistakable. Year-round resident — listen for their loud, clear whistle at dawn.',
-    bonusXp: 20,
+    bonusXp: 100,
     heroImage: require('@/assets/images/crested-gecko-featured.jpg'),
   },
   {
@@ -69,7 +69,7 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     kingdom: 'Amphibian',
     dexNumber: dexNum('frog'),
     description: 'Found clinging to reeds and leaves near still water. Their bright green skin blends perfectly into foliage.',
-    bonusXp: 20,
+    bonusXp: 100,
     heroImage: require('@/assets/images/crested_gecko_faq.webp'),
   },
   {
@@ -79,7 +79,7 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     kingdom: 'Bird',
     dexNumber: dexNum('owl'),
     description: 'Silent flier with a heart-shaped face. Hunts by sound alone in total darkness — a true night predator.',
-    bonusXp: 35,
+    bonusXp: 100,
     heroImage: require('@/assets/images/crested-gecko-featured.jpg'),
   },
   {
@@ -89,7 +89,7 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     kingdom: 'Insect',
     dexNumber: dexNum('bumblebee'),
     description: 'Vital pollinators with a distinctive buzz. Spot them hovering over flowers in gardens and meadows.',
-    bonusXp: 20,
+    bonusXp: 100,
     heroImage: require('@/assets/images/crested_gecko_faq.webp'),
   },
   {
@@ -99,7 +99,7 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     kingdom: 'Reptile',
     dexNumber: dexNum('turtle'),
     description: 'Their domed shell closes completely for protection. Move slowly through leaf litter in moist woodlands.',
-    bonusXp: 25,
+    bonusXp: 100,
     heroImage: require('@/assets/images/crested_gecko_faq.webp'),
   },
 ]

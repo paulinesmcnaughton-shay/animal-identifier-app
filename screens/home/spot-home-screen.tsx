@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -14,7 +14,6 @@ import { StreakCalendar, localDateKey } from '@/components/home/StreakCalendar'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
 import { useCreatureOfWeek, useCreatureWeekMeta } from '@/features/home/creature-of-week'
-import { claimCreatureBonus } from '@/features/home/claim-creature-bonus'
 import { useCollectionLookup } from '@/features/collections/collections'
 import {
   buildQuestProgress,
@@ -177,10 +176,6 @@ export function SpotHomeScreen() {
         (r.dex_number ?? '').replace(/^#/, '') === cdex,
     )
   }, [rows, creatureOfWeek])
-  const isCreatureClaimed = claimedQuests.includes(weekMeta.key)
-  const handleClaimCreature = useCallback(() => {
-    void claimCreatureBonus({ weekKey: weekMeta.key, bonusXp: creatureOfWeek.bonusXp })
-  }, [weekMeta.key, creatureOfWeek.bonusXp])
   const [creatureInfoOpen, setCreatureInfoOpen] = useState(false)
   const [rewardOpen, setRewardOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -245,9 +240,7 @@ export function SpotHomeScreen() {
           <CreatureStamp
             creature={creatureOfWeek}
             isCollected={isCreatureCollected}
-            isClaimed={isCreatureClaimed}
             weekLabel={weekMeta.label}
-            onClaim={handleClaimCreature}
             onInfoPress={() => setCreatureInfoOpen(true)}
           />
         </View>

@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
-import { useEffect } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { useRouter } from 'expo-router'
+import { useEffect, useMemo, useState } from 'react'
+import { type LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native'
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -15,24 +16,20 @@ import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import type { CreatureRosterItem } from '@/features/home/creature-of-week'
 import { useReferenceImage } from '@/features/species/use-reference-image'
 
+// Perforated stamp edge — bg-coloured circles punched along all four edges.
+const NOTCH = 12
+const NOTCH_GAP = 18
+
 interface CreatureStampProps {
   creature: CreatureRosterItem
   isCollected: boolean
-  isClaimed: boolean
   weekLabel: string
-  onClaim: () => void
   onInfoPress: () => void
 }
 
-export function CreatureStamp({
-  creature,
-  isCollected,
-  isClaimed,
-  weekLabel,
-  onClaim,
-  onInfoPress,
-}: CreatureStampProps) {
+export function CreatureStamp({ creature, isCollected, weekLabel, onInfoPress }: CreatureStampProps) {
   const { id, commonName, scientificName, kingdom, dexNumber, bonusXp, heroImage } = creature
+  const router = useRouter()
   const kingdomKey = kingdom.toLowerCase() as KingdomKey
   const { uri, onImageError } = useReferenceImage({
     speciesId: id,
@@ -50,12 +47,15 @@ export function CreatureStamp({
     transform: [{ rotate: '1.5deg' }, { translateY: -3 + bob.value * 6 }],
   }))
 
-  // CTA unlocks only once the species is in the Dex, then can be claimed once.
-  const ctaDisabled = !isCollected || isClaimed
-  const iconColor = isClaimed ? colors.card : isCollected ? colors.card : colors.dim
+  const [dim, setDim] = useState({ w: 0, h: 0 })
+  const handleLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout
+    setDim((d) => (d.w === width && d.h === height ? d : { w: width, h: height }))
+  }
+  const notches = useMemo(() => buildNotches(dim.w, dim.h), [dim])
 
   return (
-    <Animated.View style={[styles.stamp, floatStyle]}>
+    <Animated.View style={[styles.stamp, floatStyle]} onLayout={handleLayout}>
       <View style={styles.photo}>
         <Image
           source={uri ? { uri } : heroImage}
@@ -83,38 +83,15 @@ export function CreatureStamp({
         <Text style={styles.name}>{commonName}</Text>
         <Text style={styles.scientific}>{scientificName}</Text>
         <View style={styles.actions}>
-          <View
-            style={[
-              styles.ctaShadow,
-              !isCollected && styles.ctaShadowLocked,
-              isClaimed && styles.ctaShadowClaimed,
-            ]}>
+          <View style={styles.ctaShadow}>
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ disabled: ctaDisabled }}
-              accessibilityLabel={
-                isClaimed ? `Bonus collected for ${commonName}` : `Claim bonus for ${commonName}`
-              }
-              disabled={ctaDisabled}
-              onPress={onClaim}
-              style={({ pressed }) => [
-                styles.cta,
-                !isCollected && styles.ctaLocked,
-                isClaimed && styles.ctaClaimed,
-                pressed && !ctaDisabled && styles.ctaPressed,
-              ]}>
-              {isClaimed ? (
-                <>
-                  <Ionicons name="checkmark-circle" size={18} color={iconColor} />
-                  <Text style={styles.ctaText}>COLLECTED</Text>
-                </>
-              ) : (
-                <>
-                  <Ionicons name="camera" size={18} color={iconColor} />
-                  <Text style={[styles.ctaText, !isCollected && styles.ctaTextLocked]}>I SAW ONE!</Text>
-                  <Text style={[styles.ctaXp, !isCollected && styles.ctaTextLocked]}>+{bonusXp} XP</Text>
-                </>
-              )}
+              accessibilityLabel={`I saw a ${commonName} — open camera`}
+              onPress={() => router.push('/capture/scan' as never)}
+              style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
+              <Ionicons name="camera" size={18} color={colors.card} />
+              <Text style={styles.ctaText}>I SAW ONE!</Text>
+              <Text style={styles.ctaXp}>+{bonusXp} XP</Text>
             </Pressable>
           </View>
           <Pressable
@@ -126,25 +103,50 @@ export function CreatureStamp({
           </Pressable>
         </View>
       </View>
+
+      {notches.map((n, i) => (
+        <View key={i} pointerEvents="none" style={[styles.notch, { left: n.left, top: n.top }]} />
+      ))}
     </Animated.View>
   )
+}
+
+function buildNotches(w: number, h: number): { left: number; top: number }[] {
+  if (!w || !h) return []
+  const out: { left: number; top: number }[] = []
+  const cols = Math.max(2, Math.round(w / NOTCH_GAP))
+  const rows = Math.max(2, Math.round(h / NOTCH_GAP))
+  const stepX = w / cols
+  const stepY = h / rows
+  const r = NOTCH / 2
+  for (let i = 0; i <= cols; i++) {
+    const x = i * stepX - r
+    out.push({ left: x, top: -r }, { left: x, top: h - r })
+  }
+  for (let j = 1; j < rows; j++) {
+    const y = j * stepY - r
+    out.push({ left: -r, top: y }, { left: w - r, top: y })
+  }
+  return out
 }
 
 const styles = StyleSheet.create({
   stamp: {
     backgroundColor: colors.card,
-    paddingHorizontal: space[8],
-    paddingTop: space[8],
-    paddingBottom: space[4],
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: colors.hairline,
+    padding: space[8],
     borderRadius: radius.sm,
     shadowColor: '#143C1E',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.26,
     shadowRadius: 18,
     elevation: 8,
+  },
+  notch: {
+    position: 'absolute',
+    width: NOTCH,
+    height: NOTCH,
+    borderRadius: NOTCH / 2,
+    backgroundColor: colors.bg,
   },
   photo: {
     height: 198,
@@ -248,26 +250,11 @@ const styles = StyleSheet.create({
   ctaPressed: {
     transform: [{ translateY: 2 }],
   },
-  ctaShadowLocked: {
-    backgroundColor: colors.hairline,
-  },
-  ctaLocked: {
-    backgroundColor: colors.hairline,
-  },
-  ctaShadowClaimed: {
-    backgroundColor: colors.greenDeep,
-  },
-  ctaClaimed: {
-    backgroundColor: colors.forest,
-  },
   ctaText: {
     fontSize: typeTokens.size.body,
     fontWeight: typeTokens.body.weights.extra,
     letterSpacing: 0.3,
     color: colors.card,
-  },
-  ctaTextLocked: {
-    color: colors.dim,
   },
   ctaXp: {
     fontSize: typeTokens.size.body,
