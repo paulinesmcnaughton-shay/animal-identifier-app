@@ -7,9 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { HomeBadge } from '@/components/home/HomeBadge'
 import { CreatureStamp } from '@/components/home/CreatureStamp'
 import { QuestCard } from '@/components/home/QuestCard'
-import { DailyChestCard } from '@/components/home/DailyChestCard'
+import { DexpanionCard } from '@/components/home/DexpanionCard'
 import { ExploreVenuesCard } from '@/components/home/ExploreVenuesCard'
-import { RewardChest } from '@/components/home/RewardChest'
 import { StreakCalendar, localDateKey } from '@/components/home/StreakCalendar'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
@@ -177,7 +176,6 @@ export function SpotHomeScreen() {
     )
   }, [rows, creatureOfWeek])
   const [creatureInfoOpen, setCreatureInfoOpen] = useState(false)
-  const [rewardOpen, setRewardOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true)
 
@@ -240,30 +238,18 @@ export function SpotHomeScreen() {
           <CreatureStamp
             creature={creatureOfWeek}
             isCollected={isCreatureCollected}
-            weekLabel={weekMeta.label}
+            week={weekMeta.week}
+            year={weekMeta.year}
             onInfoPress={() => setCreatureInfoOpen(true)}
           />
         </View>
-        <View style={styles.sectionGap}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Daily chest</Text>
-            <Text style={styles.chestReady}>{`READY · DAY ${Math.max(streakDays, 1)}`}</Text>
-          </View>
-          <DailyChestCard onOpen={() => setRewardOpen(true)} />
-        </View>
+        <DexpanionCard />
       </ScrollView>
 
       <CreatureInfoOverlay
         visible={creatureInfoOpen}
         creature={creatureOfWeek}
         onClose={() => setCreatureInfoOpen(false)}
-      />
-
-      <RewardChest
-        visible={rewardOpen}
-        day={Math.max(streakDays, 1)}
-        onAddToDex={() => setRewardOpen(false)}
-        onDismiss={() => setRewardOpen(false)}
       />
 
       <HomeNotificationsPopover
@@ -473,12 +459,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.green,
     letterSpacing: 0.4,
-  },
-  chestReady: {
-    fontSize: typeTokens.size.micro,
-    fontWeight: '800',
-    color: colors.flame,
-    letterSpacing: 0.8,
   },
   seeAll: {
     fontSize: typeTokens.size.bodySM,

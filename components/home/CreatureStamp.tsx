@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { type LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native'
@@ -17,18 +18,22 @@ import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 import type { CreatureRosterItem } from '@/features/home/creature-of-week'
 import { useReferenceImage } from '@/features/species/use-reference-image'
 
-// Perforated stamp edge — semicircle notches cut into the white shape.
-const NOTCH_R = 6
-const NOTCH_GAP = 17
+// Perforated stamp edge — semicircle notches cut into the white shape (radius 7, period 18).
+const NOTCH_R = 7
+const NOTCH_GAP = 18
+const CTA_GRADIENT = ['#2E8B57', '#1E6B41'] as const
+const CTA_BEVEL = '#123E28'
+const SHINE_GRADIENT = ['transparent', 'rgba(255,255,255,0.9)', 'transparent'] as const
 
 interface CreatureStampProps {
   creature: CreatureRosterItem
   isCollected: boolean
-  weekLabel: string
+  week: number
+  year: number
   onInfoPress: () => void
 }
 
-export function CreatureStamp({ creature, isCollected, weekLabel, onInfoPress }: CreatureStampProps) {
+export function CreatureStamp({ creature, isCollected, week, year, onInfoPress }: CreatureStampProps) {
   const { id, commonName, scientificName, kingdom, dexNumber, bonusXp, heroImage } = creature
   const router = useRouter()
   const kingdomKey = kingdom.toLowerCase() as KingdomKey
@@ -41,11 +46,16 @@ export function CreatureStamp({ creature, isCollected, weekLabel, onInfoPress }:
   })
 
   const bob = useSharedValue(0)
+  const shine = useSharedValue(0)
   useEffect(() => {
     bob.value = withRepeat(withTiming(1, { duration: 2400, easing: Easing.inOut(Easing.ease) }), -1, true)
-  }, [bob])
+    shine.value = withRepeat(withTiming(1, { duration: 4000, easing: Easing.inOut(Easing.ease) }), -1, false)
+  }, [bob, shine])
   const floatStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: '1.5deg' }, { translateY: -3 + bob.value * 6 }],
+  }))
+  const shineStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -24 + shine.value * 110 }, { skewX: '-18deg' }],
   }))
 
   const [dim, setDim] = useState({ w: 0, h: 0 })
@@ -56,57 +66,71 @@ export function CreatureStamp({ creature, isCollected, weekLabel, onInfoPress }:
   const stampPath = useMemo(() => scallopPath(dim.w, dim.h), [dim])
 
   return (
-    <Animated.View style={[styles.stamp, floatStyle]} onLayout={handleLayout}>
-      {dim.w > 0 ? (
-        <Svg width={dim.w} height={dim.h} style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Path d={stampPath} fill={colors.card} />
-        </Svg>
-      ) : null}
-      <View style={styles.photo}>
-        <Image
-          source={uri ? { uri } : heroImage}
-          onError={() => onImageError(uri)}
-          style={StyleSheet.absoluteFill}
-          contentFit="cover"
-        />
-        <View style={styles.kingdomPill}>
-          <Text style={styles.kingdomText}>
-            {KINGDOM[kingdomKey]?.emoji ?? '🦎'} {kingdom.toUpperCase()}
-          </Text>
-        </View>
-        <View style={styles.featuredPill}>
-          <Text style={styles.featuredText}>★ FEATURED</Text>
-        </View>
-        {isCollected ? (
-          <View style={styles.postmark}>
-            <Text style={styles.postmarkTop}>✦ SPOTTED ✦</Text>
-            <Text style={styles.postmarkWeek}>{weekLabel}</Text>
-          </View>
+    <Animated.View style={[styles.stampWrap, floatStyle]}>
+      <View style={styles.stamp} onLayout={handleLayout}>
+        {dim.w > 0 ? (
+          <Svg width={dim.w} height={dim.h} style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Path d={stampPath} fill={colors.card} />
+          </Svg>
         ) : null}
-      </View>
-
-      <View style={styles.body}>
-        <Text style={styles.name}>{commonName}</Text>
-        <Text style={styles.scientific}>{scientificName}</Text>
-        <View style={styles.actions}>
-          <View style={styles.ctaShadow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`I saw a ${commonName} — open camera`}
-              onPress={() => router.push('/capture/scan' as never)}
-              style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
-              <Ionicons name="camera" size={18} color={colors.card} />
-              <Text style={styles.ctaText}>I SAW ONE!</Text>
-              <Text style={styles.ctaXp}>+{bonusXp} XP</Text>
-            </Pressable>
+        <View style={styles.photo}>
+          <Image
+            source={uri ? { uri } : heroImage}
+            onError={() => onImageError(uri)}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+          />
+          <View style={styles.kingdomPill}>
+            <Text style={styles.kingdomText}>
+              {KINGDOM[kingdomKey]?.emoji ?? '🦎'} {kingdom.toUpperCase()}
+            </Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`More about ${commonName}`}
-            onPress={onInfoPress}
-            style={({ pressed }) => [styles.infoBtn, pressed && styles.infoPressed]}>
-            <Ionicons name="information-circle-outline" size={22} color={colors.ink} />
-          </Pressable>
+          <View style={styles.featuredPill}>
+            <Animated.View pointerEvents="none" style={[styles.featuredSweep, shineStyle]}>
+              <LinearGradient colors={SHINE_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
+            </Animated.View>
+            <Text style={styles.featuredText}>★ FEATURED</Text>
+          </View>
+          {isCollected ? (
+            <View style={styles.seal}>
+              <Text style={styles.sealText}>SPOTTED</Text>
+              <Text style={styles.sealText}>· WK {week} ·</Text>
+              <Text style={styles.sealText}>{year}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.body}>
+          <Text style={styles.name}>{commonName}</Text>
+          <Text style={styles.scientific}>{scientificName}</Text>
+          <View style={styles.actions}>
+            <View style={styles.ctaShadow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`I saw a ${commonName} — open camera`}
+                onPress={() => router.push('/capture/scan' as never)}
+                style={({ pressed }) => [styles.ctaPress, pressed && styles.pressedDown]}>
+                <LinearGradient
+                  colors={CTA_GRADIENT}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.cta}>
+                  <Ionicons name="camera" size={18} color={colors.card} />
+                  <Text style={styles.ctaText}>I SAW ONE!</Text>
+                  <Text style={styles.ctaXp}>+{bonusXp} XP</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+            <View style={styles.infoShadow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`More about ${commonName}`}
+                onPress={onInfoPress}
+                style={({ pressed }) => [styles.infoBtn, pressed && styles.pressedDown]}>
+                <Ionicons name="information-circle-outline" size={22} color={colors.inkGreen} />
+              </Pressable>
+            </View>
+          </View>
         </View>
       </View>
     </Animated.View>
@@ -157,16 +181,18 @@ function scallopPath(w: number, h: number): string {
 }
 
 const styles = StyleSheet.create({
-  stamp: {
-    padding: space[8],
+  stampWrap: {
     shadowColor: '#143C1E',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.26,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  stamp: {
+    padding: space[24],
   },
   photo: {
-    height: 198,
+    height: 200,
     width: '100%',
     borderRadius: 2,
     overflow: 'hidden',
@@ -176,7 +202,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: space[8],
     top: space[8],
-    backgroundColor: 'rgba(0,0,0,0.32)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
     borderRadius: radius.pill,
     paddingHorizontal: space[8],
     paddingVertical: space[4],
@@ -191,10 +217,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: space[8],
     top: space[8],
+    overflow: 'hidden',
     backgroundColor: colors.gold,
     borderRadius: radius.pill,
     paddingHorizontal: space[8],
     paddingVertical: space[4],
+  },
+  featuredSweep: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: 16,
   },
   featuredText: {
     fontSize: typeTokens.size.micro,
@@ -202,45 +236,39 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     color: colors.goldInk,
   },
-  postmark: {
+  seal: {
     position: 'absolute',
     right: space[8],
     bottom: space[8],
-    alignItems: 'center',
-    paddingHorizontal: space[8],
-    paddingVertical: space[4],
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     borderWidth: 2,
-    borderColor: colors.coralDeep,
-    borderRadius: radius.sm,
-    backgroundColor: 'rgba(255,248,231,0.55)',
-    transform: [{ rotate: '-12deg' }],
+    borderStyle: 'dashed',
+    borderColor: 'rgba(245,240,225,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-13deg' }],
   },
-  postmarkTop: {
-    fontSize: typeTokens.size.micro,
+  sealText: {
+    fontSize: 7,
+    lineHeight: 10,
     fontWeight: typeTokens.body.weights.extra,
-    letterSpacing: 1.2,
-    color: colors.coralDeep,
-  },
-  postmarkWeek: {
-    fontSize: typeTokens.size.caption,
-    fontWeight: typeTokens.body.weights.black,
     letterSpacing: 0.5,
-    color: colors.coralDeep,
+    color: 'rgba(245,240,225,0.92)',
   },
   body: {
-    paddingHorizontal: space[4],
-    paddingTop: space[8],
-    paddingBottom: space[8],
+    paddingTop: space[24],
   },
   name: {
     fontSize: 19,
     fontWeight: typeTokens.body.weights.extra,
-    color: colors.ink,
+    color: colors.inkGreen,
   },
   scientific: {
     marginTop: space[4],
     fontSize: typeTokens.size.caption,
-    fontWeight: typeTokens.body.weights.medium,
+    fontWeight: typeTokens.body.weights.bold,
     fontStyle: 'italic',
     color: colors.muted,
   },
@@ -251,21 +279,23 @@ const styles = StyleSheet.create({
   },
   ctaShadow: {
     flex: 1,
-    backgroundColor: colors.inkGreen,
-    borderRadius: radius.md,
+    backgroundColor: CTA_BEVEL,
+    borderRadius: 16,
     paddingBottom: 4,
+  },
+  ctaPress: {
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   cta: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: space[8],
-    backgroundColor: colors.ink,
-    borderRadius: radius.md,
     paddingVertical: space[16],
   },
-  ctaPressed: {
-    transform: [{ translateY: 2 }],
+  pressedDown: {
+    transform: [{ translateY: 4 }],
   },
   ctaText: {
     fontSize: typeTokens.size.body,
@@ -278,15 +308,19 @@ const styles = StyleSheet.create({
     fontWeight: typeTokens.body.weights.extra,
     color: colors.gold,
   },
+  infoShadow: {
+    width: 48,
+    backgroundColor: colors.inkGreen,
+    borderRadius: 16,
+    paddingBottom: 4,
+  },
   infoBtn: {
-    width: 50,
-    borderRadius: radius.md,
+    flex: 1,
+    borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderColor: colors.inkGreen,
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  infoPressed: {
-    opacity: 0.6,
   },
 })
