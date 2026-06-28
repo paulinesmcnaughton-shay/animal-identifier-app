@@ -20,12 +20,22 @@ const CTA_BEVEL = '#123E28'
 interface CreatureStampProps {
   creature: CreatureRosterItem
   isCollected: boolean
+  isClaimed: boolean
   week: number
   year: number
+  onCollect: () => void
   onInfoPress: () => void
 }
 
-export function CreatureStamp({ creature, isCollected, week, year, onInfoPress }: CreatureStampProps) {
+export function CreatureStamp({
+  creature,
+  isCollected,
+  isClaimed,
+  week,
+  year,
+  onCollect,
+  onInfoPress,
+}: CreatureStampProps) {
   const { id, commonName, scientificName, kingdom, dexNumber, bonusXp, heroImage } = creature
   const router = useRouter()
   const kingdomKey = kingdom.toLowerCase() as KingdomKey
@@ -83,17 +93,39 @@ export function CreatureStamp({ creature, isCollected, week, year, onInfoPress }
             <View style={styles.ctaShadow}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`I saw a ${commonName} — open camera`}
-                onPress={() => router.push('/capture/scan' as never)}
-                style={({ pressed }) => [styles.ctaPress, pressed && styles.pressedDown]}>
+                accessibilityState={{ disabled: isClaimed }}
+                accessibilityLabel={
+                  isClaimed
+                    ? `${commonName} bonus collected`
+                    : isCollected
+                      ? `Collect ${bonusXp} XP for ${commonName}`
+                      : `I saw a ${commonName} — open camera`
+                }
+                disabled={isClaimed}
+                onPress={isCollected ? onCollect : () => router.push('/capture/scan' as never)}
+                style={({ pressed }) => [styles.ctaPress, pressed && !isClaimed && styles.pressedDown]}>
                 <LinearGradient
                   colors={CTA_GRADIENT}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.cta}>
-                  <Ionicons name="camera" size={18} color={colors.card} />
-                  <Text style={styles.ctaText}>I SAW ONE!</Text>
-                  <Text style={styles.ctaXp}>+{bonusXp} XP</Text>
+                  {isClaimed ? (
+                    <>
+                      <Ionicons name="checkmark-circle" size={18} color={colors.card} />
+                      <Text style={styles.ctaText}>COLLECTED</Text>
+                    </>
+                  ) : isCollected ? (
+                    <>
+                      <Text style={styles.ctaText}>COLLECT</Text>
+                      <Text style={styles.ctaXp}>+{bonusXp} XP</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="camera" size={18} color={colors.card} />
+                      <Text style={styles.ctaText}>I SAW ONE!</Text>
+                      <Text style={styles.ctaXp}>+{bonusXp} XP</Text>
+                    </>
+                  )}
                 </LinearGradient>
               </Pressable>
             </View>

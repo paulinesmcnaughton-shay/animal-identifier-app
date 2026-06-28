@@ -14,6 +14,7 @@ import {
   type WeeklyQuestProgress,
 } from '@/features/profile/home-stats'
 import { resolveEffectiveStreakDays } from '@/features/profile/streak'
+import { levelForTotalXp } from '@/features/profile/xp-progress'
 import { TESTER_AVATAR_PRESET_ID } from '@/features/settings/avatar-presets'
 import { assignNewUserAvatar, loadProfilePhotoUri } from '@/features/settings/profile-avatar'
 import {
@@ -146,10 +147,11 @@ function statsFromRow(row: SupabaseProfileRow | null): Pick<
   }
 
   const storedStreak = row.streak_days ?? NEW_USER_STREAK_DAYS
+  const totalXp = row.xp ?? NEW_USER_XP
 
   return {
-    level: row.level ?? NEW_USER_LEVEL,
-    xp: row.xp ?? NEW_USER_XP,
+    level: levelForTotalXp(totalXp).level,
+    xp: totalXp,
     spotsCaptured: row.spots_captured ?? NEW_USER_SPOTS_CAPTURED,
     rareSpotted: row.rare_spotted ?? NEW_USER_RARE_SPOTTED,
     badgesCount: row.badges_count ?? NEW_USER_BADGES_COUNT,
@@ -253,7 +255,7 @@ export function demoHomeUserProfile(
     phone,
     firstName: firstNameFromDisplayName(displayName),
     timeZone: null,
-    level: mockUser.level,
+    level: levelForTotalXp(2340).level,
     xp: 2340,
     spotsCaptured: mockUser.spotsCaptured,
     rareSpotted: 8,

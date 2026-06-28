@@ -25,11 +25,13 @@ import type { IdentResult, PipelineCategory } from '@/features/identify/types'
 import { MANUAL_PICKER_CONFIDENCE_THRESHOLD } from '@/features/identify/types'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
+import { useCreatureOfWeek } from '@/features/home/creature-of-week'
 import { loadDefaultShareAnonymously } from '@/features/sightings/nearby-sharing'
 
 export function ResultScreen() {
   const insets = useSafeAreaInsets()
   const { height: windowHeight } = useWindowDimensions()
+  const creatureOfWeek = useCreatureOfWeek()
   const params = useLocalSearchParams<{
     uri?: string
     identified?: string
@@ -320,7 +322,14 @@ export function ResultScreen() {
 
           {result.confidence > 0 ? (
             <PopButton
-              label={isSaving ? 'Saving…' : 'Add to collection'}
+              label={
+                isSaving
+                  ? 'Saving…'
+                  : result.commonName.trim().toLowerCase() ===
+                      creatureOfWeek.commonName.trim().toLowerCase()
+                    ? `Add to collection · +${creatureOfWeek.bonusXp} XP`
+                    : 'Add to collection'
+              }
               onPress={() => void handleAddToCollection()}
               disabled={isSaving}
             />

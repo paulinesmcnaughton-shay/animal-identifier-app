@@ -19,7 +19,7 @@ import { SpottingActivitySection } from '@/components/profile/SpottingActivitySe
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
 import { formatProfileStreakLabel } from '@/features/profile/streak'
-import { buildXpProgress } from '@/features/profile/xp-progress'
+import { levelForTotalXp } from '@/features/profile/xp-progress'
 import { useAccountProfile } from '@/features/settings/account-profile'
 import { useUserSightingsData } from '@/features/sightings/use-user-sightings-data'
 
@@ -35,7 +35,6 @@ export function ProfileScreen() {
   const {
     displayName,
     username,
-    level,
     xp,
     spotsCaptured,
     rareSpotted,
@@ -51,7 +50,8 @@ export function ProfileScreen() {
     return (w - H_PAD * 2 - GRID_GAP * 2) / 3
   }, [])
 
-  const xpProgress = useMemo(() => buildXpProgress(level, xp), [level, xp])
+  const xpProgress = useMemo(() => levelForTotalXp(xp), [xp])
+  const level = xpProgress.level
 
   const stats = useMemo(
     () => [
@@ -113,7 +113,7 @@ export function ProfileScreen() {
           <View style={styles.xpCard}>
             <View style={styles.xpLabels}>
               <Text style={styles.xpCurrent}>
-                {xpProgress.currentXp.toLocaleString()} / {xpProgress.xpForNextLevel.toLocaleString()} XP
+                {xpProgress.xpIntoLevel.toLocaleString()} / {xpProgress.xpForLevel.toLocaleString()} XP
               </Text>
               <Text style={styles.xpNext}>
                 {xpProgress.xpRemaining.toLocaleString()} to Lvl {level + 1}

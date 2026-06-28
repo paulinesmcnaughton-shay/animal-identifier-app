@@ -6,6 +6,9 @@ import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import { STREAK_WINDOW_MS } from '@/features/profile/streak'
 import type { Collection, CollectionLookup } from '@/features/collections/collections'
 import { computeQuestRewardDelta, questCountsFromSightings, type SightingLike } from '@/features/quests/quests'
+import { getCreatureOfWeek, getWeekMeta } from '@/features/home/creature-of-week'
+import { levelForTotalXp } from '@/features/profile/xp-progress'
+import { loadTimezone } from '@/features/settings/timezone-preference'
 import { storeHabitatsForSighting } from '@/features/sightings/classify-habitat'
 import { notifyAccountProfileChanged } from '@/features/settings/account-profile-events'
 import { loadSettingsPreferences } from '@/features/settings/preferences'
@@ -262,7 +265,23 @@ export async function saveUserSighting(
     questCountsFromSightings(questSightings, { lookup: collectionLookup, streakDays: nextStreak }),
     profileRow?.claimed_quests ?? [],
   )
-  const nextXp = (profileRow?.xp ?? 0) + xpGain + questDelta.xpGain
+  // Creature of the Week bonus — if this capture IS the featured creature, award its
+  // bonus once (gated by the same cotw:<year>-W<week> key the home claim uses).
+  const tz = await loadTimezone()
+  const cotw = getCreatureOfWeek(tz)
+  const cotwKey = getWeekMeta(tz).key
+  const claimedSet = new Set(questDelta.newClaimed)
+  const matchesCotw =
+    input.speciesId === cotw.id ||
+    input.speciesName.trim().toLowerCase() === cotw.commonName.trim().toLowerCase() ||
+    (input.dexNumber ?? '').replace(/^#/, '') === cotw.dexNumber.replace(/^#/, '')
+  let cotwXp = 0
+  if (matchesCotw && !claimedSet.has(cotwKey)) {
+    claimedSet.add(cotwKey)
+    cotwXp = cotw.bonusXp
+  }
+
+  const nextXp = (profileRow?.xp ?? 0) + xpGain + questDelta.xpGain + cotwXp
 
   await supabase
     .from('profiles')
@@ -271,8 +290,9 @@ export async function saveUserSighting(
       last_spotted_at: spottedAt,
       streak_days: nextStreak,
       xp: nextXp,
+      level: levelForTotalXp(nextXp).level,
       badges_count: (profileRow?.badges_count ?? 0) + questDelta.badgeGain,
-      claimed_quests: questDelta.newClaimed,
+      claimed_quests: [...claimedSet],
     })
     .eq('id', userId)
 
