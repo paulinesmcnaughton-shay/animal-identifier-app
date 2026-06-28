@@ -2,15 +2,8 @@ import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { type LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native'
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated'
 import Svg, { Path } from 'react-native-svg'
 
 import { KINGDOM, type KingdomKey } from '@/design/atoms/KingdomBadge'
@@ -44,14 +37,6 @@ export function CreatureStamp({ creature, isCollected, week, year, onInfoPress }
     dexNum: dexNumber,
   })
 
-  const bob = useSharedValue(0)
-  useEffect(() => {
-    bob.value = withRepeat(withTiming(1, { duration: 2400, easing: Easing.inOut(Easing.ease) }), -1, true)
-  }, [bob])
-  const floatStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: '1.5deg' }, { translateY: -3 + bob.value * 6 }],
-  }))
-
   const [dim, setDim] = useState({ w: 0, h: 0 })
   const handleLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout
@@ -60,7 +45,7 @@ export function CreatureStamp({ creature, isCollected, week, year, onInfoPress }
   const stampPath = useMemo(() => scallopPath(dim.w, dim.h), [dim])
 
   return (
-    <Animated.View style={[styles.stampWrap, floatStyle]}>
+    <View style={styles.stampWrap}>
       <View style={styles.stamp} onLayout={handleLayout}>
         {dim.w > 0 ? (
           <Svg width={dim.w} height={dim.h} style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -124,7 +109,7 @@ export function CreatureStamp({ creature, isCollected, week, year, onInfoPress }
           </View>
         </View>
       </View>
-    </Animated.View>
+    </View>
   )
 }
 
@@ -173,6 +158,7 @@ function scallopPath(w: number, h: number): string {
 
 const styles = StyleSheet.create({
   stampWrap: {
+    transform: [{ rotate: '1.5deg' }],
     shadowColor: '#143C1E',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.26,
