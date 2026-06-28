@@ -243,7 +243,9 @@ export function SpotHomeScreen() {
             onInfoPress={() => setCreatureInfoOpen(true)}
           />
         </View>
-        <DexpanionCard />
+        <View style={styles.dexpanionGap}>
+          <DexpanionCard />
+        </View>
       </ScrollView>
 
       <CreatureInfoOverlay
@@ -437,6 +439,9 @@ const styles = StyleSheet.create({
   },
   sectionGap: {
     gap: space[8],
+  },
+  dexpanionGap: {
+    marginTop: space[16],
   },
   sectionHeader: {
     flexDirection: 'row',
