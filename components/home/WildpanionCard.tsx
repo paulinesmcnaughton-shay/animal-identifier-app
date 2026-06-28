@@ -22,9 +22,9 @@ const DOTS = [
   { top: '60%', left: '92%', size: 4, color: colors.gold },
 ] as const
 
-const buddyImage = require('@/assets/images/dexpanion-buddy.png')
+const buddyImage = require('@/assets/images/wildpanion-buddy.png')
 
-export function DexpanionCard({ onPress }: { onPress?: () => void }) {
+export function WildpanionCard({ onPress }: { onPress?: () => void }) {
   const sweep = useSharedValue(0)
   const pulse = useSharedValue(0)
   const breathe = useSharedValue(1)
@@ -46,7 +46,7 @@ export function DexpanionCard({ onPress }: { onPress?: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Open Dexpanion companions"
+      accessibilityLabel="Open Wildpanion"
       onPress={onPress}
       style={({ pressed }) => [styles.wrap, pressed && styles.pressed]}>
       <LinearGradient colors={CARD_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
@@ -72,7 +72,7 @@ export function DexpanionCard({ onPress }: { onPress?: () => void }) {
           <View style={styles.badge}>
             <Text style={styles.badgeText}>COMING SOON</Text>
           </View>
-          <Text style={styles.title}>Dexpanion</Text>
+          <Text style={styles.title}>Wildpanion</Text>
           <Text style={styles.sub}>Feed, play &amp; watch it grow 🐾</Text>
         </View>
 

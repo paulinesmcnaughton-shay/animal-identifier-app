@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { HomeBadge } from '@/components/home/HomeBadge'
 import { CreatureStamp } from '@/components/home/CreatureStamp'
 import { QuestCard } from '@/components/home/QuestCard'
-import { DexpanionCard } from '@/components/home/DexpanionCard'
+import { WildpanionCard } from '@/components/home/WildpanionCard'
 import { ExploreVenuesCard } from '@/components/home/ExploreVenuesCard'
 import { StreakCalendar, localDateKey } from '@/components/home/StreakCalendar'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
@@ -258,8 +258,8 @@ export function SpotHomeScreen() {
             onInfoPress={() => setCreatureInfoOpen(true)}
           />
         </View>
-        <View style={styles.dexpanionGap}>
-          <DexpanionCard />
+        <View style={styles.wildpanionGap}>
+          <WildpanionCard />
         </View>
       </ScrollView>
 
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
   sectionGap: {
     gap: space[8],
   },
-  dexpanionGap: {
+  wildpanionGap: {
     marginTop: space[16],
   },
   sectionHeader: {
