@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -14,6 +14,7 @@ import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
 import { useCreatureOfWeek, useCreatureWeekMeta } from '@/features/home/creature-of-week'
 import { claimCreatureBonus } from '@/features/home/claim-creature-bonus'
+import { addNotification, useNotifications } from '@/features/notifications/notifications'
 import { useCollectionLookup } from '@/features/collections/collections'
 import {
   buildQuestProgress,
@@ -176,13 +177,21 @@ export function SpotHomeScreen() {
         (r.dex_number ?? '').replace(/^#/, '') === cdex,
     )
   }, [rows, creatureOfWeek])
+  const { unreadCount } = useNotifications()
+  useEffect(() => {
+    void addNotification({
+      title: 'New Creature of the Week!',
+      body: `${creatureOfWeek.commonName} is featured this week`,
+      icon: 'leaf',
+      dedupeKey: `feature-${weekMeta.key}`,
+    })
+  }, [weekMeta.key, creatureOfWeek.commonName])
   const isCreatureClaimed = claimedQuests.includes(weekMeta.key)
   const handleCollectCreature = useCallback(() => {
     void claimCreatureBonus({ weekKey: weekMeta.key, bonusXp: creatureOfWeek.bonusXp })
   }, [weekMeta.key, creatureOfWeek.bonusXp])
   const [creatureInfoOpen, setCreatureInfoOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true)
 
   if (isLoading || !isReady) {
     return (
@@ -194,7 +203,6 @@ export function SpotHomeScreen() {
 
   const handleOpenNotifications = () => {
     setNotificationsOpen(true)
-    setHasUnreadNotifications(false)
   }
 
   const handleViewAllNotifications = () => {
@@ -222,7 +230,7 @@ export function SpotHomeScreen() {
           streakDays={streakDays}
           onBadgePress={handleOpenBadges}
           onBellPress={handleOpenNotifications}
-          hasUnreadNotifications={hasUnreadNotifications}
+          hasUnreadNotifications={unreadCount > 0}
         />
         <View style={styles.sectionGap}>
           <View style={styles.sectionHeader}>

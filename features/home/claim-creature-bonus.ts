@@ -1,3 +1,4 @@
+import { addNotification } from '@/features/notifications/notifications'
 import { levelForTotalXp } from '@/features/profile/xp-progress'
 import { notifyAccountProfileChanged } from '@/features/settings/account-profile-events'
 import { getSupabaseClient } from '@/lib/supabase/client'
@@ -37,6 +38,12 @@ export async function claimCreatureBonus({ weekKey, bonusXp }: ClaimCreatureBonu
     .eq('id', userId)
   if (error) return 0
 
+  void addNotification({
+    title: 'Creature of the Week collected!',
+    body: `+${bonusXp} XP`,
+    icon: 'flame',
+    dedupeKey: `collected-${weekKey}`,
+  })
   notifyAccountProfileChanged()
   return bonusXp
 }

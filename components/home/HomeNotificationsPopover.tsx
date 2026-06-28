@@ -1,13 +1,21 @@
 import { Ionicons } from '@expo/vector-icons'
+import { useEffect } from 'react'
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { mockHomeNotifications, type HomeNotification } from '@/data/mock'
 import { screenLayout } from '@/design/screen-layout'
 import { colors, radius, shadow, space, type as typeTokens } from '@/design/tokens'
+import { notificationBg } from '@/features/notifications/notification-visuals'
+import {
+  formatTimeAgo,
+  markAllNotificationsRead,
+  useNotifications,
+  type WildNotification,
+} from '@/features/notifications/notifications'
 
 const POPOVER_WIDTH = 300
 const HEADER_OFFSET = space[56]
+const PREVIEW_COUNT = 4
 
 interface HomeNotificationsPopoverProps {
   visible: boolean
@@ -15,21 +23,23 @@ interface HomeNotificationsPopoverProps {
   onViewAll: () => void
 }
 
-function NotificationRow({ item, isLast }: { item: HomeNotification; isLast: boolean }) {
+function NotificationRow({ item, isLast }: { item: WildNotification; isLast: boolean }) {
   return (
     <View style={[styles.row, !isLast && styles.rowBorder]}>
-      <View style={[styles.iconWrap, { backgroundColor: item.iconBg }]}>
+      <View style={[styles.iconWrap, { backgroundColor: notificationBg(item.icon) }]}>
         <Ionicons name={item.icon} size={18} color={colors.card} />
       </View>
       <View style={styles.rowText}>
         <Text style={styles.rowTitle} numberOfLines={1}>
           {item.title}
         </Text>
-        <Text style={styles.rowMessage} numberOfLines={2}>
-          {item.message}
-        </Text>
+        {item.body ? (
+          <Text style={styles.rowMessage} numberOfLines={2}>
+            {item.body}
+          </Text>
+        ) : null}
       </View>
-      <Text style={styles.rowTime}>{item.timeAgo}</Text>
+      <Text style={styles.rowTime}>{formatTimeAgo(item.createdAt)}</Text>
     </View>
   )
 }
@@ -40,7 +50,12 @@ export function HomeNotificationsPopover({
   onViewAll,
 }: HomeNotificationsPopoverProps) {
   const insets = useSafeAreaInsets()
-  const newCount = mockHomeNotifications.length
+  const { notifications, unreadCount } = useNotifications()
+  const preview = notifications.slice(0, PREVIEW_COUNT)
+
+  useEffect(() => {
+    if (visible) void markAllNotificationsRead()
+  }, [visible])
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -56,18 +71,22 @@ export function HomeNotificationsPopover({
           onPress={(e) => e.stopPropagation()}>
           <View style={styles.popoverHeader}>
             <Text style={styles.popoverTitle}>Notifications</Text>
-            <Text style={styles.popoverSub}>{newCount} new</Text>
+            <Text style={styles.popoverSub}>
+              {unreadCount > 0 ? `${unreadCount} new` : 'All caught up'}
+            </Text>
           </View>
 
-          <View style={styles.list}>
-            {mockHomeNotifications.map((item, index) => (
-              <NotificationRow
-                key={item.id}
-                item={item}
-                isLast={index === mockHomeNotifications.length - 1}
-              />
-            ))}
-          </View>
+          {preview.length > 0 ? (
+            <View style={styles.list}>
+              {preview.map((item, index) => (
+                <NotificationRow key={item.id} item={item} isLast={index === preview.length - 1} />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>Nothing yet — get out and spot something!</Text>
+            </View>
+          )}
 
           <Pressable
             onPress={onViewAll}
@@ -119,6 +138,16 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingVertical: space[4],
+  },
+  empty: {
+    paddingHorizontal: space[16],
+    paddingVertical: space[24],
+  },
+  emptyText: {
+    fontSize: typeTokens.size.bodySM,
+    fontWeight: typeTokens.body.weights.medium,
+    color: colors.dim,
+    textAlign: 'center',
   },
   row: {
     flexDirection: 'row',

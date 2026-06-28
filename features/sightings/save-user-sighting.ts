@@ -7,6 +7,7 @@ import { STREAK_WINDOW_MS } from '@/features/profile/streak'
 import type { Collection, CollectionLookup } from '@/features/collections/collections'
 import { computeQuestRewardDelta, questCountsFromSightings, type SightingLike } from '@/features/quests/quests'
 import { getCreatureOfWeek, getWeekMeta } from '@/features/home/creature-of-week'
+import { addNotification } from '@/features/notifications/notifications'
 import { levelForTotalXp } from '@/features/profile/xp-progress'
 import { loadTimezone } from '@/features/settings/timezone-preference'
 import { storeHabitatsForSighting } from '@/features/sightings/classify-habitat'
@@ -282,6 +283,8 @@ export async function saveUserSighting(
   }
 
   const nextXp = (profileRow?.xp ?? 0) + xpGain + questDelta.xpGain + cotwXp
+  const prevLevel = levelForTotalXp(profileRow?.xp ?? 0).level
+  const nextLevel = levelForTotalXp(nextXp).level
 
   await supabase
     .from('profiles')
@@ -290,11 +293,42 @@ export async function saveUserSighting(
       last_spotted_at: spottedAt,
       streak_days: nextStreak,
       xp: nextXp,
-      level: levelForTotalXp(nextXp).level,
+      level: nextLevel,
       badges_count: (profileRow?.badges_count ?? 0) + questDelta.badgeGain,
       claimed_quests: [...claimedSet],
     })
     .eq('id', userId)
+
+  // In-app notifications (local feed) — fire-and-forget.
+  if (isNewSpecies) {
+    void addNotification({
+      title: 'New species!',
+      body: `${input.speciesName} added to your Dex`,
+      icon: 'sparkles',
+    })
+  }
+  if (cotwXp > 0) {
+    void addNotification({
+      title: 'Creature of the Week collected!',
+      body: `${cotw.commonName} · +${cotwXp} XP`,
+      icon: 'flame',
+      dedupeKey: `collected-${cotwKey}`,
+    })
+  }
+  if (questDelta.badgeGain > 0) {
+    void addNotification({
+      title: questDelta.badgeGain > 1 ? `${questDelta.badgeGain} quests complete!` : 'Quest complete!',
+      body: questDelta.xpGain > 0 ? `+${questDelta.xpGain} XP` : undefined,
+      icon: 'trophy',
+    })
+  }
+  if (nextLevel > prevLevel) {
+    void addNotification({
+      title: `You reached level ${nextLevel}!`,
+      body: 'Keep spotting to level up again',
+      icon: 'ribbon',
+    })
+  }
 
   // ─── Nearby (community_sightings) gate ──────────────────────────────────────
   // Sharing is PER-IMAGE. A capture becomes public ONLY if the user explicitly
