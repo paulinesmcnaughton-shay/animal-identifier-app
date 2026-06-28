@@ -27,6 +27,9 @@ export function ExploreVenuesCard() {
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           style={styles.tile}>
+          <View style={styles.sunHalo} />
+          <View style={styles.sun} />
+          <View style={styles.ground} />
           <Text style={styles.giraffe}>🦒</Text>
         </LinearGradient>
         <View style={styles.text}>
@@ -61,13 +64,45 @@ const styles = StyleSheet.create({
   tile: {
     width: 64,
     height: 64,
-    borderRadius: radius.lg,
+    borderRadius: 16,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    paddingBottom: space[4],
+  },
+  sunHalo: {
+    position: 'absolute',
+    top: 4,
+    right: 5,
+    width: 23,
+    height: 23,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,238,180,0.55)',
+  },
+  sun: {
+    position: 'absolute',
+    top: 8,
+    right: 9,
+    width: 15,
+    height: 15,
+    borderRadius: radius.pill,
+    backgroundColor: '#FFD36B',
+  },
+  ground: {
+    position: 'absolute',
+    left: -6,
+    right: -6,
+    bottom: -8,
+    height: 22,
+    borderRadius: radius.pill,
+    backgroundColor: '#9C6B2E',
+    opacity: 0.45,
   },
   giraffe: {
     fontSize: 31,
+    marginBottom: 3,
+    textShadowColor: 'rgba(120,60,20,0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 2,
   },
   text: {
     flex: 1,
