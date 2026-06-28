@@ -1,7 +1,5 @@
-import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
-import { useRouter } from 'expo-router'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
 
@@ -10,13 +8,11 @@ const VENUE_GRADIENT = ['#FFB347', '#F6883F', '#EE6B4D'] as const
 const TILE_GRADIENT = ['#FFFFFF', '#FFF1DC'] as const
 
 export function ExploreVenuesCard() {
-  const router = useRouter()
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Explore venues"
-      onPress={() => router.push('/venues')}
-      style={({ pressed }) => [styles.wrap, pressed && styles.pressed]}>
+    <View
+      accessibilityRole="image"
+      accessibilityLabel="Explore venues — coming soon"
+      style={styles.wrap}>
       <LinearGradient
         colors={VENUE_GRADIENT}
         start={{ x: 0, y: 0 }}
@@ -36,19 +32,16 @@ export function ExploreVenuesCard() {
           <Text style={styles.title}>Explore venues</Text>
           <Text style={styles.sub}>Zoos · Aquariums · Safari parks</Text>
         </View>
-        <View style={styles.chevron}>
-          <Ionicons name="chevron-forward" size={18} color={colors.flame} />
+        <View style={styles.comingSoon}>
+          <Text style={styles.comingSoonText}>COMING{'\n'}SOON</Text>
         </View>
       </LinearGradient>
-    </Pressable>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   wrap: {},
-  pressed: {
-    transform: [{ translateY: 2 }],
-  },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -118,12 +111,19 @@ const styles = StyleSheet.create({
     fontWeight: typeTokens.body.weights.bold,
     color: 'rgba(255,255,255,0.85)',
   },
-  chevron: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.pill,
+  comingSoon: {
+    alignSelf: 'flex-start',
     backgroundColor: colors.card,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: radius.sm,
+    paddingHorizontal: space[8],
+    paddingVertical: space[4],
+  },
+  comingSoonText: {
+    fontSize: 9,
+    fontWeight: typeTokens.body.weights.extra,
+    letterSpacing: 0.8,
+    lineHeight: 11,
+    textAlign: 'center',
+    color: colors.coralDeep,
   },
 })
