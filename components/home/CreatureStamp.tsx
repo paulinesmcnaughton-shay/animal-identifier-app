@@ -23,7 +23,6 @@ const NOTCH_R = 7
 const NOTCH_GAP = 18
 const CTA_GRADIENT = ['#2E8B57', '#1E6B41'] as const
 const CTA_BEVEL = '#123E28'
-const SHINE_GRADIENT = ['transparent', 'rgba(255,255,255,0.9)', 'transparent'] as const
 
 interface CreatureStampProps {
   creature: CreatureRosterItem
@@ -46,16 +45,11 @@ export function CreatureStamp({ creature, isCollected, week, year, onInfoPress }
   })
 
   const bob = useSharedValue(0)
-  const shine = useSharedValue(0)
   useEffect(() => {
     bob.value = withRepeat(withTiming(1, { duration: 2400, easing: Easing.inOut(Easing.ease) }), -1, true)
-    shine.value = withRepeat(withTiming(1, { duration: 4000, easing: Easing.inOut(Easing.ease) }), -1, false)
-  }, [bob, shine])
+  }, [bob])
   const floatStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: '1.5deg' }, { translateY: -3 + bob.value * 6 }],
-  }))
-  const shineStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: -24 + shine.value * 110 }, { skewX: '-18deg' }],
   }))
 
   const [dim, setDim] = useState({ w: 0, h: 0 })
@@ -86,9 +80,6 @@ export function CreatureStamp({ creature, isCollected, week, year, onInfoPress }
             </Text>
           </View>
           <View style={styles.featuredPill}>
-            <Animated.View pointerEvents="none" style={[styles.featuredSweep, shineStyle]}>
-              <LinearGradient colors={SHINE_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
-            </Animated.View>
             <Text style={styles.featuredText}>★ FEATURED</Text>
           </View>
           {isCollected ? (
@@ -217,18 +208,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: space[8],
     top: space[8],
-    overflow: 'hidden',
     backgroundColor: colors.gold,
     borderRadius: radius.pill,
     paddingHorizontal: space[8],
     paddingVertical: space[4],
-  },
-  featuredSweep: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    width: 16,
   },
   featuredText: {
     fontSize: typeTokens.size.micro,
