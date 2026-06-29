@@ -1,5 +1,5 @@
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
-import { resolvePhoto } from '@/features/species/use-taxa-photo'
+import { buildPhotoCacheKey, peekPhotoSource, resolvePhoto } from '@/features/species/use-taxa-photo'
 
 export type ReferenceImageSource =
   | 'database'
@@ -134,29 +134,20 @@ export async function resolveReferenceImage(
     return preResolved
   }
 
-  // 4. External lookup via iNat + Wikipedia (kingdom-validated)
+  // 4. External lookup — Wikipedia → Wikimedia Commons only (commercial-safe CC),
+  // via resolvePhoto. No iNaturalist or Google image sources.
   const query = commonName?.trim() ?? ''
   const latin = scientificName?.trim() ?? ''
   const identity = buildResolverIdentity(input)
 
-  // Run iNat and Wikipedia in parallel for speed
-  const [inatResult, wikiResult] = await Promise.all([
-    query || latin
-      ? resolvePhoto(query, latin, kingdom, identity).catch(() => null)
-      : Promise.resolve(null),
-    query
-      ? fetchWikipediaOnly(query).catch(() => null)
-      : Promise.resolve(null),
-  ])
+  wikipediaImage =
+    query || latin ? await resolvePhoto(query, latin, kingdom, identity).catch(() => null) : null
 
-  inatImage = inatResult
-  wikipediaImage = wikiResult
-
-  // Prefer iNat (has species-specific photos); Wikipedia as fallback
-  const external = inatImage ?? wikipediaImage ?? null
+  const external = wikipediaImage ?? null
 
   if (external) {
-    const source: ReferenceImageSource = inatImage ? 'inaturalist' : 'wikipedia'
+    const photoSource = peekPhotoSource(buildPhotoCacheKey(query, latin, kingdom, identity))
+    const source: ReferenceImageSource = photoSource === 'wikimedia' ? 'wikimedia' : 'wikipedia'
     const result: ResolvedImage = { uri: external, source, confidence: 0.7, reason: source }
     logResolved(input, { registryImage, domesticImage, inatImage, wikipediaImage, aiImage, result })
     return result
@@ -164,22 +155,6 @@ export async function resolveReferenceImage(
 
   // 5. No image found — caller renders category placeholder
   logResolved(input, { registryImage, domesticImage, inatImage, wikipediaImage, aiImage, result: null })
-  return null
-}
-
-async function fetchWikipediaOnly(query: string): Promise<string | null> {
-  const title = query.trim().replace(/ /g, '_')
-  try {
-    const res = await fetch(
-      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}?redirect=true`,
-      { headers: { Accept: 'application/json' } },
-    )
-    if (res.ok) {
-      const d = (await res.json()) as { thumbnail?: { source?: string } }
-      const thumb = d.thumbnail?.source
-      if (thumb) return thumb.replace(/\/\d+px-/, '/800px-')
-    }
-  } catch {}
   return null
 }
 

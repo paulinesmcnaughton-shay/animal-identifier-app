@@ -3,12 +3,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // Resolves the best reference image for a species, VERIFIES it loads, DOWNLOADS it
 // into our own Supabase Storage bucket, caches the permanent URL, and returns it.
 // After the first resolve, every client loads the image from our CDN — no
-// dependency on Wikimedia/iNat uptime, no rate limits, no broken thumbnails.
+// dependency on Wikimedia uptime, no rate limits, no broken thumbnails.
+//
+// PHOTO SOURCES ARE WIKIPEDIA + WIKIMEDIA COMMONS ONLY (CC-BY-SA / public domain,
+// commercial-safe). iNaturalist and Google image search are intentionally not used.
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const GOOGLE_SEARCH_API_KEY = Deno.env.get('GOOGLE_SEARCH_API_KEY') ?? ''
-const GOOGLE_SEARCH_CX = Deno.env.get('GOOGLE_SEARCH_CX') ?? ''
 
 const BUCKET = 'species-images'
 const UA = 'WildKind/1.0 (https://wildkind.app; reference-image-resolver)'
@@ -25,13 +26,6 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { ...cors, 'Content-Type': 'application/json' },
   })
-}
-
-// iNat iconic_taxon_name → WildKind kingdom (reject cross-category matches).
-const INAT_ICONIC: Record<string, string> = {
-  Mammalia: 'mammal', Aves: 'bird', Reptilia: 'reptile', Amphibia: 'amphibian',
-  Actinopterygii: 'fish', Insecta: 'insect', Arachnida: 'arachnid', Mollusca: 'mollusc',
-  Plantae: 'plant', Fungi: 'fungi',
 }
 
 interface Input {
@@ -100,27 +94,6 @@ async function fromSpeciesTable(i: Input): Promise<string[]> {
   return []
 }
 
-async function fromInat(query: string, kingdom: string | null): Promise<string[]> {
-  if (!query) return []
-  const res = await fetch(`https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(query)}&per_page=10`, {
-    headers: { 'User-Agent': UA },
-  })
-  if (!res.ok) throw new Error(`inat ${res.status}`)
-  const d = await res.json() as { results?: { default_photo?: { medium_url?: string; square_url?: string }; iconic_taxon_name?: string }[] }
-  for (const r of d.results ?? []) {
-    if (kingdom && r.iconic_taxon_name) {
-      const tk = INAT_ICONIC[r.iconic_taxon_name]
-      if (tk) {
-        const normalised = kingdom === 'tree' || kingdom === 'flower' ? 'plant' : kingdom
-        if (tk !== normalised) continue
-      }
-    }
-    const u = r.default_photo?.medium_url ?? r.default_photo?.square_url
-    if (u) return [u]
-  }
-  return []
-}
-
 async function fromWikipedia(query: string): Promise<string[]> {
   if (!query) return []
   const title = query.trim().replace(/ /g, '_')
@@ -155,17 +128,6 @@ async function fromWikimedia(query: string): Promise<string[]> {
     if (u && !isMontage(u)) out.push(u)
   }
   return out
-}
-
-async function fromGoogle(query: string): Promise<string[]> {
-  if (!query || !GOOGLE_SEARCH_API_KEY || !GOOGLE_SEARCH_CX) return []
-  const res = await fetch(
-    `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_CX}` +
-      `&searchType=image&num=5&safe=active&q=${encodeURIComponent(query)}`,
-  )
-  if (!res.ok) throw new Error(`google ${res.status}`)
-  const d = await res.json() as { items?: { link?: string }[] }
-  return (d.items ?? []).map((i) => i.link).filter((l): l is string => !!l)
 }
 
 // Full-text Wikipedia search → the matching page's image. Essential for dog/cat
@@ -289,31 +251,25 @@ Deno.serve(async (req: Request) => {
 
   const isDomestic = input.isDomestic === true || /^#?D\d/i.test(norm(input.dexNum))
 
-  // Domestic breeds: iNaturalist has NO breed taxa — it returns one generic
-  // dog/cat photo for every breed. Resolve breeds via Wikipedia (a page per breed)
-  // and only fall back to the generic iNat species photo as a last resort.
+  // Domestic breeds resolve via Wikipedia (a page per breed) → Wikimedia Commons.
   const petKind = petKindFor(commonName, scientificName)
+  // Photo sources are Wikipedia + Wikimedia Commons ONLY — both commercial-safe
+  // (CC-BY-SA / public domain). iNaturalist (non-commercial photos / not our API)
+  // and Google image search (third-party copyright) are intentionally excluded.
   const attempts: { source: string; run: () => Promise<string[]> }[] = isDomestic
     ? [
         { source: 'domestic_registry', run: () => fromDomestic(input) },
         { source: 'database', run: () => fromSpeciesTable(input) },
         // Top Wikipedia breed page (single photo, montages rejected)…
         { source: 'wikipedia', run: () => fromWikipediaSearch(`${commonName} ${petKind} breed`) },
-        // …else a single-subject Commons photo of the breed (covers collage breeds)…
+        // …else a single-subject Commons photo of the breed (covers collage breeds).
         { source: 'wikimedia', run: () => fromWikimedia(`${commonName} ${petKind}`) },
-        { source: 'google', run: () => fromGoogle(`${commonName} ${petKind} breed`) },
-        // …last resort: the generic species photo. (No direct Wikipedia title — a
-        // bare breed name like "Akita" resolves to the city, not the dog.)
-        { source: 'inaturalist', run: () => fromInat(commonName, kingdom) },
       ]
     : [
         { source: 'database', run: () => fromSpeciesTable(input) },
-        { source: 'inaturalist', run: () => fromInat(commonName, kingdom) },
         { source: 'wikipedia', run: () => fromWikipedia(commonName) },
-        { source: 'inaturalist', run: () => fromInat(scientificName, kingdom) },
         { source: 'wikipedia', run: () => fromWikipedia(scientificName) },
         { source: 'wikimedia', run: () => fromWikimedia(commonName || scientificName) },
-        { source: 'google', run: () => fromGoogle(commonName || scientificName) },
       ]
 
   for (const attempt of attempts) {

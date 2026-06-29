@@ -1,38 +1,20 @@
-import Constants from 'expo-constants'
 import { useEffect, useRef, useState } from 'react'
 
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
-
-interface TaxaResult {
-  default_photo?: { medium_url?: string; square_url?: string }
-  iconic_taxon_name?: string
-}
-
-// iNaturalist iconic_taxon_name → WildKind kingdom.
-// Used to reject cross-category matches (e.g. "Bengal" → Amphibia when we expect mammal).
-const INAT_ICONIC_TO_KINGDOM: Partial<Record<string, KingdomKey>> = {
-  Mammalia: 'mammal',
-  Aves: 'bird',
-  Reptilia: 'reptile',
-  Amphibia: 'amphibian',
-  Actinopterygii: 'fish',
-  Insecta: 'insect',
-  Arachnida: 'arachnid',
-  Mollusca: 'mollusc',
-  Plantae: 'plant',
-  Fungi: 'fungi',
-}
 
 // Module-level cache — cache key includes kingdom to prevent cross-category contamination.
 // "Bengal|mammal" and "Bengal|amphibian" are distinct cache entries.
 //
 // Only SUCCESSFUL resolutions (a real URL) are stored here, and they are kept
-// for the life of the process. A transient failure (e.g. iNat 429/5xx) is NEVER
-// cached, so it is retried on the next render — this is what prevents an image
-// from "disappearing" after a burst of requests rate-limits iNat.
+// for the life of the process. A transient failure (5xx/network) is NEVER cached,
+// so it is retried on the next render — this prevents an image from "disappearing"
+// after a transient source error.
 const photoCache = new Map<string, string>()
 // Which external source produced the cached URL — for the debug pipeline log.
-export type ExternalPhotoSource = 'inaturalist' | 'wikipedia' | 'wikimedia' | 'google'
+// Photos come ONLY from Wikipedia + Wikimedia Commons (CC-BY-SA / public domain,
+// commercial-safe). iNaturalist (non-commercial photos) and Google image search
+// (third-party copyright) are intentionally NOT used as photo sources.
+export type ExternalPhotoSource = 'wikipedia' | 'wikimedia'
 const photoSourceCache = new Map<string, ExternalPhotoSource>()
 // Genuine "no image exists" results are remembered briefly so we don't refetch
 // imageless species on every render, but still recover if the source later adds one.
@@ -68,49 +50,6 @@ function peekCachedPhoto(cacheKey: string): string | null | undefined {
   const negAt = negativeCache.get(cacheKey)
   if (negAt !== undefined && Date.now() - negAt < NEGATIVE_TTL_MS) return null
   return undefined
-}
-
-async function fetchInatPhoto(
-  query: string,
-  expectedKingdom?: KingdomKey | null,
-): Promise<string | null> {
-  const res = await fetch(
-    `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(query)}&per_page=10`,
-  )
-  // Throw on a transient HTTP failure so the caller treats it as "retry later",
-  // NOT as "this species has no image". Returning null here would poison the cache.
-  if (!res.ok) throw new Error(`iNaturalist HTTP ${res.status}`)
-  const data = (await res.json()) as { results?: TaxaResult[] }
-
-  for (const r of data.results ?? []) {
-    // Kingdom validation: reject taxons that belong to a clearly different kingdom.
-    // WildKind splits plants into plant/tree/flower, but iNat only has Plantae —
-    // normalise those three to 'plant' before comparing so we don't reject valid results.
-    if (expectedKingdom && r.iconic_taxon_name) {
-      const taxonKingdom = INAT_ICONIC_TO_KINGDOM[r.iconic_taxon_name]
-      if (taxonKingdom !== undefined) {
-        const normalised =
-          expectedKingdom === 'tree' || expectedKingdom === 'flower' ? 'plant' : expectedKingdom
-        if (taxonKingdom !== normalised) {
-          if (__DEV__) {
-            console.log('IMAGE LOAD ERROR (iNat kingdom mismatch — skipped)', {
-              query,
-              expectedKingdom,
-              normalised,
-              taxonKingdom,
-              iconic_taxon_name: r.iconic_taxon_name,
-            })
-          }
-          continue
-        }
-      }
-      // If iconic_taxon_name is unknown to our map (e.g. 'Animalia', 'Chromista'),
-      // do not filter — we have no basis for rejecting it.
-    }
-    const url = r.default_photo?.medium_url ?? r.default_photo?.square_url
-    if (url) return url
-  }
-  return null
 }
 
 async function fetchWikipediaPhoto(query: string): Promise<string | null> {
@@ -187,34 +126,9 @@ async function md5Hash(str: string): Promise<string> {
 }
 
 /**
- * Google Programmable Search (Custom Search JSON API), image mode — the broad
- * fallback when iNat/Wikipedia/Wikimedia have nothing. Skipped (returns null, no
- * request) unless both an API key and a search-engine id (cx) are configured.
- * Throws on a transient HTTP error so it is retried rather than cached as empty.
- */
-async function fetchGoogleImage(query: string): Promise<string | null> {
-  const extra = Constants.expoConfig?.extra as
-    | { googleSearchApiKey?: string; googleSearchCx?: string }
-    | undefined
-  const key = extra?.googleSearchApiKey?.trim()
-  const cx = extra?.googleSearchCx?.trim()
-  if (!key || !cx || !query.trim()) return null
-
-  const res = await fetch(
-    `https://www.googleapis.com/customsearch/v1?key=${key}&cx=${cx}` +
-      `&searchType=image&num=1&safe=active&q=${encodeURIComponent(query)}`,
-  )
-  if (!res.ok) throw new Error(`Google CSE HTTP ${res.status}`)
-  const d = (await res.json()) as { items?: { link?: string }[] }
-  return d.items?.[0]?.link ?? null
-}
-
-/**
- * Resolve a reference photo for a species via iNat → Wikipedia → Wikimedia → Google.
+ * Resolve a reference photo for a species via Wikipedia → Wikimedia Commons —
+ * the only photo sources we use, both commercial-safe (CC-BY-SA / public domain).
  * Exported so `resolveReferenceImage` can call it without a React context.
- *
- * `kingdom` is used to validate iNat results — a mammal query will never
- * return an amphibian or plant photo even if the name is ambiguous.
  */
 export async function resolvePhoto(
   query: string,
@@ -253,18 +167,12 @@ export async function resolvePhoto(
       }
     }
 
-    // 1. iNat by common name — with kingdom validation
-    if (query) await attempt('inaturalist', () => fetchInatPhoto(query, kingdom))
-    // 2. Wikipedia by common name
+    // 1. Wikipedia by common name
     if (query) await attempt('wikipedia', () => fetchWikipediaPhoto(query))
-    // 3. iNat by scientific name — with kingdom validation
-    if (latin) await attempt('inaturalist', () => fetchInatPhoto(latin, kingdom))
-    // 4. Wikipedia by scientific name
+    // 2. Wikipedia by scientific name
     if (latin) await attempt('wikipedia', () => fetchWikipediaPhoto(latin))
-    // 5. Wikimedia Commons search
+    // 3. Wikimedia Commons search (common or scientific name)
     if (query || latin) await attempt('wikimedia', () => fetchWikimediaPhoto(query || latin))
-    // 6. Google Programmable Search (only if configured) — broadest fallback
-    if (query || latin) await attempt('google', () => fetchGoogleImage(query || latin))
 
     if (__DEV__) {
       console.log('RESOLVED REFERENCE IMAGE', {
@@ -382,37 +290,11 @@ export async function fetchSpeciesReferencePhotos(
     }
   }
 
-  if (commonName) {
-    try {
-      const res = await fetch(
-        `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(commonName)}&per_page=10`,
-      )
-      if (res.ok) {
-        const d = (await res.json()) as { results?: TaxaResult[] }
-        for (const r of d.results ?? []) {
-          add(r.default_photo?.medium_url ?? r.default_photo?.square_url)
-        }
-      }
-    } catch {}
-  }
-
-  if (latinName && photos.length < limit) {
-    try {
-      const res = await fetch(
-        `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(latinName)}&per_page=6`,
-      )
-      if (res.ok) {
-        const d = (await res.json()) as { results?: TaxaResult[] }
-        for (const r of d.results ?? []) {
-          add(r.default_photo?.medium_url ?? r.default_photo?.square_url)
-        }
-      }
-    } catch {}
-  }
-
+  // Wikipedia + Wikimedia Commons only (commercial-safe CC content).
+  if (commonName) add(await fetchWikipediaPhoto(commonName).catch(() => null))
+  if (latinName && photos.length < limit) add(await fetchWikipediaPhoto(latinName).catch(() => null))
   if (photos.length < limit) {
-    const wikiUrl = await fetchWikipediaPhoto(commonName || latinName || '').catch(() => null)
-    add(wikiUrl)
+    add(await fetchWikimediaPhoto(commonName || latinName || '').catch(() => null))
   }
 
   return photos
