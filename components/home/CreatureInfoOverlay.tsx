@@ -100,6 +100,8 @@ function kingdomLabelToKey(label: string): KingdomKey {
   if (lower === 'insect') return 'insect'
   if (lower === 'amphibian') return 'amphibian'
   if (lower === 'fish') return 'fish'
+  if (lower === 'arachnid') return 'arachnid'
+  if (lower === 'mollusc') return 'mollusc'
   if (lower === 'plant') return 'plant'
   return 'mammal'
 }

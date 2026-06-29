@@ -1,99 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { getDexNumberForSpeciesId } from '@/features/species/dex-number-registry'
+import { CREATURE_ROSTER, type CreatureRosterItem } from '@/features/home/creature-roster'
 import {
   detectDeviceTimezone,
   loadTimezone,
 } from '@/features/settings/timezone-preference'
 
-export interface CreatureRosterItem {
-  id: string
-  commonName: string
-  scientificName: string
-  kingdom: string
-  dexNumber: string
-  description: string
-  bonusXp: number
-}
-
-function dexNum(id: string): string {
-  return getDexNumberForSpeciesId(id) ?? '#???'
-}
-
-export const CREATURE_ROSTER: CreatureRosterItem[] = [
-  {
-    id: 'gecko',
-    commonName: 'Crested Gecko',
-    scientificName: 'Correlophus ciliatus',
-    kingdom: 'Reptile',
-    dexNumber: dexNum('gecko'),
-    description: 'Look up — they cling to leaves and branches with sticky toe pads. Active at dusk in warm, humid spots.',
-    bonusXp: 100,
-  },
-  {
-    id: 'fox',
-    commonName: 'Red Fox',
-    scientificName: 'Vulpes vulpes',
-    kingdom: 'Mammal',
-    dexNumber: dexNum('fox'),
-    description: 'Adaptable and cunning, red foxes thrive across forests, fields, and city parks. Most active at dawn and dusk.',
-    bonusXp: 100,
-  },
-  {
-    id: 'monarch',
-    commonName: 'Monarch Butterfly',
-    scientificName: 'Danaus plexippus',
-    kingdom: 'Insect',
-    dexNumber: dexNum('monarch'),
-    description: 'One of the great migrators — travels thousands of miles each year. Look for them near milkweed in summer.',
-    bonusXp: 100,
-  },
-  {
-    id: 'cardinal',
-    commonName: 'Northern Cardinal',
-    scientificName: 'Cardinalis cardinalis',
-    kingdom: 'Bird',
-    dexNumber: dexNum('cardinal'),
-    description: 'The male\'s vivid red plumage is unmistakable. Year-round resident — listen for their loud, clear whistle at dawn.',
-    bonusXp: 100,
-  },
-  {
-    id: 'frog',
-    commonName: 'Green Tree Frog',
-    scientificName: 'Hyla cinerea',
-    kingdom: 'Amphibian',
-    dexNumber: dexNum('frog'),
-    description: 'Found clinging to reeds and leaves near still water. Their bright green skin blends perfectly into foliage.',
-    bonusXp: 100,
-  },
-  {
-    id: 'owl',
-    commonName: 'Barn Owl',
-    scientificName: 'Tyto alba',
-    kingdom: 'Bird',
-    dexNumber: dexNum('owl'),
-    description: 'Silent flier with a heart-shaped face. Hunts by sound alone in total darkness — a true night predator.',
-    bonusXp: 100,
-  },
-  {
-    id: 'bumblebee',
-    commonName: 'Common Bumble Bee',
-    scientificName: 'Bombus terrestris',
-    kingdom: 'Insect',
-    dexNumber: dexNum('bumblebee'),
-    description: 'Vital pollinators with a distinctive buzz. Spot them hovering over flowers in gardens and meadows.',
-    bonusXp: 100,
-  },
-  {
-    id: 'turtle',
-    commonName: 'Eastern Box Turtle',
-    scientificName: 'Terrapene carolina',
-    kingdom: 'Reptile',
-    dexNumber: dexNum('turtle'),
-    description: 'Their domed shell closes completely for protection. Move slowly through leaf litter in moist woodlands.',
-    bonusXp: 100,
-  },
-]
+export { CREATURE_ROSTER }
+export type { CreatureRosterItem }
 
 function getLocalDateInTimezone(tz: string): Date {
   try {
