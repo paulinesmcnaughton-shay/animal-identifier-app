@@ -1,7 +1,7 @@
 import type { SpeciesDetail } from '@/data/species-catalog'
 
 export type LatinNameSource =
-  | 'inaturalist.taxon.name'
+  | 'gbif.species.match'
   | 'domestic_species.latin_name'
   | 'species.latin_name'
   | 'route.param.latin'

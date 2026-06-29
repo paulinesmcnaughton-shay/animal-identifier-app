@@ -13,9 +13,8 @@ import {
 } from '@/features/species/fetch-domestic-species'
 import { isDomesticDexNumber, resolveGlobalDexNumber } from '@/features/species/dex-number-registry'
 import { resolveLatinName } from '@/features/species/species-latin-names'
-import { classifyPlantType, kingdomKeyFromTaxonomy } from '@/features/species/kingdom-from-taxonomy'
+import { classifyPlantType } from '@/features/species/kingdom-from-taxonomy'
 import type {
-  LatinNameSource,
   SpeciesDetailFetchOptions,
   SpeciesDetailFetchResult,
 } from '@/features/species/types'
@@ -43,18 +42,8 @@ const KINGDOM_KEYS: KingdomKey[] = [
 
 const RARITIES: SpeciesRarity[] = ['Common', 'Uncommon', 'Rare', 'Very Rare']
 
-const INAT_LOOKUP_RE = /^inat-(\d+)$/i
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-interface InatTaxon {
-  id: number
-  name?: string
-  preferred_common_name?: string
-  iconic_taxon_name?: string
-  wikipedia_summary?: string
-  default_photo?: { medium_url?: string; square_url?: string }
-}
 
 function parseKingdom(value: string | null): KingdomKey {
   if (value && KINGDOM_KEYS.includes(value as KingdomKey)) return value as KingdomKey
@@ -159,13 +148,6 @@ function isDomesticDexLookup(lookupId: string): boolean {
   return isDomesticDexNumber(safe)
 }
 
-function parseInatTaxonId(lookupId: string): number | null {
-  const match = lookupId.trim().match(INAT_LOOKUP_RE)
-  if (!match) return null
-  const id = Number(match[1])
-  return Number.isFinite(id) ? id : null
-}
-
 function shouldQueryDomestic(lookupId: string, isDomestic?: boolean): boolean {
   if (isDomestic) return true
   if (isDomesticDexLookup(lookupId)) return true
@@ -213,41 +195,6 @@ function wildDetailShell(
       order: 'Unknown',
       family: 'Unknown',
     },
-  }
-}
-
-function mapInatTaxonToWildResult(
-  taxon: InatTaxon,
-  lookupId: string,
-): SpeciesDetailFetchResult {
-  const latinName = taxon.name?.trim() || 'Species unknown'
-  const commonName =
-    taxon.preferred_common_name?.trim() || taxon.name?.trim() || 'Unknown species'
-  const baseKingdom = kingdomKeyFromTaxonomy(taxon.iconic_taxon_name ?? 'Animalia')
-  const kingdom = baseKingdom === 'plant' ? classifyPlantType(commonName, latinName) : baseKingdom
-  const dexNumber = resolveGlobalDexNumber({
-    lookupId,
-    commonName,
-    latinName,
-    inatTaxonId: taxon.id,
-    kingdom,
-  })
-  const imageUrl =
-    taxon.default_photo?.medium_url?.trim() ||
-    taxon.default_photo?.square_url?.trim() ||
-    null
-
-  return {
-    detail: {
-      ...wildDetailShell(lookupId, commonName, latinName, kingdom),
-      dexNumber,
-      ...(taxon.wikipedia_summary?.trim()
-        ? { description: stripHtml(taxon.wikipedia_summary) }
-        : {}),
-    },
-    imageUrl,
-    isDomestic: false,
-    latinNameSource: 'inaturalist.taxon.name',
   }
 }
 
@@ -322,83 +269,87 @@ export async function fetchWikipediaSummary(latinName: string, commonName: strin
   return searchWikiTitle(commonName || latinName)
 }
 
-async function fetchInatTaxonById(taxonId: number): Promise<InatTaxon | null> {
-  try {
-    const res = await fetch(`https://api.inaturalist.org/v1/taxa/${taxonId}`)
-    if (!res.ok) return null
-    const json = (await res.json()) as { results?: InatTaxon[] }
-    return json.results?.[0] ?? null
-  } catch {
-    return null
-  }
+interface GbifMatch {
+  usageKey?: number
+  canonicalName?: string
+  scientificName?: string
+  class?: string
+  kingdom?: string
+  rank?: string
+  matchType?: string
 }
 
-async function fetchInatTaxonByName(commonName: string): Promise<InatTaxon | null> {
-  const trimmed = commonName.trim()
+const GBIF_CLASS_TO_KINGDOM: Partial<Record<string, KingdomKey>> = {
+  Mammalia: 'mammal',
+  Aves: 'bird',
+  Reptilia: 'reptile',
+  Amphibia: 'amphibian',
+  Actinopterygii: 'fish',
+  Chondrichthyes: 'fish',
+  Insecta: 'insect',
+  Arachnida: 'arachnid',
+  Mollusca: 'mollusc',
+  Bivalvia: 'mollusc',
+  Gastropoda: 'mollusc',
+}
+
+async function gbifMatch(name: string): Promise<GbifMatch | null> {
+  const trimmed = name.trim()
   if (!trimmed) return null
-
   try {
-    const url = `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(trimmed)}&per_page=1&rank=species,subspecies,variety`
-    const res = await fetch(url)
+    const res = await fetch(
+      `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(trimmed)}&verbose=false`,
+    )
     if (!res.ok) return null
-    const json = (await res.json()) as { results?: InatTaxon[] }
-    const taxon = json.results?.[0] ?? null
-    if (!taxon) return null
-    // Search results often omit wikipedia_summary — fetch full detail to get it
-    if (!taxon.wikipedia_summary?.trim() && taxon.id) {
-      const detail = await fetchInatTaxonById(taxon.id)
-      return detail ?? taxon
-    }
-    return taxon
+    const d = (await res.json()) as GbifMatch
+    return d.matchType && d.matchType !== 'NONE' ? d : null
   } catch {
     return null
   }
 }
 
-async function enrichWithDescription(taxon: InatTaxon): Promise<InatTaxon> {
-  if (taxon.wikipedia_summary?.trim()) return taxon
-  const latinName = taxon.name?.trim() ?? ''
-  const commonName = taxon.preferred_common_name?.trim() || latinName
-  const summary = await fetchWikipediaSummary(latinName, commonName)
-  if (!summary) return taxon
-  return { ...taxon, wikipedia_summary: summary }
-}
-
-async function fetchWildSpeciesFromInaturalist(
+/**
+ * Wild species detail from GBIF (taxonomy) + Wikipedia (description). Replaces the
+ * old iNaturalist taxa lookup — we don't use iNat's API. The reference photo is left
+ * null here and resolved separately from Wikipedia/Wikimedia Commons (commercial-safe).
+ */
+async function fetchWildSpeciesFromGbif(
   lookupId: string,
   commonNameHint?: string,
   latinNameHint?: string,
 ): Promise<SpeciesDetailFetchResult | null> {
-  const inatId = parseInatTaxonId(lookupId)
-  if (inatId !== null) {
-    const raw = await fetchInatTaxonById(inatId)
-    if (raw?.name?.trim()) {
-      const taxon = await enrichWithDescription(raw)
-      return mapInatTaxonToWildResult(taxon, lookupId)
-    }
-  }
+  const latinHint = latinNameHint?.trim()
+  const commonHint = commonNameHint?.trim()
+  // Scientific name first — it's unambiguous; fall back to the common name.
+  const match = (latinHint ? await gbifMatch(latinHint) : null) ?? (commonHint ? await gbifMatch(commonHint) : null)
 
-  // Scientific name first — it's unambiguous. Searching by the common name alone
-  // can return the wrong species (e.g. "Leopard" → the leopard SLUG on iNaturalist).
-  if (latinNameHint?.trim()) {
-    const raw = await fetchInatTaxonByName(latinNameHint)
-    if (raw?.name?.trim()) {
-      const taxon = await enrichWithDescription(raw)
-      const resolvedId = lookupId.trim() || slugifySpeciesName(commonNameHint ?? latinNameHint)
-      return mapInatTaxonToWildResult(taxon, resolvedId)
-    }
-  }
+  const latinName = match?.canonicalName?.trim() || latinHint || commonHint || ''
+  const commonName = commonHint || latinHint || latinName
+  if (!latinName && !commonName) return null
 
-  if (commonNameHint?.trim()) {
-    const raw = await fetchInatTaxonByName(commonNameHint)
-    if (raw?.name?.trim()) {
-      const taxon = await enrichWithDescription(raw)
-      const resolvedId = lookupId.trim() || slugifySpeciesName(commonNameHint)
-      return mapInatTaxonToWildResult(taxon, resolvedId)
-    }
-  }
+  const baseKingdom: KingdomKey =
+    (match?.class ? GBIF_CLASS_TO_KINGDOM[match.class] : undefined) ??
+    (match?.kingdom === 'Plantae' ? 'plant' : 'mammal')
+  const kingdom = baseKingdom === 'plant' ? classifyPlantType(commonName, latinName) : baseKingdom
 
-  return null
+  const resolvedId = lookupId.trim() || slugifySpeciesName(commonName)
+  const description = await fetchWikipediaSummary(latinName, commonName)
+
+  // Need at least a taxonomic match or a real description, else we'd return an empty shell.
+  if (!match && !description) return null
+
+  const dexNumber = resolveGlobalDexNumber({ lookupId: resolvedId, commonName, latinName, kingdom })
+
+  return {
+    detail: {
+      ...wildDetailShell(resolvedId, commonName, latinName, kingdom),
+      dexNumber,
+      ...(description ? { description: stripHtml(description) } : {}),
+    },
+    imageUrl: null,
+    isDomestic: false,
+    latinNameSource: 'gbif.species.match',
+  }
 }
 
 async function fetchWildSpeciesRowFromSupabase(
@@ -462,16 +413,15 @@ export async function fetchSpeciesDetailFromSupabase(
     if (options?.isDomestic) return null
   }
 
-  const wildInat = await fetchWildSpeciesFromInaturalist(lookupId, commonNameHint, latinNameHint)
-  if (wildInat) {
+  const wildGbif = await fetchWildSpeciesFromGbif(lookupId, commonNameHint, latinNameHint)
+  if (wildGbif) {
     if (__DEV__) {
-      console.log('[WildKind fetchSpeciesDetail] wild iNaturalist:', {
+      console.log('[WildKind fetchSpeciesDetail] wild GBIF+Wikipedia:', {
         lookupId,
-        latinName: wildInat.detail.latinName,
-        taxonName: wildInat.detail.latinName,
+        latinName: wildGbif.detail.latinName,
       })
     }
-    return wildInat
+    return wildGbif
   }
 
   return fetchWildSpeciesRowFromSupabase(lookupId)

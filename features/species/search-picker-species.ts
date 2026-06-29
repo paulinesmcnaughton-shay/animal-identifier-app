@@ -1,5 +1,6 @@
 import { slugifySpeciesName } from '@/data/species-catalog'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
+import { CREATURE_ROSTER } from '@/features/home/creature-roster'
 import { kingdomKeyFromTaxonomy } from '@/features/species/kingdom-from-taxonomy'
 import type { PickerKingdomFilter } from '@/features/species/picker-kingdom-tabs'
 import { matchesPickerKingdom } from '@/features/species/picker-kingdom-tabs'
@@ -17,25 +18,28 @@ export interface PickerSpeciesItem {
   gradient: readonly [string, string]
 }
 
-const INAT_ICONIC_MAP: Record<string, KingdomKey> = {
-  Animalia: 'mammal',
+const GBIF_CLASS_TO_KINGDOM: Partial<Record<string, KingdomKey>> = {
+  Mammalia: 'mammal',
   Aves: 'bird',
   Reptilia: 'reptile',
   Amphibia: 'amphibian',
   Actinopterygii: 'fish',
+  Chondrichthyes: 'fish',
   Insecta: 'insect',
   Arachnida: 'arachnid',
   Mollusca: 'mollusc',
-  Plantae: 'plant',
-  Fungi: 'fungi',
+  Bivalvia: 'mollusc',
+  Gastropoda: 'mollusc',
 }
 
-interface InatTaxon {
-  id: number
-  name?: string
-  preferred_common_name?: string
-  default_photo?: { medium_url?: string; square_url?: string }
-  iconic_taxon_name?: string
+interface GbifSearchResult {
+  key?: number
+  canonicalName?: string
+  scientificName?: string
+  class?: string
+  kingdom?: string
+  rank?: string
+  vernacularNames?: { vernacularName?: string; language?: string }[]
 }
 
 function mapDomesticRow(row: {
@@ -67,30 +71,23 @@ function mapDomesticRow(row: {
   }
 }
 
-function mapInatTaxon(taxon: InatTaxon): PickerSpeciesItem {
-  const iconic = taxon.iconic_taxon_name ?? 'Animalia'
-  const taxonomyKingdom = iconic
-  const kingdom = INAT_ICONIC_MAP[iconic] ?? 'mammal'
-  const commonName = taxon.preferred_common_name?.trim() || taxon.name?.trim() || 'Unknown'
-  const imageUrl = taxon.default_photo?.medium_url ?? taxon.default_photo?.square_url ?? null
-  if (__DEV__) {
-    console.log('RAW RESULT IMAGE FIELDS (inat)', {
-      name: commonName,
-      taxonId: taxon.id,
-      iconic_taxon_name: iconic,
-      kingdom,
-      medium_url: taxon.default_photo?.medium_url ?? null,
-      square_url: taxon.default_photo?.square_url ?? null,
-      imageUrl,
-    })
-  }
+function mapGbifResult(r: GbifSearchResult): PickerSpeciesItem {
+  const latinName = r.canonicalName?.trim() || r.scientificName?.trim() || ''
+  const english = r.vernacularNames?.find(
+    (v) => v.language === 'eng' && v.vernacularName?.trim(),
+  )?.vernacularName
+  const commonName = english?.trim() || latinName || 'Unknown'
+  const kingdom: KingdomKey =
+    (r.class ? GBIF_CLASS_TO_KINGDOM[r.class] : undefined) ??
+    (r.kingdom === 'Plantae' ? 'plant' : 'mammal')
+  // Photos resolve separately from Wikipedia/Wikimedia via the reference-image system.
   return {
-    id: `inat-${taxon.id}`,
+    id: r.key ? `gbif-${r.key}` : slugifySpeciesName(latinName || commonName),
     commonName,
-    latinName: taxon.name ?? '',
+    latinName,
     kingdom,
-    taxonomyKingdom,
-    imageUrl,
+    taxonomyKingdom: r.class ?? r.kingdom ?? null,
+    imageUrl: null,
     isDomestic: false,
     gradient: ['#A8D8EA', '#5BC0EB'],
   }
@@ -112,28 +109,6 @@ function filterByKingdom(items: PickerSpeciesItem[], kingdom: PickerKingdomFilte
   return items.filter((item) => matchesPickerKingdom(kingdom, item.kingdom, item.taxonomyKingdom))
 }
 
-const BROWSE_ICONIC: Record<PickerKingdomFilter, string | null> = {
-  all:       null,
-  mammal:    'Mammalia',
-  bird:      'Aves',
-  reptile:   'Reptilia',
-  amphibian: 'Amphibia',
-  fish:      'Actinopterygii',
-  insect:    'Insecta',
-  arachnid:  'Arachnida',
-  mollusc:   'Mollusca',
-  plant:     'Plantae',
-  tree:      'Plantae',
-  flower:    'Plantae',
-  fungi:     'Fungi',
-}
-
-const BROWSE_KEYWORD: Partial<Record<PickerKingdomFilter, string>> = {
-  tree:   'tree',
-  flower: 'wildflower',
-  fungi:  'mushroom',
-}
-
 // When the user types a category/kingdom word, browse that whole category instead
 // of a free-text iNat search. Stops "fungi" matching the coral genus *Fungia*
 // (and similar) and returns the right category with correct tags.
@@ -152,22 +127,23 @@ const CATEGORY_QUERY_TO_FILTER: Record<string, PickerKingdomFilter> = {
   mollusc: 'mollusc', molluscs: 'mollusc', mollusk: 'mollusc', mollusks: 'mollusc',
 }
 
-async function searchInatBrowse(kingdom: PickerKingdomFilter): Promise<PickerSpeciesItem[]> {
-  const iconic = BROWSE_ICONIC[kingdom]
-  const keyword = BROWSE_KEYWORD[kingdom]
-
-  let url = `https://api.inaturalist.org/v1/taxa?order_by=observations_count&order=desc&rank=species&per_page=30`
-  if (iconic) url += `&iconic_taxa=${iconic}`
-  if (keyword) url += `&q=${encodeURIComponent(keyword)}`
-
-  try {
-    const res = await fetch(url)
-    if (!res.ok) return []
-    const json = (await res.json()) as { results?: InatTaxon[] }
-    return (json.results ?? []).map(mapInatTaxon)
-  } catch {
-    return []
-  }
+// Browse uses our own curated Creature roster (fully owned, no external API).
+function browseFromRoster(kingdom: PickerKingdomFilter): PickerSpeciesItem[] {
+  return CREATURE_ROSTER.filter((c) =>
+    matchesPickerKingdom(kingdom, c.kingdom as KingdomKey, c.kingdom),
+  )
+    .slice(0, 30)
+    .map((c) => ({
+      id: c.id,
+      commonName: c.commonName,
+      latinName: c.scientificName,
+      kingdom: c.kingdom as KingdomKey,
+      taxonomyKingdom: c.kingdom,
+      imageUrl: null,
+      isDomestic: false,
+      dexNumber: c.dexNumber,
+      gradient: ['#A8D8EA', '#5BC0EB'] as const,
+    }))
 }
 
 async function searchDomestic(query: string): Promise<PickerSpeciesItem[]> {
@@ -191,16 +167,20 @@ async function searchDomestic(query: string): Promise<PickerSpeciesItem[]> {
   return (data ?? []).map(mapDomesticRow)
 }
 
-async function searchInaturalist(query: string): Promise<PickerSpeciesItem[]> {
+async function searchGbif(query: string): Promise<PickerSpeciesItem[]> {
   const trimmed = query.trim()
   if (trimmed.length < 2) return []
-
-  const url = `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(trimmed)}&per_page=24&rank=species,subspecies,variety,hybrid`
-  const res = await fetch(url)
-  if (!res.ok) return []
-
-  const json = (await res.json()) as { results?: InatTaxon[] }
-  return (json.results ?? []).map(mapInatTaxon)
+  try {
+    const res = await fetch(
+      `https://api.gbif.org/v1/species/search?q=${encodeURIComponent(trimmed)}` +
+        `&rank=SPECIES&status=ACCEPTED&limit=24`,
+    )
+    if (!res.ok) return []
+    const json = (await res.json()) as { results?: GbifSearchResult[] }
+    return (json.results ?? []).map(mapGbifResult)
+  } catch {
+    return []
+  }
 }
 
 export async function searchPickerSpecies(
@@ -212,10 +192,10 @@ export async function searchPickerSpecies(
   const [domestic, wild] = await Promise.all([
     searchDomestic(trimmed),
     categoryFilter
-      ? searchInatBrowse(categoryFilter)
+      ? Promise.resolve(browseFromRoster(categoryFilter))
       : trimmed.length >= 2
-        ? searchInaturalist(trimmed)
-        : searchInatBrowse(kingdomFilter),
+        ? searchGbif(trimmed)
+        : Promise.resolve(browseFromRoster(kingdomFilter)),
   ])
 
   const merged = dedupeItems([...domestic, ...wild])

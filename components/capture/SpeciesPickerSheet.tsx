@@ -20,44 +20,32 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { KingdomBadge, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
+import { CREATURE_ROSTER } from '@/features/home/creature-roster'
 import { SHEET_ENTER_TIMING, SHEET_EXIT_TIMING } from '@/lib/draggable-sheet'
 
 const PER_PAGE = 20
 
-const ICONIC: Partial<Record<KingdomKey, string>> = {
-  mammal:    'Mammalia',
-  bird:      'Aves',
-  reptile:   'Reptilia',
-  amphibian: 'Amphibia',
-  fish:      'Actinopterygii',
-  insect:    'Insecta',
-  arachnid:  'Arachnida',
-  mollusc:   'Mollusca',
-  plant:     'Plantae',
-  tree:      'Plantae',
-  flower:    'Plantae',
-  fungi:     'Fungi',
-}
-
-const INAT_KINGDOM_MAP: Record<string, KingdomKey> = {
+const GBIF_CLASS_TO_KINGDOM: Partial<Record<string, KingdomKey>> = {
   Mammalia:       'mammal',
   Aves:           'bird',
   Reptilia:       'reptile',
   Amphibia:       'amphibian',
   Actinopterygii: 'fish',
+  Chondrichthyes: 'fish',
   Insecta:        'insect',
   Arachnida:      'arachnid',
   Mollusca:       'mollusc',
-  Plantae:        'plant',
-  Fungi:          'fungi',
+  Bivalvia:       'mollusc',
+  Gastropoda:     'mollusc',
 }
 
-interface InatTaxon {
-  id: number
-  name?: string
-  preferred_common_name?: string
-  default_photo?: { medium_url?: string; square_url?: string }
-  iconic_taxon_name?: string
+interface GbifSearchResult {
+  key?: number
+  canonicalName?: string
+  scientificName?: string
+  class?: string
+  kingdom?: string
+  vernacularNames?: { vernacularName?: string; language?: string }[]
 }
 
 export interface PickerSelection {
@@ -76,43 +64,58 @@ interface PickerRow {
   imageUrl: string | null
 }
 
-function mapTaxon(taxon: InatTaxon, fallbackKingdom: KingdomKey | null): PickerRow {
-  const iconic = taxon.iconic_taxon_name ?? ''
-  const kingdom = INAT_KINGDOM_MAP[iconic] ?? fallbackKingdom ?? 'mammal'
-  const commonName = taxon.preferred_common_name?.trim() || taxon.name?.trim() || 'Unknown'
+function mapGbif(r: GbifSearchResult): PickerRow {
+  const latinName = r.canonicalName?.trim() || r.scientificName?.trim() || ''
+  const english = r.vernacularNames?.find(
+    (v) => v.language === 'eng' && v.vernacularName?.trim(),
+  )?.vernacularName
+  const kingdom: KingdomKey =
+    (r.class ? GBIF_CLASS_TO_KINGDOM[r.class] : undefined) ??
+    (r.kingdom === 'Plantae' ? 'plant' : 'mammal')
   return {
-    id: `inat-${taxon.id}`,
-    commonName,
-    latinName: taxon.name ?? '',
+    id: r.key ? `gbif-${r.key}` : latinName,
+    commonName: english?.trim() || latinName || 'Unknown',
+    latinName,
     kingdom,
-    imageUrl: taxon.default_photo?.medium_url ?? taxon.default_photo?.square_url ?? null,
+    // Photo resolves separately from Wikipedia/Wikimedia via the reference-image system.
+    imageUrl: null,
   }
 }
 
+// Empty/short query → browse our own curated Creature roster (fully owned, no API),
+// paginated and filtered by kingdom. A real query → GBIF taxonomy search.
 async function fetchSpeciesPage(
   query: string,
   kingdom: KingdomKey | null,
   page: number,
 ): Promise<{ rows: PickerRow[]; total: number }> {
-  const iconic = kingdom ? ICONIC[kingdom] : null
   const trimmed = query.trim()
 
-  let url: string
-  if (trimmed.length >= 2) {
-    url = `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(trimmed)}&per_page=${PER_PAGE}&page=${page}&rank=species,subspecies,variety`
-  } else {
-    url = `https://api.inaturalist.org/v1/taxa?per_page=${PER_PAGE}&page=${page}&rank=species&order_by=observations_count&order=desc`
+  if (trimmed.length < 2) {
+    const all = CREATURE_ROSTER.filter((c) => !kingdom || (c.kingdom as KingdomKey) === kingdom).map(
+      (c): PickerRow => ({
+        id: c.id,
+        commonName: c.commonName,
+        latinName: c.scientificName,
+        kingdom: c.kingdom as KingdomKey,
+        imageUrl: null,
+      }),
+    )
+    const start = page * PER_PAGE
+    return { rows: all.slice(start, start + PER_PAGE), total: all.length }
   }
-  if (iconic) url += `&iconic_taxa=${iconic}`
 
   try {
-    const res = await fetch(url)
+    const offset = page * PER_PAGE
+    const res = await fetch(
+      `https://api.gbif.org/v1/species/search?q=${encodeURIComponent(trimmed)}` +
+        `&rank=SPECIES&status=ACCEPTED&limit=${PER_PAGE}&offset=${offset}`,
+    )
     if (!res.ok) return { rows: [], total: 0 }
-    const data = (await res.json()) as { results?: InatTaxon[]; total_results?: number }
-    return {
-      rows: (data.results ?? []).map((t) => mapTaxon(t, kingdom)),
-      total: data.total_results ?? 0,
-    }
+    const data = (await res.json()) as { results?: GbifSearchResult[]; count?: number }
+    let rows = (data.results ?? []).map(mapGbif)
+    if (kingdom) rows = rows.filter((r) => r.kingdom === kingdom)
+    return { rows, total: data.count ?? rows.length }
   } catch {
     return { rows: [], total: 0 }
   }
