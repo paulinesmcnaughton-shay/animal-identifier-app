@@ -1,4 +1,5 @@
-import { getDexNumberForSpeciesId } from '@/features/species/dex-number-registry'
+import type { KingdomKey } from '@/design/atoms/KingdomBadge'
+import { resolveGlobalDexNumber } from '@/features/species/dex-number-registry'
 
 export interface CreatureRosterItem {
   id: string
@@ -322,7 +323,7 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = SPECS.map(([commonName, sci
     commonName,
     scientificName,
     kingdom,
-    dexNumber: getDexNumberForSpeciesId(id) ?? '#???',
+    dexNumber: resolveGlobalDexNumber({ commonName, latinName: scientificName, kingdom: kingdom as KingdomKey, lookupId: id }),
     description,
     bonusXp: CREATURE_BONUS_XP,
   }
