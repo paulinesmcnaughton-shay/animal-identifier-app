@@ -14,7 +14,6 @@ export interface CreatureRosterItem {
   dexNumber: string
   description: string
   bonusXp: number
-  heroImage: number
 }
 
 function dexNum(id: string): string {
@@ -30,7 +29,6 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     dexNumber: dexNum('gecko'),
     description: 'Look up — they cling to leaves and branches with sticky toe pads. Active at dusk in warm, humid spots.',
     bonusXp: 100,
-    heroImage: require('@/assets/images/crested_gecko_faq.webp'),
   },
   {
     id: 'fox',
@@ -40,7 +38,6 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     dexNumber: dexNum('fox'),
     description: 'Adaptable and cunning, red foxes thrive across forests, fields, and city parks. Most active at dawn and dusk.',
     bonusXp: 100,
-    heroImage: require('@/assets/images/red-fox-hero.jpg'),
   },
   {
     id: 'monarch',
@@ -50,7 +47,6 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     dexNumber: dexNum('monarch'),
     description: 'One of the great migrators — travels thousands of miles each year. Look for them near milkweed in summer.',
     bonusXp: 100,
-    heroImage: require('@/assets/images/crested-gecko-featured.jpg'),
   },
   {
     id: 'cardinal',
@@ -60,7 +56,6 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     dexNumber: dexNum('cardinal'),
     description: 'The male\'s vivid red plumage is unmistakable. Year-round resident — listen for their loud, clear whistle at dawn.',
     bonusXp: 100,
-    heroImage: require('@/assets/images/crested-gecko-featured.jpg'),
   },
   {
     id: 'frog',
@@ -70,7 +65,6 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     dexNumber: dexNum('frog'),
     description: 'Found clinging to reeds and leaves near still water. Their bright green skin blends perfectly into foliage.',
     bonusXp: 100,
-    heroImage: require('@/assets/images/crested_gecko_faq.webp'),
   },
   {
     id: 'owl',
@@ -80,7 +74,6 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     dexNumber: dexNum('owl'),
     description: 'Silent flier with a heart-shaped face. Hunts by sound alone in total darkness — a true night predator.',
     bonusXp: 100,
-    heroImage: require('@/assets/images/crested-gecko-featured.jpg'),
   },
   {
     id: 'bumblebee',
@@ -90,7 +83,6 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     dexNumber: dexNum('bumblebee'),
     description: 'Vital pollinators with a distinctive buzz. Spot them hovering over flowers in gardens and meadows.',
     bonusXp: 100,
-    heroImage: require('@/assets/images/crested_gecko_faq.webp'),
   },
   {
     id: 'turtle',
@@ -100,7 +92,6 @@ export const CREATURE_ROSTER: CreatureRosterItem[] = [
     dexNumber: dexNum('turtle'),
     description: 'Their domed shell closes completely for protection. Move slowly through leaf litter in moist woodlands.',
     bonusXp: 100,
-    heroImage: require('@/assets/images/crested_gecko_faq.webp'),
   },
 ]
 

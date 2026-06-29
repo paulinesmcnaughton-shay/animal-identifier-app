@@ -36,7 +36,7 @@ export function CreatureStamp({
   onCollect,
   onInfoPress,
 }: CreatureStampProps) {
-  const { id, commonName, scientificName, kingdom, dexNumber, bonusXp, heroImage } = creature
+  const { id, commonName, scientificName, kingdom, dexNumber, bonusXp } = creature
   const router = useRouter()
   const kingdomKey = kingdom.toLowerCase() as KingdomKey
   const { uri, onImageError } = useReferenceImage({
@@ -63,12 +63,18 @@ export function CreatureStamp({
           </Svg>
         ) : null}
         <View style={styles.photo}>
-          <Image
-            source={uri ? { uri } : heroImage}
-            onError={() => onImageError(uri)}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-          />
+          {uri ? (
+            <Image
+              source={{ uri }}
+              onError={() => onImageError(uri)}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+            />
+          ) : (
+            <View style={styles.photoPlaceholder}>
+              <Text style={styles.photoPlaceholderEmoji}>{KINGDOM[kingdomKey]?.emoji ?? '🦎'}</Text>
+            </View>
+          )}
           <View style={styles.kingdomPill}>
             <Text style={styles.kingdomText}>
               {KINGDOM[kingdomKey]?.emoji ?? '🦎'} {kingdom.toUpperCase()}
@@ -206,6 +212,15 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     overflow: 'hidden',
     backgroundColor: 'rgba(30,92,58,0.15)',
+  },
+  photoPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoPlaceholderEmoji: {
+    fontSize: 64,
+    opacity: 0.5,
   },
   kingdomPill: {
     position: 'absolute',

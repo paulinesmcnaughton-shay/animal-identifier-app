@@ -36,6 +36,7 @@ import {
   space,
   type as typeTokens,
 } from '@/design/tokens'
+import { useReferenceImage } from '@/features/species/use-reference-image'
 import { useSpeciesDetail } from '@/features/species/use-species-detail'
 import {
   createSheetPanGesture,
@@ -83,7 +84,6 @@ export interface CreatureInfoData {
   kingdom: string
   description: string
   bonusXp: number
-  heroImage: number
   dexNumber?: string
 }
 
@@ -119,6 +119,13 @@ export function CreatureInfoOverlay({ visible, creature, onClose }: CreatureInfo
 
   const kingdomKey = useMemo(() => kingdomLabelToKey(creature.kingdom), [creature.kingdom])
   const kingdomMeta = KINGDOM[kingdomKey]
+  const { uri: heroUri, onImageError } = useReferenceImage({
+    speciesId: creature.id,
+    commonName: creature.commonName,
+    scientificName: creature.scientificName,
+    kingdom: kingdomKey,
+    dexNum: creature.dexNumber,
+  })
 
   const { species } = useSpeciesDetail({
     id: creature.id,
@@ -262,12 +269,19 @@ export function CreatureInfoOverlay({ visible, creature, onClose }: CreatureInfo
             <View style={styles.profileCardShadow}>
               <View style={styles.profileCard}>
                 <View style={styles.heroArt}>
-                  <Image
-                    source={creature.heroImage}
-                    style={StyleSheet.absoluteFill}
-                    contentFit="cover"
-                    contentPosition="center"
-                  />
+                  {heroUri ? (
+                    <Image
+                      source={{ uri: heroUri }}
+                      onError={() => onImageError(heroUri)}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                      contentPosition="center"
+                    />
+                  ) : (
+                    <View style={styles.heroPlaceholder}>
+                      <Text style={styles.heroPlaceholderEmoji}>{kingdomMeta.emoji}</Text>
+                    </View>
+                  )}
 
                   <View style={[styles.kingdomChip, { backgroundColor: kingdomMeta.bg }]}>
                     <Text style={styles.kingdomChipEmoji}>{kingdomMeta.emoji}</Text>
@@ -404,6 +418,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
+  },
+  heroPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(30,92,58,0.12)',
+  },
+  heroPlaceholderEmoji: {
+    fontSize: 72,
+    opacity: 0.5,
   },
   kingdomChip: {
     position: 'absolute',
