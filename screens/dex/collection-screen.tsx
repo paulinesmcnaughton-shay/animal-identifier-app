@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CollectionStatsCard } from '@/components/collection-stats-card'
 import { DexCollectionEmpty } from '@/components/dex/DexCollectionEmpty'
 import { DexCard, type DexCardSpecies } from '@/components/DexCard'
-import { DEX_COLLECTION_SIZE } from '@/data/dex-collection'
+import { useCatalogCount } from '@/features/dex/use-catalog-count'
 import { KINGDOM, KingdomBadge, type KingdomKey } from '@/design/atoms/KingdomBadge'
 import { contentTopInset, screenLayout } from '@/design/screen-layout'
 import { colors, radius, space, type as typeTokens } from '@/design/tokens'
@@ -72,7 +72,7 @@ const GAP = space[8]
 const SEARCH_DEBOUNCE_MS = 400
 
 const FILTERS: { key: string; label: string; kind: KingdomKey | null }[] = [
-  { key: 'all', label: `All ${DEX_COLLECTION_SIZE}`, kind: null },
+  { key: 'all', label: 'All', kind: null },
   { key: 'mammal', label: 'Mammals', kind: 'mammal' },
   { key: 'bird', label: 'Birds', kind: 'bird' },
   { key: 'insect', label: 'Insects', kind: 'insect' },
@@ -87,6 +87,7 @@ export function CollectionScreen() {
   const { isAuthenticated } = useAuth()
   const { spotsCaptured, streakDays, badgesCount, isLoading, isReady } = useAccountProfile()
   const { dexEntries, isLoading: dexDataLoading } = useUserSightingsData()
+  const catalogCount = useCatalogCount()
 
   const [isDeleteMode, setIsDeleteMode] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<DexCardSpecies | null>(null)
@@ -218,7 +219,7 @@ export function CollectionScreen() {
             contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100 }]}>
             <CollectionStatsCard
               collected={spotsCaptured}
-              total={DEX_COLLECTION_SIZE}
+              total={catalogCount ?? spotsCaptured}
               streakDays={streakDays}
               trophies={badgesCount}
             />
@@ -245,7 +246,8 @@ export function CollectionScreen() {
                         : styles.chipIdle,
                     ]}>
                     <Text style={[styles.chipLabel, active ? styles.chipLabelActive : styles.chipLabelIdle]}>
-                      {kingdom ? `${kingdom.emoji} ` : ''}{f.label}
+                      {kingdom ? `${kingdom.emoji} ` : ''}
+                      {f.key === 'all' ? `All ${dexEntries.length}` : f.label}
                     </Text>
                   </Pressable>
                 )
