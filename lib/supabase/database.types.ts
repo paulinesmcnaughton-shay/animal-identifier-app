@@ -730,6 +730,45 @@ export type Database = {
         }
         Relationships: []
       }
+      species_photo_suggestions: {
+        Row: {
+          created_at: string
+          id: string
+          latin_name: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          species_id: string
+          species_name: string
+          status: string
+          storage_path: string
+          submitted_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          latin_name?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          species_id: string
+          species_name: string
+          status?: string
+          storage_path: string
+          submitted_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          latin_name?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          species_id?: string
+          species_name?: string
+          status?: string
+          storage_path?: string
+          submitted_by?: string | null
+        }
+        Relationships: []
+      }
       wildpanion_waitlist: {
         Row: {
           created_at: string

@@ -29,6 +29,7 @@ import { LocationPickerModal } from '@/components/capture/LocationPickerModal'
 import { useSpeciesDetail } from '@/features/species/use-species-detail'
 import { getSightingPhotoUri } from '@/features/species/get-display-image-uri'
 import { useReferenceImage } from '@/features/species/use-reference-image'
+import { suggestSpeciesPhoto, type SuggestPhotoSource } from '@/features/species/suggest-photo'
 import type { ImageAttribution } from '@/features/species/fetch-stored-reference-image'
 import {
   colors,
@@ -201,8 +202,42 @@ export function SpeciesDetailScreen() {
   const isLowConfidence = confidence !== null && confidence < 0.7
   const showNeedsIdHint = fromCapture && (isNeedsId || isLowConfidence)
 
-  const needsIdLabel = id === 'unknown' ? 'Unknown Species' : 'Needs ID'
+  const isUnidentified = id === 'unknown'
+  // A genuine capture that still needs identifying keeps "Needs ID"; an identified
+  // species we simply have no photo for says "No photo yet" and can be contributed to.
+  const needsIdLabel = isUnidentified
+    ? 'Unknown Species'
+    : fromCapture && isLowConfidence
+      ? 'Needs ID'
+      : 'No photo yet'
   const needsIdEmoji = kingdomMeta?.emoji ?? '❓'
+  const canSuggestPhoto = isNeedsId && !isUnidentified && !isLowConfidence
+
+  const [photoSuggestStatus, setPhotoSuggestStatus] = useState<'idle' | 'submitting' | 'submitted'>('idle')
+  const runPhotoSuggestion = async (source: SuggestPhotoSource) => {
+    setPhotoSuggestStatus('submitting')
+    const result = await suggestSpeciesPhoto({
+      speciesId: id,
+      speciesName: species.commonName,
+      latinName: species.latinName,
+      source,
+    })
+    if (result.status === 'submitted') {
+      setPhotoSuggestStatus('submitted')
+      return
+    }
+    setPhotoSuggestStatus('idle')
+    if (result.status === 'signed-out')
+      Alert.alert('Sign in to help', 'Sign in to suggest a photo for this species.')
+    else if (result.status === 'error') Alert.alert('Could not submit', result.message)
+  }
+  const handleSuggestPhoto = () => {
+    Alert.alert('Share a photo', `Help us add a photo of the ${species.commonName}.`, [
+      { text: 'Take photo', onPress: () => void runPhotoSuggestion('camera') },
+      { text: 'Choose from library', onPress: () => void runPhotoSuggestion('library') },
+      { text: 'Cancel', style: 'cancel' },
+    ])
+  }
 
   const handleBack = () => {
     if (fromCapture) {
@@ -283,6 +318,30 @@ export function SpeciesDetailScreen() {
                   <View style={styles.heroNoImageOverlay}>
                     <Text style={styles.heroNoImageEmoji}>{needsIdEmoji}</Text>
                     <Text style={styles.heroNoImageLabel}>{needsIdLabel}</Text>
+                    {canSuggestPhoto ? (
+                      photoSuggestStatus === 'submitted' ? (
+                        <View style={styles.suggestDone}>
+                          <Ionicons name="checkmark-circle" size={14} color={colors.card} />
+                          <Text style={styles.suggestDoneText}>Thanks! Under review</Text>
+                        </View>
+                      ) : (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Suggest a photo of the ${species.commonName}`}
+                          onPress={handleSuggestPhoto}
+                          disabled={photoSuggestStatus === 'submitting'}
+                          style={({ pressed }) => [styles.suggestBtn, pressed && styles.suggestBtnPressed]}>
+                          {photoSuggestStatus === 'submitting' ? (
+                            <ActivityIndicator size="small" color={colors.card} />
+                          ) : (
+                            <>
+                              <Ionicons name="camera" size={14} color={colors.card} />
+                              <Text style={styles.suggestBtnText}>Suggest a photo</Text>
+                            </>
+                          )}
+                        </Pressable>
+                      )
+                    ) : null}
                   </View>
                 ) : null}
               </>
@@ -862,6 +921,39 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.75)',
     letterSpacing: 1.5,
     textAlign: 'center',
+  },
+  suggestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[8],
+    marginTop: space[4],
+    paddingHorizontal: space[16],
+    paddingVertical: space[8],
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.34)',
+    minHeight: 36,
+  },
+  suggestBtnPressed: {
+    opacity: 0.7,
+    transform: [{ translateY: 1 }],
+  },
+  suggestBtnText: {
+    fontSize: typeTokens.size.caption,
+    fontWeight: typeTokens.body.weights.extra,
+    color: colors.card,
+  },
+  suggestDone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[4],
+    marginTop: space[4],
+  },
+  suggestDoneText: {
+    fontSize: typeTokens.size.caption,
+    fontWeight: typeTokens.body.weights.bold,
+    color: colors.card,
   },
   heroCredit: {
     position: 'absolute',
