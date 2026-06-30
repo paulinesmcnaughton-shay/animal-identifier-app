@@ -94,10 +94,22 @@ async function fromSpeciesTable(i: Input): Promise<string[]> {
   return []
 }
 
+// Wikimedia throttles bursty callers with 429/503. Back off and retry so a
+// transient rate-limit never looks like "this species has no photo".
+async function politeFetch(url: string, init?: RequestInit, retries = 3): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, init)
+    if ((res.status !== 429 && res.status !== 503) || attempt >= retries) return res
+    const retryAfter = Number(res.headers.get('retry-after')) * 1000
+    const wait = retryAfter > 0 ? retryAfter : 1000 * 2 ** attempt + Math.floor(Math.random() * 400)
+    await new Promise((r) => setTimeout(r, wait))
+  }
+}
+
 async function fromWikipedia(query: string): Promise<string[]> {
   if (!query) return []
   const title = query.trim().replace(/ /g, '_')
-  const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}?redirect=true`, {
+  const res = await politeFetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}?redirect=true`, {
     headers: { 'User-Agent': UA, Accept: 'application/json' },
   })
   if (!res.ok) throw new Error(`wiki ${res.status}`)
@@ -114,7 +126,7 @@ async function fromWikipedia(query: string): Promise<string[]> {
 
 async function fromWikimedia(query: string): Promise<string[]> {
   if (!query) return []
-  const res = await fetch(
+  const res = await politeFetch(
     `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}` +
       `&gsrnamespace=6&gsrlimit=3&prop=imageinfo&iiprop=url&iiurlwidth=640&format=json&origin=*`,
     { headers: { 'User-Agent': UA } },
@@ -135,7 +147,7 @@ async function fromWikimedia(query: string): Promise<string[]> {
 // but Wikipedia has a page per breed. Querying "Akita dog breed" finds it.
 async function fromWikipediaSearch(query: string): Promise<string[]> {
   if (!query) return []
-  const res = await fetch(
+  const res = await politeFetch(
     `https://en.wikipedia.org/w/api.php?action=query&generator=search` +
       `&gsrsearch=${encodeURIComponent(query)}&gsrlimit=3&prop=pageimages` +
       `&piprop=thumbnail&pithumbsize=500&format=json&origin=*`,
@@ -188,7 +200,7 @@ async function fetchAttribution(imageUrl: string): Promise<Attribution> {
   const file = commonsFileName(imageUrl)
   if (!file) return EMPTY_ATTRIBUTION
   try {
-    const res = await fetch(
+    const res = await politeFetch(
       `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(`File:${file}`)}` +
         `&prop=imageinfo&iiprop=extmetadata&format=json&origin=*`,
       { headers: { 'User-Agent': UA } },

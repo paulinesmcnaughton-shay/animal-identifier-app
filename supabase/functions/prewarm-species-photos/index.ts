@@ -12,7 +12,10 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE)
 const RESOLVE_URL = `${SUPABASE_URL}/functions/v1/resolve-species-image`
-const CONCURRENCY = 10
+// Gentle by design — Wikimedia throttles bursts. Low concurrency + a pause
+// between waves keeps us well under their rate limits.
+const CONCURRENCY = 3
+const WAVE_PAUSE_MS = 500
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -62,17 +65,24 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}))
     const limit = Math.min(120, Math.max(1, Number(body.limit) || 50))
+    const kingdoms: string[] | null = Array.isArray(body.kingdoms) && body.kingdoms.length ? body.kingdoms : null
 
-    const { data: rows, error } = await admin
+    const remainingQuery = () => {
+      let q = admin.from('species').select('id', { count: 'exact', head: true }).is('image_checked_at', null)
+      if (kingdoms) q = q.in('kingdom', kingdoms)
+      return q
+    }
+
+    let listQuery = admin
       .from('species')
       .select('id,slug,common_name,latin_name,kingdom,dex_number')
       .is('image_checked_at', null)
-      .order('dex_number', { ascending: true })
-      .limit(limit)
+    if (kingdoms) listQuery = listQuery.in('kingdom', kingdoms)
+    const { data: rows, error } = await listQuery.order('dex_number', { ascending: true }).limit(limit)
     if (error) return json({ error: error.message }, 500)
     const batch: SpeciesRow[] = rows ?? []
     if (batch.length === 0) {
-      const { count } = await admin.from('species').select('id', { count: 'exact', head: true }).is('image_checked_at', null)
+      const { count } = await remainingQuery()
       return json({ processed: 0, found: 0, remaining: count ?? 0, done: true })
     }
 
@@ -87,12 +97,10 @@ Deno.serve(async (req) => {
         ),
       )
       found += results.filter(Boolean).length
+      if (i + CONCURRENCY < batch.length) await new Promise((r) => setTimeout(r, WAVE_PAUSE_MS))
     }
 
-    const { count: remaining } = await admin
-      .from('species')
-      .select('id', { count: 'exact', head: true })
-      .is('image_checked_at', null)
+    const { count: remaining } = await remainingQuery()
     return json({ processed: batch.length, found, remaining: remaining ?? 0, done: (remaining ?? 0) === 0 })
   } catch (e) {
     return json({ error: String(e) }, 500)
