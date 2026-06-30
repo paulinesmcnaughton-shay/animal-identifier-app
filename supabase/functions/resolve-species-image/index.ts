@@ -162,6 +162,54 @@ function petKindFor(commonName: string, scientificName: string): 'dog' | 'cat' {
   return 'dog'
 }
 
+// ─── Attribution (CC-BY requires crediting author + license) ───────────────────
+
+interface Attribution {
+  author: string | null
+  license: string | null
+  sourceUrl: string | null
+}
+
+const EMPTY_ATTRIBUTION: Attribution = { author: null, license: null, sourceUrl: null }
+
+function stripTags(html: string): string {
+  return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+}
+
+// Wikipedia & Wikimedia images are Commons-hosted on upload.wikimedia.org. Pull the
+// File: name out of the URL so we can look up its author + license on Commons.
+function commonsFileName(url: string): string | null {
+  const m = url.match(/\/commons\/(?:thumb\/)?[0-9a-fA-F]\/[0-9a-fA-F]{2}\/([^/]+?)(?:\/\d+px-[^/]+)?$/)
+  if (!m) return null
+  try { return decodeURIComponent(m[1]) } catch { return m[1] }
+}
+
+async function fetchAttribution(imageUrl: string): Promise<Attribution> {
+  const file = commonsFileName(imageUrl)
+  if (!file) return EMPTY_ATTRIBUTION
+  try {
+    const res = await fetch(
+      `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(`File:${file}`)}` +
+        `&prop=imageinfo&iiprop=extmetadata&format=json&origin=*`,
+      { headers: { 'User-Agent': UA } },
+    )
+    if (!res.ok) return EMPTY_ATTRIBUTION
+    const d = await res.json() as {
+      query?: { pages?: Record<string, { imageinfo?: { extmetadata?: Record<string, { value?: string }> }[] }> }
+    }
+    const meta = Object.values(d.query?.pages ?? {})[0]?.imageinfo?.[0]?.extmetadata ?? {}
+    const author = meta.Artist?.value ? stripTags(meta.Artist.value) : null
+    const license = meta.LicenseShortName?.value ? stripTags(meta.LicenseShortName.value) : null
+    return {
+      author: author || null,
+      license: license || null,
+      sourceUrl: `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(file)}`,
+    }
+  } catch {
+    return EMPTY_ATTRIBUTION
+  }
+}
+
 // ─── Verify + download + store ─────────────────────────────────────────────────
 
 async function fetchImageBytes(url: string): Promise<{ bytes: Uint8Array; contentType: string } | null> {
@@ -192,6 +240,7 @@ async function storeAndCache(
   img: { bytes: Uint8Array; contentType: string },
   source: string,
   sourceUrl: string,
+  attribution: Attribution,
 ): Promise<string> {
   // Path includes the source URL so a re-resolve with a different image yields a
   // NEW public URL — clients never serve a stale cached copy after we fix a source.
@@ -211,6 +260,9 @@ async function storeAndCache(
       taxon_id: input.taxonId != null ? String(input.taxonId) : null,
       image_url: publicUrl,
       source,
+      attribution_author: attribution.author,
+      attribution_license: attribution.license,
+      attribution_source_url: attribution.sourceUrl,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'cache_key' },
@@ -243,10 +295,21 @@ Deno.serve(async (req: Request) => {
   try {
     const { data: cached } = await admin
       .from('species_image_cache')
-      .select('image_url, source')
+      .select('image_url, source, attribution_author, attribution_license, attribution_source_url')
       .eq('cache_key', cacheKey)
       .maybeSingle()
-    if (cached?.image_url) return json({ uri: cached.image_url, source: cached.source, reason: 'cache' })
+    if (cached?.image_url) {
+      return json({
+        uri: cached.image_url,
+        source: cached.source,
+        reason: 'cache',
+        attribution: {
+          author: cached.attribution_author,
+          license: cached.attribution_license,
+          sourceUrl: cached.attribution_source_url,
+        },
+      })
+    }
   } catch { /* fall through to resolve */ }
 
   const isDomestic = input.isDomestic === true || /^#?D\d/i.test(norm(input.dexNum))
@@ -282,12 +345,13 @@ Deno.serve(async (req: Request) => {
     for (const url of urls) {
       const img = await fetchImageBytes(url)
       if (!img) continue
+      const attribution = await fetchAttribution(url)
       try {
-        const stored = await storeAndCache(input, cacheKey, img, attempt.source, url)
-        return json({ uri: stored, source: attempt.source, reason: attempt.source })
+        const stored = await storeAndCache(input, cacheKey, img, attempt.source, url, attribution)
+        return json({ uri: stored, source: attempt.source, reason: attempt.source, attribution })
       } catch (e) {
         // storage failed — still return the verified external URL so the UI shows something
-        return json({ uri: url, source: attempt.source, reason: `${attempt.source}_nostore`, warn: String(e) })
+        return json({ uri: url, source: attempt.source, reason: `${attempt.source}_nostore`, attribution, warn: String(e) })
       }
     }
   }

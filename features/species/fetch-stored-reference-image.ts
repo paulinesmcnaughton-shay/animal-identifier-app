@@ -15,9 +15,20 @@ const negativeCache = new Map<string, number>()
 const inFlight = new Map<string, Promise<StoredImage | null>>()
 const NEGATIVE_TTL_MS = 5 * 60 * 1000
 
+export interface ImageAttribution {
+  author: string | null
+  license: string | null
+  sourceUrl: string | null
+}
+
 export interface StoredImage {
   uri: string
   source: ReferenceImageSource
+  attribution: ImageAttribution | null
+}
+
+function hasAnyAttribution(a: ImageAttribution | null): boolean {
+  return !!a && !!(a.author || a.license || a.sourceUrl)
 }
 
 const norm = (s?: string | null): string => (s ?? '').trim()
@@ -43,8 +54,9 @@ function peek(key: string): StoredImage | null | undefined {
 
 /**
  * Resolve the permanent, owned reference image for a species via the
- * `resolve-species-image` edge function (DB → domestic → iNat → Wikipedia →
- * Wikimedia → Google, verified + copied into Supabase Storage). Returns a CDN URL.
+ * `resolve-species-image` edge function (DB → domestic → Wikipedia → Wikimedia
+ * Commons, verified + copied into Supabase Storage). Returns a CDN URL + the
+ * CC attribution (author/license/source) for credit display.
  */
 export async function resolveStoredImage(input: ReferenceImageInput): Promise<StoredImage | null> {
   const key = clientKey(input)
@@ -73,7 +85,9 @@ export async function resolveStoredImage(input: ReferenceImageInput): Promise<St
       if (error) throw error
       const uri = typeof data?.uri === 'string' ? data.uri : null
       const source = (data?.source ?? null) as ReferenceImageSource | null
-      const result = uri ? { uri, source: source ?? 'database' } : null
+      const rawAttr = (data?.attribution ?? null) as ImageAttribution | null
+      const attribution = hasAnyAttribution(rawAttr) ? rawAttr : null
+      const result = uri ? { uri, source: source ?? 'database', attribution } : null
       if (result) storedCache.set(key, result)
       else negativeCache.set(key, Date.now()) // genuinely nothing found — short TTL
       return result
@@ -92,6 +106,7 @@ export async function resolveStoredImage(input: ReferenceImageInput): Promise<St
 export interface StoredImageResult {
   uri: string | null
   source: ReferenceImageSource | null
+  attribution: ImageAttribution | null
   isResolving: boolean
 }
 
@@ -142,5 +157,10 @@ export function useStoredReferenceImage(input: ReferenceImageInput): StoredImage
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, hasIdentity])
 
-  return { uri: value?.uri ?? null, source: value?.source ?? null, isResolving }
+  return {
+    uri: value?.uri ?? null,
+    source: value?.source ?? null,
+    attribution: value?.attribution ?? null,
+    isResolving,
+  }
 }

@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import * as Location from 'expo-location'
 import { router, useLocalSearchParams } from 'expo-router'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {
@@ -29,6 +29,7 @@ import { LocationPickerModal } from '@/components/capture/LocationPickerModal'
 import { useSpeciesDetail } from '@/features/species/use-species-detail'
 import { getSightingPhotoUri } from '@/features/species/get-display-image-uri'
 import { useReferenceImage } from '@/features/species/use-reference-image'
+import type { ImageAttribution } from '@/features/species/fetch-stored-reference-image'
 import {
   colors,
   profileCardShadow as profileCardShadowStyle,
@@ -36,6 +37,12 @@ import {
   space,
   type as typeTokens,
 } from '@/design/tokens'
+
+// CC-BY credit shown over Wikimedia photos: "Photo: <author> · <license>".
+function formatCredit(a: ImageAttribution): string {
+  const parts = [a.author, a.license].filter(Boolean)
+  return `Photo: ${parts.length ? parts.join(' · ') : 'Wikimedia Commons'}`
+}
 
 const RARITY_BADGE_BG: Record<string, string> = {
   Rare: colors.sun,
@@ -114,7 +121,12 @@ export function SpeciesDetailScreen() {
   // detail image is identical to the card (not a different iNat photo). Only the
   // domestic registry image is passed as an authoritative override; wild species
   // resolve purely from identity (commonName/latin/kingdom) → owned stored image.
-  const { uri: heroDisplayUri, isResolving: isHeroResolving, onImageError: onHeroError } = useReferenceImage(
+  const {
+    uri: heroDisplayUri,
+    attribution: heroAttribution,
+    isResolving: isHeroResolving,
+    onImageError: onHeroError,
+  } = useReferenceImage(
     {
       commonName: species.commonName,
       scientificName: species.latinName,
@@ -275,6 +287,20 @@ export function SpeciesDetailScreen() {
                 ) : null}
               </>
             )}
+            {heroDisplayUri && heroAttribution ? (
+              <Pressable
+                style={styles.heroCredit}
+                accessibilityRole={heroAttribution.sourceUrl ? 'link' : 'text'}
+                accessibilityLabel={`Photo credit: ${formatCredit(heroAttribution)}`}
+                onPress={() => {
+                  if (heroAttribution.sourceUrl) void Linking.openURL(heroAttribution.sourceUrl)
+                }}>
+                <Ionicons name="information-circle-outline" size={11} color="rgba(255,255,255,0.85)" />
+                <Text style={styles.heroCreditText} numberOfLines={1}>
+                  {formatCredit(heroAttribution)}
+                </Text>
+              </Pressable>
+            ) : null}
 
             <View style={[styles.kingdomChip, { backgroundColor: kingdomMeta?.bg ?? colors.plum }]}>
               <Text style={styles.kingdomChipEmoji}>{kingdomMeta?.emoji ?? '🌿'}</Text>
@@ -836,6 +862,24 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.75)',
     letterSpacing: 1.5,
     textAlign: 'center',
+  },
+  heroCredit: {
+    position: 'absolute',
+    left: space[8],
+    bottom: space[8],
+    maxWidth: '80%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: radius.sm,
+    paddingHorizontal: space[8],
+    paddingVertical: 3,
+  },
+  heroCreditText: {
+    fontSize: 10,
+    fontWeight: typeTokens.body.weights.medium,
+    color: 'rgba(255,255,255,0.85)',
   },
   needsIdBanner: {
     flexDirection: 'row',

@@ -8,12 +8,14 @@ import {
   type ReferenceImageInput,
   type ReferenceImageSource,
 } from '@/features/species/resolve-reference-image'
-import { useStoredReferenceImage } from '@/features/species/fetch-stored-reference-image'
+import { useStoredReferenceImage, type ImageAttribution } from '@/features/species/fetch-stored-reference-image'
 
 export interface UseReferenceImageResult {
   /** The reference image to display, or null → caller renders its gradient/placeholder. */
   uri: string | null
   source: ReferenceImageSource | null
+  /** CC attribution for the resolved photo (Wikimedia), or null. Show this credit. */
+  attribution: ImageAttribution | null
   isResolving: boolean
   /**
    * Wire this to the rendered <Image onError>. When the chosen URL fails to LOAD
@@ -79,10 +81,13 @@ export function useReferenceImage(
   const storedInput: ReferenceImageInput = needsStored
     ? input
     : { ...input, commonName: '', scientificName: null }
-  const { uri: storedRaw, source: storedSource, isResolving } = useStoredReferenceImage(storedInput)
+  const { uri: storedRaw, source: storedSource, attribution: storedAttribution, isResolving } =
+    useStoredReferenceImage(storedInput)
   const storedUri = storedRaw && !failedUris.has(storedRaw) ? storedRaw : null
 
   const uri = preResolved?.uri ?? storedUri
+  // Attribution applies only when we're showing the resolved (Wikimedia) photo.
+  const attribution = preResolved ? null : storedUri ? storedAttribution : null
   const source: ReferenceImageSource | null = preResolved
     ? preResolved.source
     : storedUri
@@ -93,7 +98,7 @@ export function useReferenceImage(
 
   useReferenceImagePipelineLog({ input, debug, preResolvedSource: preResolved?.source ?? null, storedUri, storedSource, uri, source, isResolving })
 
-  return { uri, source, isResolving, onImageError }
+  return { uri, source, attribution, isResolving, onImageError }
 }
 
 const EMPTY_SET: ReadonlySet<string> = new Set()
