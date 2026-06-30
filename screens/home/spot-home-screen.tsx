@@ -259,7 +259,7 @@ export function SpotHomeScreen() {
           />
         </View>
         <View style={styles.wildpanionGap}>
-          <WildpanionCard />
+          <WildpanionCard onPress={() => router.push('/wildpanion')} />
         </View>
       </ScrollView>
 
