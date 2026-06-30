@@ -167,6 +167,51 @@ async function searchDomestic(query: string): Promise<PickerSpeciesItem[]> {
   return (data ?? []).map(mapDomesticRow)
 }
 
+// The persisted GBIF catalog (public.species) — the authoritative, searchable
+// source with stable dex numbers. Animal kingdoms only (8 keys).
+const CATALOG_KINGDOMS = new Set<string>([
+  'mammal', 'bird', 'reptile', 'amphibian', 'fish', 'insect', 'arachnid', 'mollusc',
+])
+
+interface CatalogRow {
+  id: string
+  common_name: string
+  latin_name: string | null
+  kingdom: string | null
+  dex_number: string | null
+  image_url: string | null
+}
+
+function mapCatalogRow(row: CatalogRow): PickerSpeciesItem {
+  const kingdom = (row.kingdom && CATALOG_KINGDOMS.has(row.kingdom) ? row.kingdom : 'mammal') as KingdomKey
+  return {
+    id: row.id,
+    commonName: row.common_name,
+    latinName: row.latin_name ?? '',
+    kingdom,
+    taxonomyKingdom: row.kingdom,
+    imageUrl: row.image_url,
+    isDomestic: false,
+    dexNumber: row.dex_number ?? undefined,
+    gradient: ['#A8D8EA', '#5BC0EB'],
+  }
+}
+
+const CATALOG_COLUMNS = 'id,common_name,latin_name,kingdom,dex_number,image_url'
+
+async function searchCatalog(query: string, kingdomFilter: PickerKingdomFilter): Promise<PickerSpeciesItem[]> {
+  const supabase = getSupabaseClient()
+  if (!supabase) return []
+  const trimmed = query.trim()
+  let request = supabase.from('species').select(CATALOG_COLUMNS)
+  if (trimmed.length >= 2)
+    request = request.or(`common_name.ilike.%${trimmed}%,latin_name.ilike.%${trimmed}%`)
+  if (CATALOG_KINGDOMS.has(kingdomFilter)) request = request.eq('kingdom', kingdomFilter)
+  const { data, error } = await request.order('dex_number').limit(48)
+  if (error) return []
+  return (data ?? []).map(mapCatalogRow)
+}
+
 async function searchGbif(query: string): Promise<PickerSpeciesItem[]> {
   const trimmed = query.trim()
   if (trimmed.length < 2) return []
@@ -183,6 +228,30 @@ async function searchGbif(query: string): Promise<PickerSpeciesItem[]> {
   }
 }
 
+// Wild source priority: our persisted catalog first (stable dex numbers, owned),
+// then GBIF live for anything not yet in the catalog, then the roster as a
+// last-resort browse (offline / catalog still warming).
+async function resolveWild(
+  trimmed: string,
+  kingdomFilter: PickerKingdomFilter,
+  categoryFilter: PickerKingdomFilter | undefined,
+): Promise<PickerSpeciesItem[]> {
+  // Non-animal category words (fungi/plant/tree/flower) aren't in the catalog.
+  if (categoryFilter && !CATALOG_KINGDOMS.has(categoryFilter)) return browseFromRoster(categoryFilter)
+
+  const effectiveFilter = categoryFilter ?? kingdomFilter
+  const catalog = await searchCatalog(trimmed, effectiveFilter)
+  // A specific query that the catalog can't satisfy → reach out to GBIF live.
+  if (trimmed.length >= 2 && catalog.length < 8) {
+    const gbif = await searchGbif(trimmed)
+    const merged = dedupeItems([...catalog, ...gbif])
+    if (merged.length > 0) return merged
+  }
+  if (catalog.length > 0) return catalog
+  // Catalog empty (e.g. still warming) — fall back to the owned roster.
+  return browseFromRoster(effectiveFilter)
+}
+
 export async function searchPickerSpecies(
   query: string,
   kingdomFilter: PickerKingdomFilter,
@@ -191,11 +260,7 @@ export async function searchPickerSpecies(
   const categoryFilter = CATEGORY_QUERY_TO_FILTER[trimmed.toLowerCase()]
   const [domestic, wild] = await Promise.all([
     searchDomestic(trimmed),
-    categoryFilter
-      ? Promise.resolve(browseFromRoster(categoryFilter))
-      : trimmed.length >= 2
-        ? searchGbif(trimmed)
-        : Promise.resolve(browseFromRoster(kingdomFilter)),
+    resolveWild(trimmed, kingdomFilter, categoryFilter),
   ])
 
   const merged = dedupeItems([...domestic, ...wild])
