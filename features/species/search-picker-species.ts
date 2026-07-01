@@ -206,6 +206,20 @@ function mapCatalogRow(row: CatalogRow): PickerSpeciesItem {
 
 const CATALOG_COLUMNS = 'id,common_name,latin_name,kingdom,dex_number,image_url'
 
+// Relevance: a whole-word / prefix match ("African Lion" for "lion") beats a
+// mid-word substring ("Dandelion"). Rows arrive pre-sorted by commonness, so a
+// stable sort by this tier keeps the most-observed species first within a tier.
+function relevanceTier(item: PickerSpeciesItem, q: string): number {
+  const name = item.commonName.toLowerCase()
+  const latin = item.latinName.toLowerCase()
+  if (name === q || latin === q) return 0
+  const wordBoundary = new RegExp(`\\b${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
+  // Any whole-word match (prefix or mid-name) shares a tier so the most-observed
+  // species wins: "African Lion" (18k records) outranks "Lion Shield".
+  if (wordBoundary.test(name) || wordBoundary.test(latin)) return 1
+  return 2
+}
+
 async function searchCatalog(query: string, kingdomFilter: PickerKingdomFilter): Promise<PickerSpeciesItem[]> {
   const supabase = getSupabaseClient()
   if (!supabase) return []
@@ -215,9 +229,18 @@ async function searchCatalog(query: string, kingdomFilter: PickerKingdomFilter):
     request = request.or(`common_name.ilike.%${trimmed}%,latin_name.ilike.%${trimmed}%`)
   const catKingdom = catalogKingdomFor(kingdomFilter)
   if (catKingdom) request = request.eq('kingdom', catKingdom)
-  const { data, error } = await request.order('dex_number').limit(48)
+  // Most-observed (lowest dex) first — this is the browse order and the base
+  // ranking that relevance tiers refine for text queries.
+  const { data, error } = await request.order('dex_number').limit(60)
   if (error) return []
-  return (data ?? []).map(mapCatalogRow)
+  const items = (data ?? []).map(mapCatalogRow)
+  if (trimmed.length < 2) return items.slice(0, 48)
+  const q = trimmed.toLowerCase()
+  return items
+    .map((item, i) => ({ item, tier: relevanceTier(item, q), i }))
+    .sort((a, b) => a.tier - b.tier || a.i - b.i)
+    .slice(0, 48)
+    .map((x) => x.item)
 }
 
 async function searchGbif(query: string): Promise<PickerSpeciesItem[]> {
