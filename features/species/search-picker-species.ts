@@ -168,10 +168,17 @@ async function searchDomestic(query: string): Promise<PickerSpeciesItem[]> {
 }
 
 // The persisted GBIF catalog (public.species) — the authoritative, searchable
-// source with stable dex numbers. Animal kingdoms only (8 keys).
+// source with stable dex numbers. Animals + fungi + plants.
 const CATALOG_KINGDOMS = new Set<string>([
   'mammal', 'bird', 'reptile', 'amphibian', 'fish', 'insect', 'arachnid', 'mollusc',
+  'fungi', 'plant',
 ])
+
+// Tree/flower are stored under 'plant' in the catalog — map filters accordingly.
+function catalogKingdomFor(filter: string): string | null {
+  if (filter === 'tree' || filter === 'flower') return 'plant'
+  return CATALOG_KINGDOMS.has(filter) ? filter : null
+}
 
 interface CatalogRow {
   id: string
@@ -206,7 +213,8 @@ async function searchCatalog(query: string, kingdomFilter: PickerKingdomFilter):
   let request = supabase.from('species').select(CATALOG_COLUMNS)
   if (trimmed.length >= 2)
     request = request.or(`common_name.ilike.%${trimmed}%,latin_name.ilike.%${trimmed}%`)
-  if (CATALOG_KINGDOMS.has(kingdomFilter)) request = request.eq('kingdom', kingdomFilter)
+  const catKingdom = catalogKingdomFor(kingdomFilter)
+  if (catKingdom) request = request.eq('kingdom', catKingdom)
   const { data, error } = await request.order('dex_number').limit(48)
   if (error) return []
   return (data ?? []).map(mapCatalogRow)
@@ -236,8 +244,8 @@ async function resolveWild(
   kingdomFilter: PickerKingdomFilter,
   categoryFilter: PickerKingdomFilter | undefined,
 ): Promise<PickerSpeciesItem[]> {
-  // Non-animal category words (fungi/plant/tree/flower) aren't in the catalog.
-  if (categoryFilter && !CATALOG_KINGDOMS.has(categoryFilter)) return browseFromRoster(categoryFilter)
+  // Category words we can't serve from the catalog fall back to the roster.
+  if (categoryFilter && !catalogKingdomFor(categoryFilter)) return browseFromRoster(categoryFilter)
 
   const effectiveFilter = categoryFilter ?? kingdomFilter
   const catalog = await searchCatalog(trimmed, effectiveFilter)
