@@ -1,0 +1,38 @@
+-- Expand domestic_species beyond dog/cat breeds: rabbit breeds + common pet
+-- bird species, so "Pets" search/browse actually covers what people keep.
+insert into domestic_species (common_name, latin_name, dex_number, kingdom, speed, stamina, size, rarity, lifespan, diet, top_speed, region) values
+-- Rabbit breeds (Oryctolagus cuniculus)
+('Holland Lop', 'Oryctolagus cuniculus', 'D082', 'Mammalia', 35, 50, 25, 30, '7-14 years', 'Herbivore', '35 km/h', 'Worldwide'),
+('Netherland Dwarf', 'Oryctolagus cuniculus', 'D083', 'Mammalia', 38, 45, 15, 35, '10-12 years', 'Herbivore', '38 km/h', 'Worldwide'),
+('Mini Rex', 'Oryctolagus cuniculus', 'D084', 'Mammalia', 36, 48, 22, 28, '5-10 years', 'Herbivore', '36 km/h', 'Worldwide'),
+('Lionhead Rabbit', 'Oryctolagus cuniculus', 'D085', 'Mammalia', 34, 46, 20, 32, '7-9 years', 'Herbivore', '34 km/h', 'Worldwide'),
+('Flemish Giant', 'Oryctolagus cuniculus', 'D086', 'Mammalia', 30, 55, 85, 40, '5-8 years', 'Herbivore', '30 km/h', 'Worldwide'),
+('Dutch Rabbit', 'Oryctolagus cuniculus', 'D087', 'Mammalia', 37, 50, 28, 25, '5-8 years', 'Herbivore', '37 km/h', 'Worldwide'),
+('English Angora', 'Oryctolagus cuniculus', 'D088', 'Mammalia', 32, 47, 30, 42, '7-12 years', 'Herbivore', '32 km/h', 'Worldwide'),
+('Rex Rabbit', 'Oryctolagus cuniculus', 'D089', 'Mammalia', 36, 48, 45, 30, '5-6 years', 'Herbivore', '36 km/h', 'Worldwide'),
+('Himalayan Rabbit', 'Oryctolagus cuniculus', 'D090', 'Mammalia', 35, 46, 20, 33, '7-9 years', 'Herbivore', '35 km/h', 'Worldwide'),
+('Mini Lop', 'Oryctolagus cuniculus', 'D091', 'Mammalia', 34, 47, 30, 27, '5-10 years', 'Herbivore', '34 km/h', 'Worldwide'),
+('American Rabbit', 'Oryctolagus cuniculus', 'D092', 'Mammalia', 36, 52, 50, 45, '5-8 years', 'Herbivore', '36 km/h', 'Worldwide'),
+('Californian Rabbit', 'Oryctolagus cuniculus', 'D093', 'Mammalia', 37, 53, 48, 30, '5-10 years', 'Herbivore', '37 km/h', 'Worldwide'),
+('Harlequin Rabbit', 'Oryctolagus cuniculus', 'D094', 'Mammalia', 38, 50, 35, 38, '5-8 years', 'Herbivore', '38 km/h', 'Worldwide'),
+('Polish Rabbit', 'Oryctolagus cuniculus', 'D095', 'Mammalia', 36, 44, 12, 40, '5-6 years', 'Herbivore', '36 km/h', 'Worldwide'),
+('Silver Fox Rabbit', 'Oryctolagus cuniculus', 'D096', 'Mammalia', 35, 51, 42, 48, '8-10 years', 'Herbivore', '35 km/h', 'Worldwide'),
+('Mixed Breed Rabbit', 'Oryctolagus cuniculus', 'D097', 'Mammalia', 35, 48, 30, 10, '5-10 years', 'Herbivore', '35 km/h', 'Worldwide'),
+-- Pet birds
+('Budgerigar', 'Melopsittacus undulatus', 'D098', 'Aves', 40, 55, 8, 15, '5-10 years', 'Seeds & Fruit', '40 km/h', 'Worldwide'),
+('Cockatiel', 'Nymphicus hollandicus', 'D099', 'Aves', 45, 58, 15, 20, '15-20 years', 'Seeds & Fruit', '45 km/h', 'Worldwide'),
+('African Grey Parrot', 'Psittacus erithacus', 'D100', 'Aves', 40, 60, 30, 55, '40-60 years', 'Seeds, Nuts & Fruit', '40 km/h', 'Worldwide'),
+('Scarlet Macaw', 'Ara macao', 'D101', 'Aves', 55, 65, 55, 60, '40-50 years', 'Fruit, Nuts & Seeds', '55 km/h', 'Worldwide'),
+('Blue-And-Gold Macaw', 'Ara ararauna', 'D102', 'Aves', 55, 65, 58, 58, '30-35 years', 'Fruit, Nuts & Seeds', '55 km/h', 'Worldwide'),
+('Sun Conure', 'Aratinga solstitialis', 'D103', 'Aves', 42, 55, 18, 45, '15-20 years', 'Fruit & Seeds', '42 km/h', 'Worldwide'),
+('Green-Cheeked Conure', 'Pyrrhura molinae', 'D104', 'Aves', 40, 52, 14, 30, '10-15 years', 'Fruit & Seeds', '40 km/h', 'Worldwide'),
+('Umbrella Cockatoo', 'Cacatua alba', 'D105', 'Aves', 45, 58, 45, 50, '40-60 years', 'Fruit, Nuts & Seeds', '45 km/h', 'Worldwide'),
+('Peach-Faced Lovebird', 'Agapornis roseicollis', 'D106', 'Aves', 42, 50, 10, 25, '10-15 years', 'Seeds & Fruit', '42 km/h', 'Worldwide'),
+('Domestic Canary', 'Serinus canaria domestica', 'D107', 'Aves', 35, 50, 6, 18, '8-10 years', 'Granivore', '35 km/h', 'Worldwide'),
+('Zebra Finch', 'Taeniopygia guttata', 'D108', 'Aves', 33, 48, 4, 15, '3-7 years', 'Granivore', '33 km/h', 'Worldwide'),
+('Indian Ringneck Parakeet', 'Psittacula krameri', 'D109', 'Aves', 48, 55, 20, 30, '20-30 years', 'Fruit & Seeds', '48 km/h', 'Worldwide'),
+('Eclectus Parrot', 'Eclectus roratus', 'D110', 'Aves', 45, 58, 35, 50, '30-50 years', 'Fruit & Vegetables', '45 km/h', 'Worldwide'),
+('Yellow-Headed Amazon', 'Amazona oratrix', 'D111', 'Aves', 42, 56, 32, 55, '40-60 years', 'Fruit, Nuts & Seeds', '42 km/h', 'Worldwide'),
+('Rainbow Lorikeet', 'Trichoglossus moluccanus', 'D112', 'Aves', 45, 55, 25, 35, '20-30 years', 'Nectar & Fruit', '45 km/h', 'Worldwide'),
+('Domestic Pigeon', 'Columba livia domestica', 'D113', 'Aves', 60, 70, 20, 10, '10-15 years', 'Granivore', '60 km/h', 'Worldwide'),
+('Society Finch', 'Lonchura striata domestica', 'D114', 'Aves', 32, 46, 4, 15, '5-9 years', 'Granivore', '32 km/h', 'Worldwide');

@@ -199,15 +199,22 @@ async function fromWikipediaSearch(query: string): Promise<string[]> {
   return top && !isMontage(top) ? [top] : []
 }
 
-// Dog vs cat from the latin name (Canis/Felis) or breed-name keywords.
-function petKindFor(commonName: string, scientificName: string): 'dog' | 'cat' {
+// Dog / cat / rabbit / bird from kingdom + latin genus + breed-name keywords.
+// Feeds the domestic search query below — guessing wrong (e.g. defaulting a
+// rabbit or bird to "dog") sends the Wikipedia search hunting for a page that
+// doesn't exist and silently fails.
+type DomesticKind = 'dog' | 'cat' | 'rabbit' | 'bird'
+function domesticKindFor(commonName: string, scientificName: string, kingdom: string | null): DomesticKind {
+  if (kingdom === 'bird') return 'bird'
   const sci = scientificName.toLowerCase()
   if (sci.includes('felis')) return 'cat'
+  if (sci.includes('oryctolagus')) return 'rabbit'
   if (sci.includes('canis')) return 'dog'
   const n = commonName.toLowerCase()
   if (/\b(cat|feline|kitten|tabby|siamese|persian|ragdoll|sphynx|bengal|abyssinian|burmese|birman|manx|shorthair|longhair|maine coon|rex|bombay|savannah|ragamuffin)\b/.test(n)) {
     return 'cat'
   }
+  if (/\b(rabbit|bunny|lop|angora|lionhead)\b/.test(n)) return 'rabbit'
   return 'dog'
 }
 
@@ -364,7 +371,12 @@ Deno.serve(async (req: Request) => {
   const isDomestic = input.isDomestic === true || /^#?D\d/i.test(norm(input.dexNum))
 
   // Domestic breeds resolve via Wikipedia (a page per breed) → Wikimedia Commons.
-  const petKind = petKindFor(commonName, scientificName)
+  const petKind = domesticKindFor(commonName, scientificName, input.kingdom ?? null)
+  // Birds are real SPECIES (own Wikipedia article, e.g. "Rose-ringed parakeet"),
+  // not artificial breeds — "breed" phrasing sends the search hunting for a
+  // breed page that doesn't exist. Search the bare name instead.
+  const domesticQuery = petKind === 'bird' ? commonName : `${commonName} ${petKind} breed`
+  const domesticCommonsQuery = petKind === 'bird' ? commonName : `${commonName} ${petKind}`
   // Photo sources are Wikipedia + Wikimedia Commons ONLY — both commercial-safe
   // (CC-BY-SA / public domain). iNaturalist (non-commercial photos / not our API)
   // and Google image search (third-party copyright) are intentionally excluded.
@@ -378,10 +390,10 @@ Deno.serve(async (req: Request) => {
     ? [
         { source: 'domestic_registry', run: () => wrap(fromDomestic(input)) },
         { source: 'database', run: () => wrap(fromSpeciesTable(input)) },
-        // Top Wikipedia breed page (single photo, montages rejected)…
-        { source: 'wikipedia', run: () => wrap(fromWikipediaSearch(`${commonName} ${petKind} breed`)) },
-        // …else a single-subject Commons photo of the breed (covers collage breeds).
-        { source: 'wikimedia', run: () => fromWikimedia(`${commonName} ${petKind}`) },
+        // Top Wikipedia page — breed page for dog/cat/rabbit, species page for bird…
+        { source: 'wikipedia', run: () => wrap(fromWikipediaSearch(domesticQuery)) },
+        // …else a single-subject Commons photo (covers collage/montage pages).
+        { source: 'wikimedia', run: () => fromWikimedia(domesticCommonsQuery) },
       ]
     : [
         { source: 'database', run: () => wrap(fromSpeciesTable(input)) },
