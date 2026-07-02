@@ -220,7 +220,13 @@ function relevanceTier(item: PickerSpeciesItem, q: string): number {
   return 2
 }
 
-async function searchCatalog(query: string, kingdomFilter: PickerKingdomFilter): Promise<PickerSpeciesItem[]> {
+export const CATALOG_PAGE_SIZE = 48
+
+async function searchCatalog(
+  query: string,
+  kingdomFilter: PickerKingdomFilter,
+  offset = 0,
+): Promise<PickerSpeciesItem[]> {
   const supabase = getSupabaseClient()
   if (!supabase) return []
   const trimmed = query.trim()
@@ -229,18 +235,29 @@ async function searchCatalog(query: string, kingdomFilter: PickerKingdomFilter):
     request = request.or(`common_name.ilike.%${trimmed}%,latin_name.ilike.%${trimmed}%`)
   const catKingdom = catalogKingdomFor(kingdomFilter)
   if (catKingdom) request = request.eq('kingdom', catKingdom)
-  // Most-observed (lowest dex) first — this is the browse order and the base
-  // ranking that relevance tiers refine for text queries.
-  const { data, error } = await request.order('dex_number').limit(60)
+
+  // Pure browse (no text) — paginate straight off dex order (most-observed
+  // first), so scrolling steadily surfaces more of the catalog instead of
+  // being capped at one page.
+  if (trimmed.length < 2) {
+    const { data, error } = await request
+      .order('dex_number')
+      .range(offset, offset + CATALOG_PAGE_SIZE - 1)
+    if (error) return []
+    return (data ?? []).map(mapCatalogRow)
+  }
+
+  // Text search — relevance-rank a wider pool, then page through it. Re-fetches
+  // the pool per page (bounded, rare beyond page 1) so tiering stays consistent.
+  const { data, error } = await request.order('dex_number').limit(200)
   if (error) return []
-  const items = (data ?? []).map(mapCatalogRow)
-  if (trimmed.length < 2) return items.slice(0, 48)
   const q = trimmed.toLowerCase()
-  return items
+  const ranked = (data ?? [])
+    .map(mapCatalogRow)
     .map((item, i) => ({ item, tier: relevanceTier(item, q), i }))
     .sort((a, b) => a.tier - b.tier || a.i - b.i)
-    .slice(0, 48)
     .map((x) => x.item)
+  return ranked.slice(offset, offset + CATALOG_PAGE_SIZE)
 }
 
 async function searchGbif(query: string): Promise<PickerSpeciesItem[]> {
@@ -266,32 +283,36 @@ async function resolveWild(
   trimmed: string,
   kingdomFilter: PickerKingdomFilter,
   categoryFilter: PickerKingdomFilter | undefined,
+  offset: number,
 ): Promise<PickerSpeciesItem[]> {
-  // Category words we can't serve from the catalog fall back to the roster.
-  if (categoryFilter && !catalogKingdomFor(categoryFilter)) return browseFromRoster(categoryFilter)
+  // Category words we can't serve from the catalog fall back to the (unpaginated) roster.
+  if (categoryFilter && !catalogKingdomFor(categoryFilter)) {
+    return offset === 0 ? browseFromRoster(categoryFilter) : []
+  }
 
   const effectiveFilter = categoryFilter ?? kingdomFilter
-  const catalog = await searchCatalog(trimmed, effectiveFilter)
-  // A specific query that the catalog can't satisfy → reach out to GBIF live.
-  if (trimmed.length >= 2 && catalog.length < 8) {
+  const catalog = await searchCatalog(trimmed, effectiveFilter, offset)
+  // A specific first-page query that the catalog can't satisfy → reach out to GBIF live.
+  if (trimmed.length >= 2 && offset === 0 && catalog.length < 8) {
     const gbif = await searchGbif(trimmed)
     const merged = dedupeItems([...catalog, ...gbif])
     if (merged.length > 0) return merged
   }
   if (catalog.length > 0) return catalog
-  // Catalog empty (e.g. still warming) — fall back to the owned roster.
-  return browseFromRoster(effectiveFilter)
+  // Catalog empty on the first page (e.g. still warming) — fall back to the roster.
+  return offset === 0 ? browseFromRoster(effectiveFilter) : []
 }
 
 export async function searchPickerSpecies(
   query: string,
   kingdomFilter: PickerKingdomFilter,
+  offset = 0,
 ): Promise<PickerSpeciesItem[]> {
   const trimmed = query.trim()
   const categoryFilter = CATEGORY_QUERY_TO_FILTER[trimmed.toLowerCase()]
   const [domestic, wild] = await Promise.all([
-    searchDomestic(trimmed),
-    resolveWild(trimmed, kingdomFilter, categoryFilter),
+    offset === 0 ? searchDomestic(trimmed) : Promise.resolve([]),
+    resolveWild(trimmed, kingdomFilter, categoryFilter, offset),
   ])
 
   const merged = dedupeItems([...domestic, ...wild])

@@ -34,6 +34,7 @@ import {
   type PickerKingdomFilter,
 } from '@/features/species/picker-kingdom-tabs'
 import {
+  CATALOG_PAGE_SIZE,
   pickerItemToLookupId,
   searchPickerSpecies,
   type PickerSpeciesItem,
@@ -324,6 +325,8 @@ function OpenSourceTab({ collectedNames, bottomInset }: OpenSourceTabProps) {
   const [collectionFilter, setCollectionFilter] = useState<Collection | null>(null)
   const [items, setItems] = useState<PickerSpeciesItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const searchInputRef = useRef<TextInput>(null)
 
   useEffect(() => {
@@ -335,17 +338,23 @@ function OpenSourceTab({ collectedNames, bottomInset }: OpenSourceTabProps) {
     let cancelled = false
     setIsLoading(true)
 
-    // A collection chip browses the curated catalog; otherwise normal search.
+    // A collection chip browses the curated catalog (small, unpaginated);
+    // otherwise the catalog search/browse, page 1.
     const load = collectionFilter
       ? fetchCatalogByCollection(collectionFilter).then((rows) => rows.map(catalogToPickerItem))
-      : searchPickerSpecies(debouncedQuery, kingdomFilter)
+      : searchPickerSpecies(debouncedQuery, kingdomFilter, 0)
 
     void load
       .then((results) => {
-        if (!cancelled) setItems(results)
+        if (cancelled) return
+        setItems(results)
+        setHasMore(!collectionFilter && results.length >= CATALOG_PAGE_SIZE)
       })
       .catch(() => {
-        if (!cancelled) setItems([])
+        if (!cancelled) {
+          setItems([])
+          setHasMore(false)
+        }
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -353,6 +362,24 @@ function OpenSourceTab({ collectedNames, bottomInset }: OpenSourceTabProps) {
 
     return () => { cancelled = true }
   }, [debouncedQuery, kingdomFilter, collectionFilter])
+
+  // Scrolling near the end of the browse/search results loads the next page —
+  // this is what lets "Open Source" surface the whole 36k+ catalog instead of
+  // being capped at one page.
+  const handleLoadMore = useCallback(() => {
+    if (isLoading || isLoadingMore || !hasMore || collectionFilter) return
+    setIsLoadingMore(true)
+    searchPickerSpecies(debouncedQuery, kingdomFilter, items.length)
+      .then((more) => {
+        setItems((prev) => {
+          const seen = new Set(prev.map((p) => p.id))
+          return [...prev, ...more.filter((m) => !seen.has(m.id))]
+        })
+        setHasMore(more.length >= CATALOG_PAGE_SIZE)
+      })
+      .catch(() => setHasMore(false))
+      .finally(() => setIsLoadingMore(false))
+  }, [isLoading, isLoadingMore, hasMore, collectionFilter, debouncedQuery, kingdomFilter, items.length])
 
   const handleSelectItem = useCallback((item: PickerSpeciesItem) => {
     const speciesId = pickerItemToLookupId(item)
@@ -476,6 +503,15 @@ function OpenSourceTab({ collectedNames, bottomInset }: OpenSourceTabProps) {
           { paddingBottom: bottomInset + space[56] + space[24] },
         ]}
         showsVerticalScrollIndicator={false}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          isLoadingMore ? (
+            <View style={styles.osFooterWrap}>
+              <ActivityIndicator color={colors.green} />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           isLoading ? (
             <View style={styles.osEmptyWrap}>
@@ -823,6 +859,10 @@ const styles = StyleSheet.create({
     paddingTop: space[48],
     alignItems: 'center',
     paddingHorizontal: H_PAD,
+  },
+  osFooterWrap: {
+    paddingVertical: space[24],
+    alignItems: 'center',
   },
   osEmptyText: {
     fontSize: typeTokens.size.body,
