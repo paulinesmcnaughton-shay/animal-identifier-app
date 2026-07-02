@@ -82,6 +82,48 @@ export async function fetchCatalogByCollection(collection: Collection): Promise<
   return (data as CatalogRow[]).map(mapRow)
 }
 
+const SPECIES_COLLECTION_PAGE_SIZE = 48
+interface SpeciesCollectionRow {
+  id: string
+  common_name: string
+  latin_name: string | null
+  kingdom: string | null
+  dex_number: string | null
+  image_url: string | null
+}
+
+/**
+ * Safari/Zoo/Aquarium/Farm/Petting-zoo species from the FULL occurrence-ranked
+ * catalog (tagged by taxonomy — see migration species_collections_tagging),
+ * not just the small hand-curated `catalog_species` table. This is what makes
+ * "browse Safari" actually comprehensive instead of ~20 hand-picked animals.
+ * Alphabetical, paginated — same pattern as the rest of Open Source browse.
+ */
+export async function fetchSpeciesByCollection(
+  collection: Collection,
+  offset = 0,
+): Promise<CatalogSpecies[]> {
+  const supabase = getSupabaseClient()
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('species')
+    .select('id, common_name, latin_name, kingdom, dex_number, image_url')
+    .contains('collections', [collection])
+    .order('sort_name')
+    .order('id')
+    .range(offset, offset + SPECIES_COLLECTION_PAGE_SIZE - 1)
+  if (error || !data) return []
+  return (data as SpeciesCollectionRow[]).map((row) => ({
+    id: row.id,
+    commonName: row.common_name,
+    scientificName: row.latin_name,
+    kingdom: row.kingdom,
+    dexNumber: row.dex_number,
+    collections: [collection],
+    referenceImageUrl: row.image_url,
+  }))
+}
+
 /** Entire curated catalog. */
 export async function fetchCatalog(): Promise<CatalogSpecies[]> {
   const supabase = getSupabaseClient()

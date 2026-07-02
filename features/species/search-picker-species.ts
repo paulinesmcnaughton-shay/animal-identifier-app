@@ -236,12 +236,15 @@ async function searchCatalog(
   const catKingdom = catalogKingdomFor(kingdomFilter)
   if (catKingdom) request = request.eq('kingdom', catKingdom)
 
-  // Pure browse (no text) — paginate straight off dex order (most-observed
-  // first), so scrolling steadily surfaces more of the catalog instead of
-  // being capped at one page.
+  // Pure browse (no text) — paginate alphabetically (A→Z), so it reads like a
+  // directory you can scan by name. `id` is a stable tiebreaker so ties in
+  // common_name never shift between pages.
   if (trimmed.length < 2) {
+    // sort_name strips leading punctuation ("'Ilima", "(Asian) …") so browse
+    // actually starts at A, not at a page of quote/paren-prefixed names.
     const { data, error } = await request
-      .order('dex_number')
+      .order('sort_name')
+      .order('id')
       .range(offset, offset + CATALOG_PAGE_SIZE - 1)
     if (error) return []
     return (data ?? []).map(mapCatalogRow)

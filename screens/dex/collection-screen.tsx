@@ -42,7 +42,7 @@ import {
 import { useReferenceImage } from '@/features/species/use-reference-image'
 import {
   COLLECTIONS,
-  fetchCatalogByCollection,
+  fetchSpeciesByCollection,
   type CatalogSpecies,
   type Collection,
 } from '@/features/collections/collections'
@@ -338,17 +338,18 @@ function OpenSourceTab({ collectedNames, bottomInset }: OpenSourceTabProps) {
     let cancelled = false
     setIsLoading(true)
 
-    // A collection chip browses the curated catalog (small, unpaginated);
-    // otherwise the catalog search/browse, page 1.
+    // A collection chip (Safari/Zoo/Aquarium/…) browses the full occurrence
+    // catalog tagged by taxonomy — comprehensive, not just a handful of
+    // hand-picked animals. Both paths page the same way.
     const load = collectionFilter
-      ? fetchCatalogByCollection(collectionFilter).then((rows) => rows.map(catalogToPickerItem))
+      ? fetchSpeciesByCollection(collectionFilter, 0).then((rows) => rows.map(catalogToPickerItem))
       : searchPickerSpecies(debouncedQuery, kingdomFilter, 0)
 
     void load
       .then((results) => {
         if (cancelled) return
         setItems(results)
-        setHasMore(!collectionFilter && results.length >= CATALOG_PAGE_SIZE)
+        setHasMore(results.length >= CATALOG_PAGE_SIZE)
       })
       .catch(() => {
         if (!cancelled) {
@@ -367,15 +368,18 @@ function OpenSourceTab({ collectedNames, bottomInset }: OpenSourceTabProps) {
   // this is what lets "Open Source" surface the whole 36k+ catalog instead of
   // being capped at one page.
   const handleLoadMore = useCallback(() => {
-    if (isLoading || isLoadingMore || !hasMore || collectionFilter) return
+    if (isLoading || isLoadingMore || !hasMore) return
     setIsLoadingMore(true)
-    searchPickerSpecies(debouncedQuery, kingdomFilter, items.length)
-      .then((more) => {
+    const more = collectionFilter
+      ? fetchSpeciesByCollection(collectionFilter, items.length).then((rows) => rows.map(catalogToPickerItem))
+      : searchPickerSpecies(debouncedQuery, kingdomFilter, items.length)
+    more
+      .then((page) => {
         setItems((prev) => {
           const seen = new Set(prev.map((p) => p.id))
-          return [...prev, ...more.filter((m) => !seen.has(m.id))]
+          return [...prev, ...page.filter((m) => !seen.has(m.id))]
         })
-        setHasMore(more.length >= CATALOG_PAGE_SIZE)
+        setHasMore(page.length >= CATALOG_PAGE_SIZE)
       })
       .catch(() => setHasMore(false))
       .finally(() => setIsLoadingMore(false))
