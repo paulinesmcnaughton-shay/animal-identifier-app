@@ -124,20 +124,57 @@ async function fromWikipedia(query: string): Promise<string[]> {
   return d.originalimage?.source && !isMontage(d.originalimage.source) ? [d.originalimage.source] : []
 }
 
-async function fromWikimedia(query: string): Promise<string[]> {
+// The File: namespace (gsrnamespace=6) also contains audio/video (bird calls,
+// etc.) — for those, Wikimedia still returns a generic file-type icon as the
+// "thumburl", which would otherwise be stored as if it were a species photo.
+// Filtering on mime (image/*) is essential, not optional.
+//
+// extmetadata is requested in this SAME call so attribution comes from the
+// exact file Commons returned — not re-derived by parsing a (possibly
+// transformed/thumbnailed) URL afterward, which is fragile and was silently
+// failing for a meaningful share of results.
+async function fromWikimedia(query: string): Promise<{ url: string; attribution: Attribution }[]> {
   if (!query) return []
   const res = await politeFetch(
     `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}` +
-      `&gsrnamespace=6&gsrlimit=3&prop=imageinfo&iiprop=url&iiurlwidth=640&format=json&origin=*`,
+      `&gsrnamespace=6&gsrlimit=5&prop=imageinfo&iiprop=url%7Cmime%7Cextmetadata&iiurlwidth=640&format=json&origin=*`,
     { headers: { 'User-Agent': UA } },
   )
   if (!res.ok) throw new Error(`wikimedia ${res.status}`)
-  const d = await res.json() as { query?: { pages?: Record<string, { imageinfo?: { thumburl?: string; url?: string }[] }> } }
-  const out: string[] = []
+  const d = await res.json() as {
+    query?: {
+      pages?: Record<
+        string,
+        {
+          title?: string
+          imageinfo?: {
+            thumburl?: string
+            url?: string
+            mime?: string
+            extmetadata?: Record<string, { value?: string }>
+          }[]
+        }
+      >
+    }
+  }
+  const out: { url: string; attribution: Attribution }[] = []
   for (const p of Object.values(d.query?.pages ?? {})) {
     const ii = p.imageinfo?.[0]
+    if (ii?.mime && !ii.mime.startsWith('image/')) continue
     const u = ii?.thumburl ?? ii?.url
-    if (u && !isMontage(u)) out.push(u)
+    if (!u || isMontage(u)) continue
+    const meta = ii?.extmetadata ?? {}
+    const author = meta.Artist?.value ? stripTags(meta.Artist.value) : null
+    const license = meta.LicenseShortName?.value ? stripTags(meta.LicenseShortName.value) : null
+    const title = p.title?.replace(/^File:/, '') ?? null
+    out.push({
+      url: u,
+      attribution: {
+        author,
+        license,
+        sourceUrl: title ? `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(title)}` : null,
+      },
+    })
   }
   return out
 }
@@ -331,33 +368,39 @@ Deno.serve(async (req: Request) => {
   // Photo sources are Wikipedia + Wikimedia Commons ONLY — both commercial-safe
   // (CC-BY-SA / public domain). iNaturalist (non-commercial photos / not our API)
   // and Google image search (third-party copyright) are intentionally excluded.
-  const attempts: { source: string; run: () => Promise<string[]> }[] = isDomestic
+  // A source either knows its own attribution (wikimedia — fetched in the same
+  // API call as the url) or doesn't (wikipedia REST / db / domestic), in which
+  // case fetchAttribution derives it from the url afterward.
+  type SourceEntry = { url: string; attribution?: Attribution }
+  const wrap = (urls: Promise<string[]>): Promise<SourceEntry[]> => urls.then((u) => u.map((url) => ({ url })))
+
+  const attempts: { source: string; run: () => Promise<SourceEntry[]> }[] = isDomestic
     ? [
-        { source: 'domestic_registry', run: () => fromDomestic(input) },
-        { source: 'database', run: () => fromSpeciesTable(input) },
+        { source: 'domestic_registry', run: () => wrap(fromDomestic(input)) },
+        { source: 'database', run: () => wrap(fromSpeciesTable(input)) },
         // Top Wikipedia breed page (single photo, montages rejected)…
-        { source: 'wikipedia', run: () => fromWikipediaSearch(`${commonName} ${petKind} breed`) },
+        { source: 'wikipedia', run: () => wrap(fromWikipediaSearch(`${commonName} ${petKind} breed`)) },
         // …else a single-subject Commons photo of the breed (covers collage breeds).
         { source: 'wikimedia', run: () => fromWikimedia(`${commonName} ${petKind}`) },
       ]
     : [
-        { source: 'database', run: () => fromSpeciesTable(input) },
-        { source: 'wikipedia', run: () => fromWikipedia(commonName) },
-        { source: 'wikipedia', run: () => fromWikipedia(scientificName) },
+        { source: 'database', run: () => wrap(fromSpeciesTable(input)) },
+        { source: 'wikipedia', run: () => wrap(fromWikipedia(commonName)) },
+        { source: 'wikipedia', run: () => wrap(fromWikipedia(scientificName)) },
         { source: 'wikimedia', run: () => fromWikimedia(commonName || scientificName) },
       ]
 
   for (const attempt of attempts) {
-    let urls: string[] = []
+    let entries: SourceEntry[] = []
     try {
-      urls = await attempt.run()
+      entries = await attempt.run()
     } catch {
       continue // transient source error — try the next source
     }
-    for (const url of urls) {
+    for (const { url, attribution: knownAttribution } of entries) {
       const img = await fetchImageBytes(url)
       if (!img) continue
-      const attribution = await fetchAttribution(url)
+      const attribution = knownAttribution ?? (await fetchAttribution(url))
       try {
         const stored = await storeAndCache(input, cacheKey, img, attempt.source, url, attribution)
         return json({ uri: stored, source: attempt.source, reason: attempt.source, attribution })
