@@ -40,6 +40,13 @@ interface Input {
 
 const norm = (s?: string | null): string => (s ?? '').trim()
 
+// The catalog stores multiple common names in one field for some species
+// ("Blacktip Shark, Blackfin Shark", "Gray/Purple Heron"). Wikipedia's REST
+// summary endpoint looks up ONE exact page title — passing the whole compound
+// string 404s even when the first name alone would resolve cleanly. Wikimedia's
+// full-text keyword search is more forgiving, so it still gets the full string.
+const primaryName = (s: string): string => s.split(/[,/]/)[0]?.trim() ?? s
+
 function buildKey(i: Input): string {
   const category = i.isDomestic ? 'domestic' : (norm(i.kingdom) || 'unknown')
   return [
@@ -397,9 +404,14 @@ Deno.serve(async (req: Request) => {
       ]
     : [
         { source: 'database', run: () => wrap(fromSpeciesTable(input)) },
-        { source: 'wikipedia', run: () => wrap(fromWikipedia(commonName)) },
-        { source: 'wikipedia', run: () => wrap(fromWikipedia(scientificName)) },
-        { source: 'wikimedia', run: () => fromWikimedia(commonName || scientificName) },
+        { source: 'wikipedia', run: () => wrap(fromWikipedia(primaryName(commonName))) },
+        { source: 'wikipedia', run: () => wrap(fromWikipedia(primaryName(scientificName))) },
+        // Scientific name FIRST here — it's unambiguous. A common-name-only
+        // Commons keyword search can false-match an unrelated species that
+        // shares the name (e.g. "Platypus" matched a crab species' Commons
+        // file before a real photo of the mammal was found).
+        { source: 'wikimedia', run: () => fromWikimedia(scientificName || commonName) },
+        { source: 'wikimedia', run: () => fromWikimedia(commonName) },
       ]
 
   for (const attempt of attempts) {

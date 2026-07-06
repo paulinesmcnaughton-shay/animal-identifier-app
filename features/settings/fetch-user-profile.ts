@@ -33,7 +33,7 @@ import { storage } from '@/util/storage'
 const AVATAR_PRESET_ID_KEY = 'settings.avatarPresetId'
 
 const PROFILE_SELECT =
-  'username, full_name, timezone, latitude, longitude, level, xp, streak_days, last_spotted_at, spots_captured, rare_spotted, badges_count, claimed_quests, weekly_quest_title, weekly_quest_current, weekly_quest_total, weekly_quest_xp_reward, weekly_quest_started_at, avatar_url'
+  'username, full_name, timezone, latitude, longitude, level, xp, streak_days, last_spotted_at, spots_captured, rare_spotted, badges_count, claimed_quests, weekly_quest_title, weekly_quest_current, weekly_quest_total, weekly_quest_xp_reward, weekly_quest_started_at, avatar_url, interests'
 
 export interface HomeUserProfile extends AccountProfile {
   timeZone: string | null
@@ -44,6 +44,10 @@ export interface HomeUserProfile extends AccountProfile {
   streakDays: number
   claimedQuests: string[]
   weeklyQuest: WeeklyQuestProgress
+  /** Onboarding "what interests you" picks — used to keep Creature of the
+   *  Week away from classic phobia categories (insects/arachnids) the user
+   *  didn't opt into. Empty means unanswered, not "avoid everything". */
+  interests: string[]
 }
 
 interface SupabaseProfileRow {
@@ -66,6 +70,7 @@ interface SupabaseProfileRow {
   weekly_quest_xp_reward: number | null
   weekly_quest_started_at: string | null
   avatar_url: string | null
+  interests: string[] | null
 }
 
 function readMetadataString(user: User, key: string): string | null {
@@ -231,6 +236,7 @@ export async function buildHomeUserProfileFromAuth(user: User): Promise<HomeUser
     phone: readMetadataString(user, 'phone') ?? '',
     firstName: firstNameFromDisplayName(displayName),
     timeZone: profileRow?.timezone?.trim() ?? null,
+    interests: profileRow?.interests ?? [],
     ...stats,
   }
 }
@@ -255,6 +261,7 @@ export function demoHomeUserProfile(
     phone,
     firstName: firstNameFromDisplayName(displayName),
     timeZone: null,
+    interests: [],
     level: levelForTotalXp(2340).level,
     xp: 2340,
     spotsCaptured: mockUser.spotsCaptured,

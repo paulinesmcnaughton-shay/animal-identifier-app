@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
 import { router, useLocalSearchParams } from 'expo-router'
 import type { IdentifySource } from '@/features/identify/types'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Animated, Easing, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import ReAnimated, {
   useAnimatedStyle,
@@ -25,13 +25,19 @@ import type { IdentResult, PipelineCategory } from '@/features/identify/types'
 import { MANUAL_PICKER_CONFIDENCE_THRESHOLD } from '@/features/identify/types'
 import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import { saveUserSighting } from '@/features/sightings/save-user-sighting'
-import { useCreatureOfWeek } from '@/features/home/creature-of-week'
+import { kingdomsToExcludeFromInterests, useCreatureOfWeek } from '@/features/home/creature-of-week'
 import { loadDefaultShareAnonymously } from '@/features/sightings/nearby-sharing'
+import { useAccountProfile } from '@/features/settings/account-profile'
 
 export function ResultScreen() {
   const insets = useSafeAreaInsets()
   const { height: windowHeight } = useWindowDimensions()
-  const creatureOfWeek = useCreatureOfWeek()
+  const { interests } = useAccountProfile()
+  const excludedCreatureKingdoms = useMemo(
+    () => kingdomsToExcludeFromInterests(interests),
+    [interests],
+  )
+  const creatureOfWeek = useCreatureOfWeek(excludedCreatureKingdoms)
   const params = useLocalSearchParams<{
     uri?: string
     identified?: string

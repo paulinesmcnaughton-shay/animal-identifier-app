@@ -12,7 +12,11 @@ import { ExploreVenuesCard } from '@/components/home/ExploreVenuesCard'
 import { StreakCalendar, localDateKey } from '@/components/home/StreakCalendar'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
-import { useCreatureOfWeek, useCreatureWeekMeta } from '@/features/home/creature-of-week'
+import {
+  kingdomsToExcludeFromInterests,
+  useCreatureOfWeek,
+  useCreatureWeekMeta,
+} from '@/features/home/creature-of-week'
 import { claimCreatureBonus } from '@/features/home/claim-creature-bonus'
 import { addNotification, useNotifications } from '@/features/notifications/notifications'
 import { useCollectionLookup } from '@/features/collections/collections'
@@ -140,7 +144,7 @@ function QuestsCarousel({ quests }: QuestsCarouselProps) {
 export function SpotHomeScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { firstName, timeZone, level, streakDays, claimedQuests, isReady, isLoading } =
+  const { firstName, timeZone, level, streakDays, claimedQuests, interests, isReady, isLoading } =
     useAccountProfile()
   const { rows } = useUserSightingsData()
   const sightingDates = useMemo(
@@ -164,7 +168,11 @@ export function SpotHomeScreen() {
     return visibleQuests(progress, claimedQuests, MAX_VISIBLE_QUESTS)
   }, [rows, collectionLookup, streakDays, claimedQuests])
   const greeting = useSpotGreeting(timeZone)
-  const creatureOfWeek = useCreatureOfWeek()
+  const excludedCreatureKingdoms = useMemo(
+    () => kingdomsToExcludeFromInterests(interests),
+    [interests],
+  )
+  const creatureOfWeek = useCreatureOfWeek(excludedCreatureKingdoms)
   const weekMeta = useCreatureWeekMeta()
   const isCreatureCollected = useMemo(() => {
     const cid = creatureOfWeek.id.toLowerCase()

@@ -6,7 +6,11 @@ import type { KingdomKey } from '@/design/atoms/KingdomBadge'
 import { STREAK_WINDOW_MS } from '@/features/profile/streak'
 import type { Collection, CollectionLookup } from '@/features/collections/collections'
 import { computeQuestRewardDelta, questCountsFromSightings, type SightingLike } from '@/features/quests/quests'
-import { getCreatureOfWeek, getWeekMeta } from '@/features/home/creature-of-week'
+import {
+  getCreatureOfWeek,
+  getWeekMeta,
+  kingdomsToExcludeFromInterests,
+} from '@/features/home/creature-of-week'
 import { addNotification } from '@/features/notifications/notifications'
 import { levelForTotalXp } from '@/features/profile/xp-progress'
 import { loadTimezone } from '@/features/settings/timezone-preference'
@@ -212,7 +216,7 @@ export async function saveUserSighting(
   const { data: profileRow } = await supabase
     .from('profiles')
     .select(
-      'xp, streak_days, last_spotted_at, spots_captured, badges_count, claimed_quests, age_group, requires_parent_setup, latitude, longitude',
+      'xp, streak_days, last_spotted_at, spots_captured, badges_count, claimed_quests, age_group, requires_parent_setup, latitude, longitude, interests',
     )
     .eq('id', userId)
     .maybeSingle()
@@ -269,7 +273,11 @@ export async function saveUserSighting(
   // Creature of the Week bonus — if this capture IS the featured creature, award its
   // bonus once (gated by the same cotw:<year>-W<week> key the home claim uses).
   const tz = await loadTimezone()
-  const cotw = getCreatureOfWeek(tz)
+  // Must match the same exclusion the home screen applies, or a user could
+  // capture "this week's creature" for XP even though it's hidden from them
+  // on Home (or vice versa) — see kingdomsToExcludeFromInterests.
+  const excludedCreatureKingdoms = kingdomsToExcludeFromInterests(profileRow?.interests ?? [])
+  const cotw = getCreatureOfWeek(tz, excludedCreatureKingdoms)
   const cotwKey = getWeekMeta(tz).key
   const claimedSet = new Set(questDelta.newClaimed)
   const matchesCotw =

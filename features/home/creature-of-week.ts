@@ -34,22 +34,51 @@ function isoWeekNumber(date: Date): number {
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
 }
 
-export function getCreatureOfWeek(timezone: string): CreatureRosterItem {
+// Onboarding captures POSITIVE interests (profiles.interests), not fears —
+// there's no "what scares you" question. We can't tell "didn't think to pick
+// insects" apart from "afraid of insects", so we only filter the classic
+// phobia-prone kingdoms (insects, arachnids), and only when the user HAS
+// interests saved — an empty/missing array means "unanswered", not "avoid
+// everything", so it must not filter anything. Every other kingdom (mammal,
+// bird, reptile, amphibian, fish, mollusc) always stays in rotation regardless
+// of what was picked, to keep Creature of the Week varied and not narrow it to
+// only-explicitly-selected categories.
+export function kingdomsToExcludeFromInterests(interests: readonly string[]): ReadonlySet<string> {
+  if (interests.length === 0) return EMPTY_EXCLUDED
+  const excluded = new Set<string>()
+  if (!interests.includes('insects')) excluded.add('insect')
+  if (!interests.includes('spiders') && !interests.includes('scorpions')) excluded.add('arachnid')
+  return excluded
+}
+
+const EMPTY_EXCLUDED: ReadonlySet<string> = new Set()
+
+export function getCreatureOfWeek(
+  timezone: string,
+  excludeKingdoms: ReadonlySet<string> = EMPTY_EXCLUDED,
+): CreatureRosterItem {
   const localDate = getLocalDateInTimezone(timezone)
   const weekNum = isoWeekNumber(localDate)
   const year = localDate.getFullYear()
-  const index = (year * 53 + weekNum - 1) % CREATURE_ROSTER.length
-  return CREATURE_ROSTER[index] ?? CREATURE_ROSTER[0]!
+  const pool =
+    excludeKingdoms.size > 0
+      ? CREATURE_ROSTER.filter((c) => !excludeKingdoms.has(c.kingdom))
+      : CREATURE_ROSTER
+  // Safety net: if an exclusion set somehow empties the pool, fall back to the
+  // full roster rather than crashing or showing nothing.
+  const source = pool.length > 0 ? pool : CREATURE_ROSTER
+  const index = (year * 53 + weekNum - 1) % source.length
+  return source[index] ?? source[0]!
 }
 
-export function useCreatureOfWeek(): CreatureRosterItem {
+export function useCreatureOfWeek(excludeKingdoms?: ReadonlySet<string>): CreatureRosterItem {
   const [timezone, setTimezone] = useState(() => detectDeviceTimezone())
 
   useEffect(() => {
     void loadTimezone().then(setTimezone)
   }, [])
 
-  return useMemo(() => getCreatureOfWeek(timezone), [timezone])
+  return useMemo(() => getCreatureOfWeek(timezone, excludeKingdoms), [timezone, excludeKingdoms])
 }
 
 export interface WeekMeta {

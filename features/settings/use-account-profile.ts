@@ -42,6 +42,7 @@ const EMPTY_HOME_PROFILE: HomeUserProfile = {
   phone: '',
   firstName: '',
   timeZone: null,
+  interests: [],
   level: NEW_USER_LEVEL,
   xp: NEW_USER_XP,
   spotsCaptured: NEW_USER_SPOTS_CAPTURED,
