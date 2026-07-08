@@ -30,6 +30,7 @@ import { useSpeciesDetail } from '@/features/species/use-species-detail'
 import { getSightingPhotoUri } from '@/features/species/get-display-image-uri'
 import { useReferenceImage } from '@/features/species/use-reference-image'
 import { suggestSpeciesPhoto, type SuggestPhotoSource } from '@/features/species/suggest-photo'
+import { PhotoConsentSheet } from '@/components/species/PhotoConsentSheet'
 import type { ImageAttribution } from '@/features/species/fetch-stored-reference-image'
 import {
   colors,
@@ -214,12 +215,17 @@ export function SpeciesDetailScreen() {
   const canSuggestPhoto = isNeedsId && !isUnidentified && !isLowConfidence
 
   const [photoSuggestStatus, setPhotoSuggestStatus] = useState<'idle' | 'submitting' | 'submitted'>('idle')
+  const [isConsentSheetOpen, setIsConsentSheetOpen] = useState(false)
   const runPhotoSuggestion = async (source: SuggestPhotoSource) => {
+    setIsConsentSheetOpen(false)
     setPhotoSuggestStatus('submitting')
     const result = await suggestSpeciesPhoto({
       speciesId: id,
       speciesName: species.commonName,
       latinName: species.latinName,
+      kingdom: species.kingdom,
+      dexNumber: species.dexNumber,
+      isDomestic: isDomesticRoute,
       source,
     })
     if (result.status === 'submitted') {
@@ -231,13 +237,7 @@ export function SpeciesDetailScreen() {
       Alert.alert('Sign in to help', 'Sign in to suggest a photo for this species.')
     else if (result.status === 'error') Alert.alert('Could not submit', result.message)
   }
-  const handleSuggestPhoto = () => {
-    Alert.alert('Share a photo', `Help us add a photo of the ${species.commonName}.`, [
-      { text: 'Take photo', onPress: () => void runPhotoSuggestion('camera') },
-      { text: 'Choose from library', onPress: () => void runPhotoSuggestion('library') },
-      { text: 'Cancel', style: 'cancel' },
-    ])
-  }
+  const handleSuggestPhoto = () => setIsConsentSheetOpen(true)
 
   const handleBack = () => {
     if (fromCapture) {
@@ -503,6 +503,14 @@ export function SpeciesDetailScreen() {
             longitude: lng,
           }).then(() => setIsShared(true))
         }}
+      />
+
+      <PhotoConsentSheet
+        visible={isConsentSheetOpen}
+        speciesName={species.commonName}
+        onSelectCamera={() => void runPhotoSuggestion('camera')}
+        onSelectLibrary={() => void runPhotoSuggestion('library')}
+        onCancel={() => setIsConsentSheetOpen(false)}
       />
     </View>
   )

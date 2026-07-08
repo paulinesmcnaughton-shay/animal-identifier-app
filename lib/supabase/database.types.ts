@@ -732,8 +732,15 @@ export type Database = {
       }
       species_photo_suggestions: {
         Row: {
+          consent_given: boolean
+          consent_text: string | null
+          consent_version: string | null
+          consented_at: string | null
           created_at: string
+          dex_number: string | null
           id: string
+          is_domestic: boolean
+          kingdom: string | null
           latin_name: string | null
           reviewed_at: string | null
           reviewed_by: string | null
@@ -744,8 +751,15 @@ export type Database = {
           submitted_by: string | null
         }
         Insert: {
+          consent_given?: boolean
+          consent_text?: string | null
+          consent_version?: string | null
+          consented_at?: string | null
           created_at?: string
+          dex_number?: string | null
           id?: string
+          is_domestic?: boolean
+          kingdom?: string | null
           latin_name?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -756,8 +770,15 @@ export type Database = {
           submitted_by?: string | null
         }
         Update: {
+          consent_given?: boolean
+          consent_text?: string | null
+          consent_version?: string | null
+          consented_at?: string | null
           created_at?: string
+          dex_number?: string | null
           id?: string
+          is_domestic?: boolean
+          kingdom?: string | null
           latin_name?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null

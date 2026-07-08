@@ -1,5 +1,6 @@
 import { Alert } from 'react-native'
 
+import { CONSENT_TEXT, CONSENT_VERSION } from '@/components/species/PhotoConsentSheet'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
 export type SuggestPhotoSource = 'camera' | 'library'
@@ -8,6 +9,9 @@ export interface SuggestPhotoInput {
   speciesId: string
   speciesName: string
   latinName?: string | null
+  kingdom?: string | null
+  dexNumber?: string | null
+  isDomestic?: boolean
   source: SuggestPhotoSource
 }
 
@@ -49,7 +53,11 @@ async function pickPhoto(source: SuggestPhotoSource): Promise<string | null> {
 
 // Lets a signed-in user submit a photo for a species that has no reference image.
 // The file lands in a PRIVATE bucket and a pending suggestion row — nothing is shown
-// to other users until it's reviewed and approved.
+// to other users until it's reviewed and approved. Consent is REQUIRED — the caller
+// only reaches this after the user has checked the consent box in PhotoConsentSheet;
+// the exact wording is stored with the row (consent_text/consent_version) so it stays
+// legally defensible even if the copy changes later. The database also enforces this
+// (insert RLS requires consent_given = true) — this isn't just a client-side check.
 export async function suggestSpeciesPhoto(input: SuggestPhotoInput): Promise<SuggestPhotoResult> {
   const supabase = getSupabaseClient()
   if (!supabase) return { status: 'error', message: 'Something went wrong. Try again.' }
@@ -78,8 +86,15 @@ export async function suggestSpeciesPhoto(input: SuggestPhotoInput): Promise<Sug
       species_id: input.speciesId,
       species_name: input.speciesName,
       latin_name: input.latinName ?? null,
+      kingdom: input.kingdom ?? null,
+      dex_number: input.dexNumber ?? null,
+      is_domestic: input.isDomestic ?? false,
       submitted_by: userId,
       storage_path: storagePath,
+      consent_given: true,
+      consent_version: CONSENT_VERSION,
+      consent_text: CONSENT_TEXT,
+      consented_at: new Date().toISOString(),
     })
     if (insertError) return { status: 'error', message: 'Could not submit. Try again.' }
 

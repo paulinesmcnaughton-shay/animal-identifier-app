@@ -10,6 +10,7 @@ export type ReferenceImageSource =
   | 'inaturalist'
   | 'wikipedia'
   | 'wikimedia'
+  | 'user_submitted'
   | 'google'
   | 'ai_metadata'
   | 'category_placeholder'
