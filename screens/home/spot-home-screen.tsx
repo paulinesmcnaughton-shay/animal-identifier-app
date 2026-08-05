@@ -7,8 +7,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { HomeBadge } from '@/components/home/HomeBadge'
 import { CreatureStamp } from '@/components/home/CreatureStamp'
 import { QuestCard } from '@/components/home/QuestCard'
-import { WildpanionCard } from '@/components/home/WildpanionCard'
-import { ExploreVenuesCard } from '@/components/home/ExploreVenuesCard'
 import { StreakCalendar, localDateKey } from '@/components/home/StreakCalendar'
 import { CreatureInfoOverlay } from '@/components/home/CreatureInfoOverlay'
 import { HomeNotificationsPopover } from '@/components/home/HomeNotificationsPopover'
@@ -250,7 +248,6 @@ export function SpotHomeScreen() {
           <QuestsCarousel quests={quests} />
         </View>
         <StreakCalendar streakDays={streakDays} sightingDates={sightingDates} />
-        <ExploreVenuesCard />
         <View style={styles.sectionGap}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Creature of the week</Text>
@@ -265,9 +262,6 @@ export function SpotHomeScreen() {
             onCollect={handleCollectCreature}
             onInfoPress={() => setCreatureInfoOpen(true)}
           />
-        </View>
-        <View style={styles.wildpanionGap}>
-          <WildpanionCard onPress={() => router.push('/wildpanion')} />
         </View>
       </ScrollView>
 
@@ -438,33 +432,12 @@ const styles = StyleSheet.create({
     color: colors.dim,
     textAlign: 'center',
   },
-  venuesCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[16],
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: space[16],
-  },
-  venuesCardPressed: { opacity: 0.9 },
-  venuesEmoji: { fontSize: 28 },
-  venuesText: { flex: 1, gap: space[4] },
-  venuesTitle: {
-    fontSize: typeTokens.size.title,
-    fontWeight: typeTokens.body.weights.extra,
-    color: colors.ink,
-  },
-  venuesSub: { fontSize: typeTokens.size.bodySM, color: colors.dim },
-
   // Section
   section: {
     gap: space[16],
   },
   sectionGap: {
     gap: space[8],
-  },
-  wildpanionGap: {
-    marginTop: space[16],
   },
   sectionHeader: {
     flexDirection: 'row',

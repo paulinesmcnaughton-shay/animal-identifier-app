@@ -5,7 +5,6 @@ import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { ProfileAvatar } from '@/components/profile/ProfileAvatar'
 import { ProfilePhotoPickerSheet } from '@/components/profile/ProfilePhotoPickerSheet'
 import { SettingsDetailShell } from '@/components/settings/SettingsDetailShell'
-import { mockUser } from '@/data/mock'
 import {
   getUsernameValidationError,
   normalizeUsername,
@@ -47,7 +46,7 @@ export function AccountSettingsScreenContent() {
   const hasErrors = !!displayNameError || !!usernameError || !!emailError || !!phoneError
 
   const loadFields = useCallback(async () => {
-    const profile = await loadAccountProfile(mockUser.level)
+    const profile = await loadAccountProfile()
     setDisplayName(profile.displayName)
     setUsername(normalizeUsername(profile.username))
     setEmail(profile.email)

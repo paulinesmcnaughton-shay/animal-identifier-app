@@ -254,15 +254,6 @@ export function ResultScreen() {
           <Ionicons name="close" size={22} color={colors.card} />
         </Pressable>
 
-        {!isLoading && result ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="View in 3D"
-            onPress={() => router.push({ pathname: '/capture/view3d', params: { name: result.commonName } })}
-            style={({ pressed }) => [styles.view3dButton, pressed && styles.pressed]}>
-            <Text style={styles.view3dText}>View in 3D</Text>
-          </Pressable>
-        ) : null}
       </View>
 
       {isLoading ? (
@@ -456,19 +447,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(21,33,48,0.45)',
-  },
-  view3dButton: {
-    minHeight: 44,
-    paddingHorizontal: space[16],
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.plum,
-  },
-  view3dText: {
-    fontSize: typeTokens.size.label,
-    fontWeight: typeTokens.body.weights.bold,
-    color: colors.card,
   },
   pressed: {
     opacity: 0.88,

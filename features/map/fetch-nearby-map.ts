@@ -1,14 +1,10 @@
 import type { NearbyMapSighting } from '@/features/map/map-sighting'
-import {
-  fetchCommunityMapSightings,
-  mockCommunityNearUser,
-} from '@/features/map/fetch-community-nearby'
+import { fetchCommunityMapSightings } from '@/features/map/fetch-community-nearby'
 import { fetchGbifNearbySightings } from '@/features/map/fetch-gbif-nearby'
 import { fetchAiNearbySightings } from '@/features/map/fetch-ai-nearby'
 import { haversineDistanceM } from '@/features/map/geo'
 import {
   NEARBY_RADIUS_STEPS_MILES,
-  NEARBY_RADIUS_M,
   sortByDistancePriority,
 } from '@/features/map/nearby-radius'
 import type { MapCoordinate } from '@/features/map/use-user-location'
@@ -90,12 +86,8 @@ export async function fetchNearbyMapSightings(
     if (merged.length > 0) return merged
   }
 
-  // GBIF returned nothing for all steps — try AI suggestions first, then mock
-  const aiResults = await fetchAiNearbySightings(userCoord)
-  if (aiResults.length > 0) return aiResults
-
-  const mockNear = mockCommunityNearUser(userCoord).filter(
-    (item) => item.distanceM <= NEARBY_RADIUS_M,
-  )
-  return sortByDistancePriority(mockNear).slice(0, NEARBY_MAP_LIMIT)
+  // GBIF returned nothing for all steps — fall back to AI region suggestions.
+  // If those are empty too, return nothing: the map shows its empty state
+  // rather than invented sightings.
+  return fetchAiNearbySightings(userCoord)
 }

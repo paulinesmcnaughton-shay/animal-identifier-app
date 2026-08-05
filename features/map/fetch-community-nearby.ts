@@ -1,10 +1,10 @@
 import { slugifySpeciesName } from '@/data/species-catalog'
 import type { NearbyMapSighting } from '@/features/map/map-sighting'
-import { MOCK_COMMUNITY_NEARBY, parseKingdom } from '@/features/map/mock-map-data'
+import { parseKingdom } from '@/features/map/mock-map-data'
 import type { SightingMapPrivacy } from '@/features/map/sighting-privacy'
 import { boundingBox, formatSpottedAgo, haversineDistanceM } from '@/features/map/geo'
-import { NEARBY_RADIUS_KM, NEARBY_RADIUS_M } from '@/features/map/nearby-radius'
-import { shiftSightingsNearUser, type MapCoordinate } from '@/features/map/use-user-location'
+import { NEARBY_RADIUS_KM } from '@/features/map/nearby-radius'
+import type { MapCoordinate } from '@/features/map/use-user-location'
 import { getSupabaseClient } from '@/lib/supabase/client'
 const COMMUNITY_LIMIT = 24
 
@@ -53,20 +53,6 @@ function rowToSighting(
     isNew: Date.now() - new Date(row.spotted_at).getTime() < 48 * 3_600_000,
     spottedByUsername: isPublic ? username : null,
   }
-}
-
-function mockCommunityNearUser(userCoord: MapCoordinate): NearbyMapSighting[] {
-  return shiftSightingsNearUser(MOCK_COMMUNITY_NEARBY, userCoord)
-    .map((item) => ({
-      ...item,
-      distanceM: haversineDistanceM(userCoord, item),
-      source: 'community' as const,
-      explorerCount: item.count,
-      isVerified: false,
-      spottedByUsername: null,
-    }))
-    .filter((item) => item.distanceM <= NEARBY_RADIUS_M)
-    .sort((a, b) => a.distanceM - b.distanceM)
 }
 
 /** Layer 2 — anonymous + public WildKind sightings only. */
@@ -142,4 +128,3 @@ export async function fetchCommunityMapSightings(
   return mapped
 }
 
-export { mockCommunityNearUser }

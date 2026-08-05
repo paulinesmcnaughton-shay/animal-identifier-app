@@ -28,7 +28,6 @@ import {
   settingsRowSubtitles,
   type SettingsRowSubtitles,
 } from '@/features/settings/preferences'
-import { mockUser } from '@/data/mock'
 import { useAuth } from '@/lib/auth/auth-context'
 
 type RowAction =
@@ -106,8 +105,8 @@ export function SettingsScreenContent() {
   const [timezoneSubtitle, setTimezoneSubtitle] = useState(() => timezoneLabel(detectDeviceTimezone()))
 
   const refreshPreferences = useCallback(async () => {
-    const prefs = await loadSettingsPreferences(mockUser.level)
-    setRowSubtitles(settingsRowSubtitles(prefs, mockUser.level))
+    const prefs = await loadSettingsPreferences()
+    setRowSubtitles(settingsRowSubtitles(prefs))
     setAutoRecordSounds(prefs.autoRecordSounds)
     setAutoTagLocation(prefs.autoTagLocation)
     setVibrateOnIdentify(prefs.vibrateOnIdentify)
@@ -291,26 +290,6 @@ export function SettingsScreenContent() {
             title="Privacy & Terms"
             subtitle="Privacy policy and terms of use"
             action={{ type: 'chevron', onPress: () => router.push('/settings-privacy-terms') }}
-            isLast
-          />
-        </View>
-
-        <Text style={styles.sectionLabel}>Your Data</Text>
-        <View style={styles.group}>
-          <SettingsRow
-            icon="download-outline"
-            iconBg={colors.greenLight}
-            title="Export Journal & Notes"
-            subtitle="Save a copy of your notes, journal entries, and sighting memories to your phone."
-            action={{
-              type: 'chevron',
-              onPress: () =>
-                Alert.alert(
-                  'Export Journal & Notes',
-                  'This feature is coming soon. You will be able to download your notes, journal entries, and sighting memories as a PDF or ZIP file.',
-                  [{ text: 'OK' }],
-                ),
-            }}
             isLast
           />
         </View>

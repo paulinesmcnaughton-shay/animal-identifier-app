@@ -29,20 +29,25 @@ interface SpottingHeatmap {
   levels: (number | null)[]
 }
 
-function mockActivityLevel(year: number, monthIndex: number, dayIndex: number): number {
-  const seed = year * 372 + monthIndex * 31 + dayIndex
-  const rand = (Math.sin(seed) + 1) / 2
-  if (rand < 0.15) return 0
-  if (rand < 0.35) return 1
-  if (rand < 0.60) return 2
-  if (rand < 0.80) return 3
-  return 4
+function levelForCount(count: number): number {
+  if (count <= 0) return 0
+  return Math.min(count, HEAT_THEME.levels.length - 1)
 }
 
-function buildSpottingHeatmap(today: Date, hasActivity: boolean): SpottingHeatmap {
+/** Each cell is (month × weekday); intensity is the real sighting count there. */
+function buildSpottingHeatmap(today: Date, sightingDates: string[]): SpottingHeatmap {
   const year = today.getFullYear()
   const currentMonth = today.getMonth()
   const monthLabels = [...HEAT_MONTH_SHORT]
+
+  const counts = new Array<number>(HEATMAP_MONTHS * HEATMAP_DAYS).fill(0)
+  for (const iso of sightingDates) {
+    const date = new Date(iso)
+    if (Number.isNaN(date.getTime()) || date.getFullYear() !== year) continue
+    // Grid rows are Mon..Sun; JS getDay() is Sun-first.
+    const dayIndex = (date.getDay() + 6) % 7
+    counts[date.getMonth() * HEATMAP_DAYS + dayIndex] += 1
+  }
 
   const levels: (number | null)[] = []
   for (let monthIndex = 0; monthIndex < HEATMAP_MONTHS; monthIndex++) {
@@ -51,10 +56,7 @@ function buildSpottingHeatmap(today: Date, hasActivity: boolean): SpottingHeatma
         levels.push(null)
         continue
       }
-
-      levels.push(
-        hasActivity ? mockActivityLevel(year, monthIndex, dayIndex) : 0,
-      )
+      levels.push(levelForCount(counts[monthIndex * HEATMAP_DAYS + dayIndex]))
     }
   }
 
@@ -68,13 +70,14 @@ function cellFill(level: number | null): string {
 
 interface SpottingActivitySectionProps {
   spotsCaptured: number
+  /** ISO timestamps of the user's sightings (spotted_at). */
+  sightingDates: string[]
 }
 
-export function SpottingActivitySection({ spotsCaptured }: SpottingActivitySectionProps) {
-  const hasActivity = spotsCaptured > 0
+export function SpottingActivitySection({ spotsCaptured, sightingDates }: SpottingActivitySectionProps) {
   const spottingHeatmap = useMemo(
-    () => buildSpottingHeatmap(new Date(), hasActivity),
-    [hasActivity],
+    () => buildSpottingHeatmap(new Date(), sightingDates),
+    [sightingDates],
   )
 
   return (

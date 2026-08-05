@@ -43,7 +43,8 @@ export function ProfileScreen() {
     isLoading,
     isReady,
   } = useAccountProfile()
-  const { recentCards } = useUserSightingsData()
+  const { recentCards, rows: sightingRows } = useUserSightingsData()
+  const sightingDates = useMemo(() => sightingRows.map((row) => row.spotted_at), [sightingRows])
 
   const colWidth = useMemo(() => {
     const w = Dimensions.get('window').width
@@ -143,7 +144,7 @@ export function ProfileScreen() {
           />
         </View>
 
-        <SpottingActivitySection spotsCaptured={spotsCaptured} />
+        <SpottingActivitySection spotsCaptured={spotsCaptured} sightingDates={sightingDates} />
 
       </ScrollView>
     </View>

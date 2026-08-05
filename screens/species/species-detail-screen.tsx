@@ -248,10 +248,6 @@ export function SpeciesDetailScreen() {
     else router.replace('/(tabs)/dex')
   }
 
-  const handleView3d = () => {
-    router.push({ pathname: '/capture/view3d', params: { name: species.commonName } })
-  }
-
   const handleGoToDex = () => {
     router.replace('/(tabs)/dex')
   }
@@ -380,13 +376,6 @@ export function SpeciesDetailScreen() {
                 {species.rarity}
               </Text>
             </View>
-
-            <HeroActionButton
-              accessibilityLabel="View in 3D"
-              onPress={handleView3d}
-              position="left">
-              <Ionicons name="cube-outline" size={18} color={colors.ink} />
-            </HeroActionButton>
 
             <HeroActionButton
               accessibilityLabel="Play species sound"

@@ -44,7 +44,6 @@ export default function RootLayout() {
         <Stack.Screen name="capture/scan" options={captureScanScreen} />
         <Stack.Screen name="capture/result" />
         <Stack.Screen name="capture/upload" />
-        <Stack.Screen name="capture/view3d" />
         <Stack.Screen
           name="identify/manual-picker"
           options={{
