@@ -32,13 +32,13 @@ module.exports = {
   slug: 'wildkind',
   version: '1.0.0',
   orientation: 'portrait',
-  icon: './assets/images/WildKind-app-icon.png',
+  icon: './assets/images/WildKind-app-icon-store.png',
   scheme: 'wildkind',
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
   ios: {
     supportsTablet: true,
-    bundleIdentifier: 'com.pauline.wildkind',
+    bundleIdentifier: 'com.celestialworks.wildkind',
     buildNumber: '1',
     usesAppleSignIn: true,
     infoPlist: {
@@ -60,7 +60,7 @@ module.exports = {
     },
   },
   android: {
-    package: 'com.pauline.wildkind',
+    package: 'com.celestialworks.wildkind',
     versionCode: 1,
     adaptiveIcon: {
       backgroundColor: '#1a3d2b',
