@@ -1,66 +1,14 @@
-import Constants from 'expo-constants'
-
+import { canUseAiGateway, invokeAiGateway } from './ai-gateway'
 import { readImageBase64 } from './read-image-base64'
 import type { PipelineCategory } from './types'
-import { IdentifyError } from './types'
-
-const VISION_URL = 'https://vision.googleapis.com/v1/images:annotate'
-
-interface VisionLabel {
-  description?: string
-  score?: number
-}
-
-interface VisionLocalizedObject {
-  name?: string
-  score?: number
-}
-
-interface VisionResponseBlock {
-  labelAnnotations?: VisionLabel[]
-  localizedObjectAnnotations?: VisionLocalizedObject[]
-  error?: { message?: string }
-}
-
-interface VisionAnnotateResponse {
-  responses?: VisionResponseBlock[]
-  error?: { message?: string }
-}
 
 export interface GoogleCategoryScan {
   category: PipelineCategory
   topLabels: string[]
 }
 
-function getApiKey(): string {
-  const key = Constants.expoConfig?.extra?.googleVisionApiKey
-  if (typeof key !== 'string') return ''
-  return key.replace(/\s/g, '').trim()
-}
-
 export function canUseGoogleVision(): boolean {
-  return getApiKey().length > 0
-}
-
-function collectLabelTexts(block: VisionResponseBlock | undefined): string[] {
-  if (!block) return []
-
-  const scored: Array<{ text: string; score: number }> = []
-
-  for (const label of block.labelAnnotations ?? []) {
-    const text = label.description?.trim().toLowerCase()
-    if (!text) continue
-    scored.push({ text, score: label.score ?? 0 })
-  }
-
-  for (const object of block.localizedObjectAnnotations ?? []) {
-    const text = object.name?.trim().toLowerCase()
-    if (!text) continue
-    scored.push({ text, score: object.score ?? 0 })
-  }
-
-  scored.sort((a, b) => b.score - a.score)
-  return scored.map((entry) => entry.text)
+  return canUseAiGateway()
 }
 
 export function mapLabelsToPipelineCategory(labels: string[]): PipelineCategory {
@@ -101,45 +49,19 @@ export function mapLabelsToPipelineCategory(labels: string[]): PipelineCategory 
 }
 
 export async function detectImageCategory(uri: string): Promise<GoogleCategoryScan> {
-  const apiKey = getApiKey()
-  if (!apiKey) {
+  if (!canUseAiGateway()) {
     return { category: 'unknown', topLabels: [] }
   }
 
   const base64 = await readImageBase64(uri)
+  const { labels } = await invokeAiGateway<{ labels?: string[] }>({
+    action: 'vision_category',
+    imageBase64: base64,
+  })
 
-  let res: Response
-  try {
-    res = await fetch(`${VISION_URL}?key=${encodeURIComponent(apiKey)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requests: [
-          {
-            image: { content: base64 },
-            features: [
-              { type: 'LABEL_DETECTION', maxResults: 20 },
-              { type: 'OBJECT_LOCALIZATION', maxResults: 10 },
-            ],
-          },
-        ],
-      }),
-    })
-  } catch {
-    throw new IdentifyError('Network error — check Wi‑Fi and try again.', 'NETWORK')
-  }
-
-  const json = (await res.json()) as VisionAnnotateResponse
-  const block = json.responses?.[0]
-
-  if (!res.ok || block?.error) {
-    throw new IdentifyError(
-      block?.error?.message ?? json.error?.message ?? `Vision API ${res.status}`,
-      'API',
-    )
-  }
-
-  const topLabels = collectLabelTexts(block)
+  const topLabels = Array.isArray(labels)
+    ? labels.filter((label): label is string => typeof label === 'string')
+    : []
   const category = mapLabelsToPipelineCategory(topLabels)
 
   return { category, topLabels }

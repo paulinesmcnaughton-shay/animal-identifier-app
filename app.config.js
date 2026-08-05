@@ -22,6 +22,11 @@ function envString(name) {
   return raw.replace(/^['"]|['"]$/g, '').trim()
 }
 
+// Set APP_ENV=production in the EAS production build profile so dev-only
+// tooling (expo-dev-client, local-network permissions) stays out of the
+// binary App Review sees.
+const isProduction = process.env.APP_ENV === 'production'
+
 module.exports = {
   name: 'WildKind',
   slug: 'wildkind',
@@ -34,6 +39,7 @@ module.exports = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.pauline.wildkind',
+    buildNumber: '1',
     usesAppleSignIn: true,
     infoPlist: {
       NSCameraUsageDescription: 'WildKind uses your camera to identify animals and plants in the wild.',
@@ -41,14 +47,21 @@ module.exports = {
       NSPhotoLibraryAddUsageDescription: 'Save WildKind photos to your library.',
       NSLocationWhenInUseUsageDescription: 'WildKind tags your sightings with where you saw them and shows nearby species.',
       NSMicrophoneUsageDescription: 'WildKind records nearby animal calls to help identification.',
-      NSLocalNetworkUsageDescription:
-        'WildKind connects to the development server on your local network while you are building the app.',
-      NSBonjourServices: ['_expo._tcp'],
+      // App uses only standard HTTPS encryption, so it qualifies for the exemption.
+      ITSAppUsesNonExemptEncryption: false,
+      ...(isProduction
+        ? {}
+        : {
+            NSLocalNetworkUsageDescription:
+              'WildKind connects to the development server on your local network while you are building the app.',
+            NSBonjourServices: ['_expo._tcp'],
+          }),
       MBXAccessToken: process.env.MAPBOX_ACCESS_TOKEN ?? '',
     },
   },
   android: {
     package: 'com.pauline.wildkind',
+    versionCode: 1,
     adaptiveIcon: {
       backgroundColor: '#1a3d2b',
       foregroundImage: './assets/images/WildKind-app-icon.png',
@@ -64,7 +77,7 @@ module.exports = {
   },
   plugins: [
     withDisableUserScriptSandboxing,
-    'expo-dev-client',
+    ...(isProduction ? [] : ['expo-dev-client']),
     'expo-secure-store',
     'expo-router',
     'expo-apple-authentication',
@@ -109,14 +122,6 @@ module.exports = {
   },
   extra: {
     mapboxToken: process.env.MAPBOX_ACCESS_TOKEN ?? '',
-    anthropicApiKey: envString('ANTHROPIC_API_KEY'),
-    openAiApiKey: envString('OPENAI_API_KEY'),
-    googleVisionApiKey: envString('GOOGLE_VISION_API_KEY'),
-    // Google Programmable Search (Custom Search JSON API) — reference-image fallback.
-    // Needs an API key AND a search-engine id (cx) with Image search enabled.
-    googleSearchApiKey: envString('GOOGLE_SEARCH_API_KEY') || envString('GOOGLE_VISION_API_KEY'),
-    googleSearchCx: envString('GOOGLE_SEARCH_CX'),
-    plantnetApiKey: envString('PLANTNET_API_KEY'),
     SUPABASE_URL: envString('SUPABASE_URL') || 'https://wiysesftlprovkpouvqu.supabase.co',
     SUPABASE_PUBLISHABLE_KEY:
       envString('SUPABASE_PUBLISHABLE_KEY') ||

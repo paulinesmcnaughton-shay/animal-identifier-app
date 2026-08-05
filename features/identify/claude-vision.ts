@@ -1,42 +1,6 @@
-import Constants from 'expo-constants'
-
+import { canUseAiGateway, invokeAiGateway } from './ai-gateway'
 import { readImageBase64 } from './read-image-base64'
 import { IdentifyError } from './types'
-
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
-const CLAUDE_MODELS = ['claude-sonnet-4-5-20251001', 'claude-haiku-4-5-20251001'] as const
-const ANTHROPIC_VERSION = '2023-06-01'
-
-const DOMESTIC_BREED_PROMPT = `You are an expert dog and cat breed identifier.
-Identify the exact breed in this photo.
-Respond ONLY with JSON, no preamble:
-{
-  "commonName": "Pembroke Welsh Corgi",
-  "latinName": "Canis lupus familiaris",
-  "kingdom": "Mammalia",
-  "confidence": 0.92,
-  "isDomestic": true,
-  "isGeneric": false
-}
-Set isGeneric: true only if you cannot identify a specific breed.
-Set confidence between 0 and 1.
-If you truly cannot identify anything, set commonName to "Unknown" and confidence to 0.`
-
-const WILD_SPECIES_PROMPT = `You are an expert animal and species identifier.
-Identify the exact species in this photo — including wild animals, domestic pets (dogs, cats), birds, insects, reptiles, and plants.
-Respond ONLY with JSON:
-{
-  "commonName": "Pembroke Welsh Corgi",
-  "latinName": "Canis lupus familiaris",
-  "kingdom": "Mammalia",
-  "confidence": 0.92,
-  "isDomestic": true,
-  "isGeneric": false
-}
-Set isDomestic: true for dogs, cats, and other domestic pets. Set isDomestic: false for wild species.
-Set isGeneric: true if you can only identify a general category without a specific species.
-Set confidence between 0 and 1.
-If you truly cannot identify anything, set commonName to "Unknown" and confidence to 0.`
 
 export type ClaudeVisionMode = 'domestic_breed' | 'wild_species'
 
@@ -49,18 +13,8 @@ export interface ClaudeIdentPayload {
   isGeneric: boolean
 }
 
-function getApiKey(): string {
-  const key = Constants.expoConfig?.extra?.anthropicApiKey
-  if (typeof key !== 'string') return ''
-  return key.replace(/\s/g, '').trim()
-}
-
 export function canUseClaudeVision(): boolean {
-  return getApiKey().length > 0
-}
-
-function systemPromptForMode(mode: ClaudeVisionMode): string {
-  return mode === 'domestic_breed' ? DOMESTIC_BREED_PROMPT : WILD_SPECIES_PROMPT
+  return canUseAiGateway()
 }
 
 function parseClaudePayload(text: string, mode: ClaudeVisionMode): ClaudeIdentPayload {
@@ -93,77 +47,18 @@ export async function identifyWithClaudeVision(
   uri: string,
   mode: ClaudeVisionMode,
 ): Promise<ClaudeIdentPayload> {
-  const apiKey = getApiKey()
-  if (!apiKey) {
-    throw new IdentifyError('Add ANTHROPIC_API_KEY to .env to identify species.', 'NO_TOKEN')
-  }
-
   const base64 = await readImageBase64(uri)
-  const userText =
-    mode === 'domestic_breed'
-      ? 'Identify the dog or cat breed in this image.'
-      : 'Identify the species in this image.'
+  const { text } = await invokeAiGateway<{ text?: string }>({
+    action: 'claude_identify',
+    imageBase64: base64,
+    mode,
+  })
 
-  let lastError: IdentifyError | null = null
-
-  for (const model of CLAUDE_MODELS) {
-    let res: Response
-    try {
-      res = await fetch(ANTHROPIC_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': ANTHROPIC_VERSION,
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 256,
-          system: systemPromptForMode(mode),
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'image',
-                  source: {
-                    type: 'base64',
-                    media_type: 'image/jpeg',
-                    data: base64,
-                  },
-                },
-                { type: 'text', text: userText },
-              ],
-            },
-          ],
-        }),
-      })
-    } catch {
-      throw new IdentifyError('Network error — check Wi‑Fi and try again.', 'NETWORK')
-    }
-
-    const json = (await res.json()) as {
-      error?: { message?: string; type?: string }
-      content?: Array<{ type?: string; text?: string }>
-    }
-
-    if (!res.ok) {
-      const message = json.error?.message ?? `Claude API ${res.status}`
-      if (__DEV__) console.warn(`[WildKind Claude] ${model} failed:`, message)
-      lastError = new IdentifyError(message, 'API')
-      continue
-    }
-
-    const text = json.content?.find((block) => block.type === 'text')?.text
-    if (!text) {
-      lastError = new IdentifyError('Claude returned an empty response.', 'API')
-      continue
-    }
-
-    if (__DEV__) console.log(`[WildKind Claude] ${model} raw:`, text)
-
-    return parseClaudePayload(text, mode)
+  if (!text) {
+    throw new IdentifyError('Claude returned an empty response.', 'API')
   }
 
-  throw lastError ?? new IdentifyError('Claude vision is unavailable right now.', 'API')
+  if (__DEV__) console.log('[WildKind Claude] raw:', text)
+
+  return parseClaudePayload(text, mode)
 }

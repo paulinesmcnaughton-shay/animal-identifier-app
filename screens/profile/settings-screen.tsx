@@ -170,13 +170,6 @@ export function SettingsScreenContent() {
             action={{ type: 'chevron', onPress: () => router.push('/settings-account') }}
           />
           <SettingsRow
-            icon="star"
-            iconBg={colors.coral}
-            title="WildKind Pro"
-            subtitle="Unlock unlimited IDs & sounds"
-            action={{ type: 'chevron', onPress: () => router.push('/settings-wildkind-pro') }}
-          />
-          <SettingsRow
             icon="notifications"
             iconBg={colors.sun}
             title="Notifications"
