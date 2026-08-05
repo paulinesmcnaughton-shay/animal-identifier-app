@@ -38,7 +38,7 @@ module.exports = {
   newArchEnabled: true,
   ios: {
     supportsTablet: true,
-    bundleIdentifier: 'com.celestialworks.wildkind',
+    bundleIdentifier: 'com.wildkind.app',
     buildNumber: '1',
     usesAppleSignIn: true,
     infoPlist: {
@@ -60,7 +60,7 @@ module.exports = {
     },
   },
   android: {
-    package: 'com.celestialworks.wildkind',
+    package: 'com.wildkind.app',
     versionCode: 1,
     adaptiveIcon: {
       backgroundColor: '#1a3d2b',
