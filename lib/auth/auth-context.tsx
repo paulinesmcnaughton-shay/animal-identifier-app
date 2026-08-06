@@ -142,8 +142,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const supabase = getSupabaseClient()
     let mounted = true
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
 
     const finishLoading = () => {
+      if (timeoutId) clearTimeout(timeoutId)
       if (mounted) setIsLoading(false)
     }
 
@@ -153,16 +155,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(demoSession)
         void syncLoggedInFlag(demoSession).finally(finishLoading)
         if (demoSession?.user?.email) {
-          void ensureUserAvatar(demoSession.user.email)
+          void ensureUserAvatar(demoSession.user.email).catch(() => {})
         }
       })
       return () => {
         mounted = false
+        if (timeoutId) clearTimeout(timeoutId)
       }
     }
 
+    // Set a timeout to prevent auth initialization from hanging indefinitely
+    timeoutId = setTimeout(() => {
+      if (mounted) {
+        if (__DEV__) console.warn('[auth] getSession timed out, using demo session')
+        void restoreDemoSession().then((demoSession) => {
+          if (mounted) {
+            setSession(demoSession)
+            void syncLoggedInFlag(demoSession).finally(() => {
+              if (mounted) setIsLoading(false)
+            })
+          }
+        })
+      }
+    }, 5000)
+
     void supabase.auth.getSession().then(async ({ data, error }) => {
       if (!mounted) return
+      if (timeoutId) clearTimeout(timeoutId)
       if (error) console.warn('[auth] getSession failed:', error.message)
 
       const demoSession = data.session ? null : await restoreDemoSession()
@@ -179,9 +198,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           if (__DEV__) console.warn('[WildKind] profile sync failed:', error)
         }
-        await ensureUserAvatar(activeSession.user.email)
+        await ensureUserAvatar(activeSession.user.email).catch(() => {})
       } else if (mounted) {
         setIsLoading(false)
+      }
+    }).catch((error) => {
+      if (__DEV__) console.warn('[auth] getSession error:', error)
+      if (mounted && timeoutId) {
+        clearTimeout(timeoutId)
+        void restoreDemoSession().then((demoSession) => {
+          if (mounted) {
+            setSession(demoSession)
+            void syncLoggedInFlag(demoSession).finally(() => {
+              if (mounted) setIsLoading(false)
+            })
+          }
+        })
       }
     })
 
@@ -191,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false
+      if (timeoutId) clearTimeout(timeoutId)
       subscription.subscription.unsubscribe()
     }
   }, [commitAuthenticatedSession, handleAuthSessionChange])
