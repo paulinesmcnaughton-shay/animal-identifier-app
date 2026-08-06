@@ -29,7 +29,7 @@ const isProduction = process.env.APP_ENV === 'production'
 
 module.exports = {
   name: 'WildKind',
-  slug: 'wildkind',
+  slug: 'wildkind-mobile',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/images/WildKind-app-icon-store.png',
