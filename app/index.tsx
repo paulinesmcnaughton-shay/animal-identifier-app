@@ -78,8 +78,9 @@ export default function RootIndex() {
       }
 
       await syncAccountProfileFromAuth(user)
-      await ensureUserAvatar(user.email)
-      void cacheAllShufflePresets()
+      // Temporarily disabled to debug splash screen hang
+      // await ensureUserAvatar(user.email)
+      // void cacheAllShufflePresets()
       setBootReady(true)
     })()
   }, [authLoading, isAuthenticated, user])
