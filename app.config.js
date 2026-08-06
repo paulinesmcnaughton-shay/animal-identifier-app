@@ -121,9 +121,6 @@ module.exports = {
     typedRoutes: true,
   },
   extra: {
-    eas: {
-      projectId: 'd91a4193-aa83-43f3-a534-88d13a6bd716',
-    },
     mapboxToken: process.env.MAPBOX_ACCESS_TOKEN ?? '',
     SUPABASE_URL: envString('SUPABASE_URL') || 'https://wiysesftlprovkpouvqu.supabase.co',
     SUPABASE_PUBLISHABLE_KEY:
